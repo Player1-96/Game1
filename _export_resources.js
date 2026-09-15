@@ -72,7 +72,9 @@ const PERK_CN = {
       // 数值型堆叠到 n 层时的合计口径（功能型走 up[] 进阶文案）
       tally2: ITEM_TALLY[d.id] ? ITEM_TALLY[d.id](2) : '',
       tally3: ITEM_TALLY[d.id] ? ITEM_TALLY[d.id](3) : '',
-      byStyle: d.byStyle ? JSON.parse(JSON.stringify(d.byStyle)) : null
+      byStyle: d.byStyle ? JSON.parse(JSON.stringify(d.byStyle)) : null,
+      // 个别法宝连「进阶效果」都分流派（如玄元镜在舞剑流下改走照影）
+      upByStyle: d.upByStyle ? JSON.parse(JSON.stringify(d.upByStyle)) : null
     }));
 
     /* ---------- 3. 妖物 ---------- */
@@ -252,7 +254,7 @@ const PERK_CN = {
     });
     const ults = Object.keys(ULT_DEF).map(k => {
       const U = ULT_DEF[k];
-      return { id: U.id, style: U.style, name: U.name, en: U.en, desc: U.desc, cd: ULT_CD_BASE, base: U.base };
+      return { id: U.id, style: U.style, name: U.name, en: U.en, desc: U.desc, cd: U.cd || ULT_CD_BASE, base: U.base };
     });
     const ultPaths = [];
     for (const st of Object.keys(ULT_PATH)) {
@@ -267,7 +269,7 @@ const PERK_CN = {
       MP_MAX: MP_MAX, MP_REGEN: MP_REGEN, MP_START: MP_START,
       MP_DROP_RATE: MP_DROP_RATE, MP_ELITE_DROP: MP_ELITE_DROP, MP_BOSS_PHASE: MP_BOSS_PHASE,
       SLOT_COUNT: SLOT_COUNT, SKILL_MAX_LV: SKILL_MAX_LV, SKILL_GCD: SKILL_GCD,
-      ULT_CD_BASE: ULT_CD_BASE, ULT_PATH_MAX: ULT_PATH_MAX,
+      ULT_CD_BASE: ULT_CD_BASE, ULT_CD_MIN: ULT_CD_MIN, ULT_PATH_MAX: ULT_PATH_MAX,
       // 开局自然回复为 0，涓流全靠「回灵符」法宝（每份 +1/秒）；为 0 时不给帧数，免得导出成 Infinity
       mpRegenPerCopy: 1,
       mpTickFrames: MP_REGEN > 0 ? Math.round(60 / MP_REGEN) : 0,

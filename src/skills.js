@@ -5,7 +5,8 @@
  *  小技能（原「功法」）：最多存 3 个，按 1/2/3 切换、Q 释放，消耗灵力。
  *                       重复拾到同一个 → 升 1 级（上限 5 级，仅增强不涨价）。
  *                       槽位已满又拾到新的 → 弹出替换界面，换上的从 1 级起算。
- *  专属技能：首次斩杀精英自动获得本流派专属技，空格释放。
+ *  专属技能：空格释放。飞剑 / 巨剑流首次斩杀精英自动获得（基础冷却 30 秒）；
+ *            舞剑流是纯近战，开局即自带（基础冷却 15 秒，见 ULT_DEF.wujian.cd）。
  *            之后再斩精英 → 三选一升级（每条路线 3 级）。
  *
  *  本文件只放数据与纯逻辑，具体释放效果写在 cast() 里，
@@ -24,7 +25,8 @@ const MP_START = 40;       // 开局灵力
 const SLOT_COUNT = 3;      // 小技能槽位数
 const SKILL_MAX_LV = 5;    // 小技能满级
 const SKILL_GCD = 30;      // 小技能公共冷却（帧）——只防连点，不限制节奏
-const ULT_CD_BASE = 1800;  // 专属技能基础冷却 30 秒
+const ULT_CD_BASE = 1800;  // 专属技能基础冷却 30 秒（单个流派可在 ULT_DEF 里用 cd 覆盖）
+const ULT_CD_MIN = 480;    // 冷却下限 8 秒：升级路线怎么叠都不许短过这条线
 const ULT_PATH_MAX = 3;    // 每条升级路线的上限等级
 
 /* ------------------------------------------------------------
@@ -255,6 +257,7 @@ const ULT_DEF = {
   wujian: {
     id: 'wujian', style: 'wujian', name: '剑影三叠', en: 'TRIPLE GLEAM',
     icon: 'sword', c1: PAL.jadeL, c2: PAL.cyan,
+    cd: 900,                 // 开局即自带，冷却压到 15 秒（其余流派仍是 ULT_CD_BASE）
     desc: '按住蓄势、松手朝指针突进斩击；蓄势越久突进越远，突进无敌，命中即可接续下一段',
     /* 一段突进斩 → 二段伤害 +20% → 三段五连斩且必定暴击。
        蓄势期间被打断则剑势溃散，技能立刻进冷却 —— 这是本流派唯一的赌注。 */
@@ -313,8 +316,9 @@ const ULT_PATH = {
               '连段窗口 +90 帧（共约 2.9 秒）'] },
     { id: 'guard', name: '剑罡护体', en: 'GUARD', val: [30, 60, 90],
       descs: ['突进结束后无敌 0.5 秒', '突进结束后无敌 1 秒', '突进结束后无敌 1.5 秒'] },
-    { id: 'haste', name: '剑意不绝', en: 'HASTE', val: [240, 480, 720],
-      descs: ['专属冷却 −4 秒', '再 −4 秒（共 22 秒）', '再 −4 秒（共 18 秒）'] }
+    { id: 'haste', name: '剑意不绝', en: 'HASTE', val: [120, 240, 360],
+      descs: ['专属冷却 −2 秒（15 → 13 秒）', '再 −2 秒（共 −4 秒，11 秒）',
+              '再 −2 秒（共 −6 秒，9 秒）'] }
   ]
 };
 const ULT_PATH_KEYS = {};
@@ -333,7 +337,9 @@ function ultPathVal(ult, style, pathId) {
 }
 /* 专属技能冷却（帧）：基础 30 秒减去「剑意不绝」的缩减 */
 function ultCdOf(ult, style) {
-  return Math.max(600, ULT_CD_BASE - ultPathVal(ult, style, 'haste'));
+  const D = ULT_DEF[style];
+  const base = (D && D.cd) || ULT_CD_BASE;      // 舞剑流开局即自带，基础冷却压到 15 秒
+  return Math.max(ULT_CD_MIN, base - ultPathVal(ult, style, 'haste'));
 }
 /* 专属显示等级 = 1 + 已学路线总级数 */
 function ultLevel(ult) {

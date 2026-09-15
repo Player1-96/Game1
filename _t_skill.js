@@ -856,6 +856,25 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
       out.tapCharging = s.wjCharging;
       out.tapDashing = s.dashing;
       out.chargeMin = WJ.chargeMin;
+
+      // ---- 开局自带：舞剑流直接给专属技，其它流派仍是首杀精英才得 ----
+      G.newRun('wujian');
+      out.bootUlt = !!G.player.ult;
+      out.bootName = G.player.ult ? ULT_DEF.wujian.name : '';
+      out.bootCd0 = G.player.ultCd;               // 开局不转冷却，马上能用
+      const bu = G.player;
+      bu.invuln = 9999; G.enemies.length = 0;
+      inp.mouseSeen = true; inp.mx = 240; inp.my = 60;
+      G.useUlt();
+      bu.wjChargeT = WJ.charge;                   // 直接按蓄满处理，不跑帧
+      G.ultUp();
+      out.bootCastCd = Math.round(bu.ultCd);      // 释放那一刻就计的冷却
+      out.wjCdBase = ultCdOf(bu.ult, 'wujian');
+      out.feijianCdBase = ULT_CD_BASE;
+      G.newRun('feijian');
+      out.feijianBootUlt = !!G.player.ult;
+      G.newRun('jujian');
+      out.jujianBootUlt = !!G.player.ult;
       return out;
     });
     ok('按下空格先起势而非直接突进', r.charging === true);
@@ -876,13 +895,13 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
        `二段单段 ${r.stage2Dmg} → 五连斩合计 ${r.stage3Dmg}（×${(r.stage3Dmg / r.stage2Dmg).toFixed(2)}）`);
     ok('打完三段后段位归零', r.afterStage3 === 0, 'stage=' + r.afterStage3);
     ok('落空不加段位', r.missStage === 0, 'stage=' + r.missStage);
-    ok('落空照走完整冷却', r.missCd > 1700, r.missCd + ' 帧 ≈ ' + (r.missCd / 60).toFixed(1) + ' 秒');
+    ok('落空照走完整冷却', r.missCd > 850, r.missCd + ' 帧 ≈ ' + (r.missCd / 60).toFixed(1) + ' 秒');
     ok('命中后确实点亮了连段窗口', r.litStage === 1 && r.litCd === 0, `${r.litStage} / cd=${r.litCd}`);
     ok('窗口内不接招 → 连招中断、冷却回满',
-       r.expiredStage === 0 && r.expiredCd > 1700,
+       r.expiredStage === 0 && r.expiredCd > 850,
        `stage=${r.expiredStage} cd=${r.expiredCd}`);
     ok('蓄势中挨打 → 剑势溃散', r.interrupted === true);
-    ok('被打断后技能立刻进冷却', r.cdAfterInterrupt === 1800, r.cdAfterInterrupt + ' 帧 = 30 秒');
+    ok('被打断后技能立刻进冷却', r.cdAfterInterrupt === 900, r.cdAfterInterrupt + ' 帧 = 15 秒');
     ok('极短点击（< chargeMin）算误触：收势、不动、不收冷却',
        r.tapCd === 0 && r.tapCharging === false && r.tapDashing === false,
        `cd=${r.tapCd} charging=${r.tapCharging} dashing=${r.tapDashing}（chargeMin=${r.chargeMin}）`);
@@ -906,6 +925,14 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     ok('突进撞墙会提前收势（不贴墙滑完无敌时长）',
        r.wallFrames < r.wallFullT && r.wallX >= 435,
        `撞墙只突进 ${r.wallFrames} 帧（满蓄本应 ${r.wallFullT} 帧），停在 x=${r.wallX}`);
+    ok('舞剑流开局即自带专属技', r.bootUlt === true && r.bootName === '剑影三叠',
+       `${r.bootName}（开局冷却 ${r.bootCd0}）`);
+    ok('开局即可施展，专属冷却压到 15 秒（900 帧）',
+       r.bootCastCd === 900 && r.wjCdBase === 900,
+       `释放时 cd=${r.bootCastCd} 帧，基准=${r.wjCdBase} 帧`);
+    ok('其它流派开局仍无专属技（首杀精英才得）',
+       r.feijianBootUlt === false && r.jujianBootUlt === false,
+       `feijian=${r.feijianBootUlt} jujian=${r.jujianBootUlt}（飞剑基准 ${r.feijianCdBase} 帧）`);
   }
 
   /* ---------------- T18 舞剑流向的两门功法 ---------------- */

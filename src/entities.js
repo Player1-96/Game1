@@ -96,6 +96,31 @@ function wjDamage(pl, stage, guaranteed) {
 }
 
 /* ------------------------------------------------------------
+ *  照影（玄元镜在舞剑流下的形态）
+ *  被剑罡斩中的术法不再湮灭，而是掉头打回去 —— 弹幕越密，回敬越狠。
+ *  · 方向优先取最近的妖物，近旁没目标就沿原路返回
+ *  · 伤害按玩家伤害折算，镜阶越高回得越重（1 阶 ×1.3 → 3 阶 ×2.3）
+ *  · 补一点自导与穿透，免得掉头之后擦肩而过
+ * ---------------------------------------------------------- */
+function reflectBullet(b, pl, g) {
+  const s = pl.stats;
+  const t = g.nearestEnemy(b.x, b.y, 320, null);
+  const a = t ? Math.atan2(t.y - b.y, t.x - b.x) : Math.atan2(-b.vy, -b.vx);
+  const sp = Math.max(6, Math.hypot(b.vx, b.vy) * 1.5);
+  b.friendly = true;
+  b.reflected = true;
+  b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp;
+  b.dmg = s.damage * (0.8 + 0.5 * s.reflect);
+  b.crit = Math.random() < (s.crit || 0);
+  b.pierce = Math.max(b.pierce, s.reflect - 1);   // 镜阶越高，回敬的术法穿得越多
+  b.knockback = Math.max(b.knockback, 2.5);
+  b.homing = Math.max(b.homing, 0.05);
+  b.hit.clear();
+  b.life = Math.max(b.life, 100);
+  g.burst(b.x, b.y, 8, PAL.cyan);
+}
+
+/* ------------------------------------------------------------
  *  粒子
  * ---------------------------------------------------------- */
 class Particle {
@@ -148,6 +173,7 @@ class Bullet {
     this.deflect = opt.deflect || 0;
     this.kind = opt.kind || 'sword';
     this.sprite = opt.sprite || SPR.sword;
+    this.reflected = false;      // 被「照影」打回去的术法：加一圈青光以便和敌弹区分
     this.hit = new Set();
     this.dead = false;
     this.spin = 0;
@@ -222,6 +248,18 @@ class Bullet {
   }
   draw(g2) {
     const s = this.sprite;
+    if (this.reflected) {
+      // 照影：被打回去的术法裹一圈脉动青光，免得跟敌弹看混
+      const k = 1 + Math.sin(this.spin * 0.8) * 0.18;
+      g2.save();
+      g2.globalAlpha = 0.30;
+      g2.fillStyle = PAL.cyan;
+      g2.beginPath(); g2.arc(this.x, this.y, this.r * 1.15 * k, 0, Math.PI * 2); g2.fill();
+      g2.globalAlpha = 0.65;
+      g2.strokeStyle = PAL.cyan; g2.lineWidth = 1;
+      g2.beginPath(); g2.arc(this.x, this.y, this.r * 1.6 * k, 0, Math.PI * 2); g2.stroke();
+      g2.restore();
+    }
     if (this.kind === 'sword' || this.kind === 'jujian' || this.kind === 'rift') {
       const hw = s.width / 2, hh = s.height / 2;
       const ang = Math.atan2(this.vy, this.vx);
@@ -622,7 +660,7 @@ class Enemy {
       p.ultCd = 0;
       g.floaters.push(new Floater(ex, ey - 40, '得 ' + UD.name, PAL.gold));
       g.floaters.push(new Floater(ex, ey - 58, '空格 施展', PAL.goldL));
-      g.itemPopup = { def: { id: 'ult_' + g.style, type: 'ult', name: UD.name, desc: UD.desc, cd: ULT_CD_BASE }, t: 240, rank: 0 };
+      g.itemPopup = { def: { id: 'ult_' + g.style, type: 'ult', name: UD.name, desc: UD.desc, cd: ultCdOf(p.ult, g.style) }, t: 240, rank: 0 };
       g.shake(10);
       SFX.levelup();
     } else {
@@ -1166,7 +1204,7 @@ class Player {
       damage: 3.5, fireRate: 2.6, speed: 2.35, shotSpeed: 6.4, range: 210,
       pierce: 0, spread: 0, homing: 0, homingRange: 220, knockback: 0.8, luck: 0,
       burn: 0, frost: 0, chain: 0, iframe: 62, greed: 0, crit: 0,
-      poison: 0, regen: 0, soul: 0, deflect: 0, fly: false, mpRegen: MP_REGEN
+      poison: 0, regen: 0, soul: 0, deflect: 0, reflect: 0, fly: false, mpRegen: MP_REGEN
     };
   }
   heal(n) { this.hp = Math.min(this.maxHP, this.hp + n); }
@@ -1228,12 +1266,12 @@ class Player {
       this.items.push(id);
       if (def.func) {
         // 功能型：重复拿到即进阶，数值与文案都随阶数变化
-        def.apply(this, rank);
+        def.apply(this, rank, g.style);
         if (rank > 0) g.floaters.push(new Floater(this.x, this.y - 20, 'UPGRADE', PAL.goldL));
       } else {
         // 数值型：可以重复，效果直接叠加，另给一点精炼补偿
         if (rank > 0) { this.stats.damage += 0.5; g.floaters.push(new Floater(this.x, this.y - 20, 'REFINED', PAL.jade)); }
-        def.apply(this, rank);
+        def.apply(this, rank, g.style);
       }
       g.itemPopup = { def, t: 160, rank: rank };
       SFX.pickup();
@@ -1710,7 +1748,7 @@ const STYLES = {
       knockback: '命中击退',
       homing: '飞剑自动追敌',
       burn: '灼烧', frost: '冰封', chain: '引雷连锁',
-      crit: '暴击几率', deflect: '击落敌方术法'
+      crit: '暴击几率', deflect: '击落敌方术法', reflect: null
     },
     attack(pl, g, input) {
       if (!input.shooting || pl.shootCd > 0) return;
@@ -1754,7 +1792,7 @@ const STYLES = {
       knockback: '击退（随段位加重）',
       homing: '巨剑自动追敌',
       burn: '灼烧', frost: '冰封', chain: '引雷连锁',
-      crit: '暴击几率', deflect: '击落敌方术法'
+      crit: '暴击几率', deflect: '击落敌方术法', reflect: null
     },
     /* 蓄力速度：射速按基准折算，灵犀玉佩蓄得更快、玄铁重剑蓄得更慢 */
     chargeRate(s, pl) {
@@ -1855,7 +1893,8 @@ const STYLES = {
       homing: '突进时自动偏转追向最近的妖物',
       burn: '灼烧', frost: '冰封', chain: '引雷连锁',
       crit: '暴击几率',
-      deflect: '近战体质本就斩落周身术法；每点再扩大斩落的范围'
+      deflect: null,   // 玄元镜在本流派下改走 reflect，不再叠加斩落半径
+      reflect: '玄元镜化名「照影镜」：斩中的术法原样打回去'
     },
     /* 蓄势速度：与巨剑流同一口径（fireRate / 基准），
        升级路线「凝神聚气」再乘一层，故射速法宝在舞剑流同样两头都吃到 */
@@ -1909,11 +1948,13 @@ const STYLES = {
       }
       // 剑罡：近战体质本身就斩得落周身的术法，不必等法宝 ——
       // 这是舞剑流对弹幕的正面答案，也是它敢贴脸的底气。
-      // 「剑气护体」这类法宝每点再扩大斩落半径。
-      const dr = reach + C.deflectR + s.deflect * 4;
+      // 拿到「玄元镜」（本流派化名「照影镜」）后，斩中的术法不再就地湮灭，
+      // 而是掉头打回去；没拿到则只是斩落。
+      const dr = reach + C.deflectR;
       for (const b of g.bullets) {
         if (b.friendly || b.dead) continue;
         if (!circleHit(pl.x, pl.y - 2, dr, b.x, b.y, b.r)) continue;
+        if (s.reflect > 0) { reflectBullet(b, pl, g); continue; }
         b.dead = true; g.burst(b.x, b.y, 9, PAL.cyan);
       }
       g.slashes.push(new Slash(pl.x, pl.y, a, arc, reach,
@@ -2112,7 +2153,7 @@ const STYLES = {
       pierce: null,
       knockback: '击退',
       homing: null, burn: '灼烧', frost: '冰封', chain: '引雷连锁',
-      crit: '暴击几率', deflect: '击落敌方术法'
+      crit: '暴击几率', deflect: '击落敌方术法', reflect: null
     },
     attack: null
   }
@@ -2120,7 +2161,7 @@ const STYLES = {
 
 /* 死属性检查：某个 stats 在本流派下既没写进 use、也没写 null，就说明漏了 */
 const STAT_KEYS = ['damage', 'fireRate', 'spread', 'range', 'pierce', 'knockback',
-  'homing', 'burn', 'frost', 'chain', 'crit', 'deflect'];
+  'homing', 'burn', 'frost', 'chain', 'crit', 'deflect', 'reflect'];
 function auditStyleCoverage() {
   const miss = [];
   for (const id in STYLES) {

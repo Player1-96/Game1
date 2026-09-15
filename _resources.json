@@ -25,6 +25,7 @@
    "regen": 0,
    "soul": 0,
    "deflect": 0,
+   "reflect": 0,
    "fly": false,
    "mpRegen": 0
   },
@@ -57,7 +58,8 @@
      "name": "青锋剑",
      "desc": "剑锋锋利，每次挥砍伤害 +1（突进连段同样吃到）"
     }
-   }
+   },
+   "upByStyle": null
   },
   {
    "id": "yujian",
@@ -85,7 +87,8 @@
      "name": "回风拂柳",
      "desc": "不分剑：挥砍弧度大幅加宽（+2 段弧度），单次伤害 -0.6"
     }
-   }
+   },
+   "upByStyle": null
   },
   {
    "id": "chuanyun",
@@ -113,7 +116,8 @@
      "name": "穿云梭",
      "desc": "一次挥砍可多命中 2 个妖物（基础 3 个 → 5 个）"
     }
-   }
+   },
+   "upByStyle": null
   },
   {
    "id": "hunyuan",
@@ -144,7 +148,8 @@
      "name": "缠丝珠",
      "desc": "突进自动偏向最近的妖物（转向 0.14 rad/帧，突进时会拐弯追人）"
     }
-   }
+   },
+   "upByStyle": null
   },
   {
    "id": "taixu",
@@ -159,7 +164,8 @@
    "rare": false,
    "tally2": "常驻灵力护盾 +4",
    "tally3": "常驻灵力护盾 +6",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "lingxi",
@@ -187,7 +193,8 @@
      "name": "灵犀玉佩",
      "desc": "挥砍速度 +35%，蓄势速度同步 +35%（一刀更快、蓄势更短）"
     }
-   }
+   },
+   "upByStyle": null
   },
   {
    "id": "fengxing",
@@ -202,7 +209,8 @@
    "rare": false,
    "tally2": "身法 ×1.56",
    "tally3": "身法 ×1.95",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "xuantie",
@@ -230,7 +238,8 @@
      "name": "玄铁重剑",
      "desc": "伤害 +3.5（挥砍与突进连段都吃到），但挥砍与蓄势 -20%"
     }
-   }
+   },
+   "upByStyle": null
   },
   {
    "id": "chiyan",
@@ -245,7 +254,8 @@
    "rare": false,
    "tally2": "灼烧层数 +4",
    "tally3": "灼烧层数 +6",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "hanbing",
@@ -263,7 +273,8 @@
    "rare": true,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "leifu",
@@ -278,7 +289,8 @@
    "rare": false,
    "tally2": "连锁 +2",
    "tally3": "连锁 +3",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "jingang",
@@ -293,7 +305,8 @@
    "rare": false,
    "tally2": "受创无敌 +80 帧",
    "tally3": "受创无敌 +120 帧",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "juling",
@@ -308,7 +321,8 @@
    "rare": false,
    "tally2": "灵石掉落 +4",
    "tally3": "灵石掉落 +6",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "qiankun",
@@ -323,7 +337,8 @@
    "rare": false,
    "tally2": "气运 +6",
    "tally3": "气运 +9",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "zhenhun",
@@ -351,7 +366,8 @@
      "name": "震岳铃",
      "desc": "挥砍击退大幅增强（基础击退 1.6，近战一刀推出半间屋）"
     }
-   }
+   },
+   "upByStyle": null
   },
   {
    "id": "tianyan",
@@ -369,7 +385,8 @@
    "rare": true,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "xiangyun",
@@ -387,7 +404,8 @@
    "rare": true,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "fenying",
@@ -415,7 +433,8 @@
      "name": "分影诀",
      "desc": "挥砍弧度更宽（+1 段弧度），单次伤害 -0.3"
     }
-   }
+   },
+   "upByStyle": null
   },
   {
    "id": "xuanyuan",
@@ -429,11 +448,30 @@
     "镜光如幕：击落范围再 +4，术法近身即散"
    ],
    "cd": 0,
-   "apply": "stats.deflect += 1",
+   "apply": "if (style === 'wujian') stats.reflect += 1; else stats.deflect += 1",
    "rare": true,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": {
+    "feijian": {
+     "name": "玄元镜",
+     "desc": "飞剑可击落敌方术法（范围随镜阶扩大）"
+    },
+    "jujian": {
+     "name": "玄元镜",
+     "desc": "巨剑扫过可击落敌方术法（范围随镜阶扩大）"
+    },
+    "wujian": {
+     "name": "照影镜",
+     "desc": "斩中的术法原样打回去（伤害 ×1.3），且自寻最近的妖物"
+    }
+   },
+   "upByStyle": {
+    "wujian": [
+     "照影更疾：打回去的术法伤害 ×1.8，并可多穿透 1 个妖物",
+     "照影如潮：伤害 ×2.3，回敬的术法可多穿透 2 个妖物"
+    ]
+   }
   },
   {
    "id": "shidu",
@@ -451,7 +489,8 @@
    "rare": true,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "jindan",
@@ -479,7 +518,8 @@
      "name": "金丹",
      "desc": "伤害 +0.8（挥砍与突进连段都吃到）、挥砍 +10%、身法 +8%、气运 +1"
     }
-   }
+   },
+   "upByStyle": null
   },
   {
    "id": "liuli",
@@ -494,7 +534,8 @@
    "rare": false,
    "tally2": "每清一室回 1.0 点气血",
    "tally3": "每清一室回 1.5 点气血",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "shehun",
@@ -512,7 +553,8 @@
    "rare": true,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "yuyi",
@@ -527,7 +569,8 @@
    "rare": false,
    "tally2": "常驻护盾 +2　身法 ×1.10",
    "tally3": "常驻护盾 +3　身法 ×1.16",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "huiling",
@@ -542,7 +585,8 @@
    "rare": false,
    "tally2": "灵力自然回复 +2/秒",
    "tally3": "灵力自然回复 +3/秒",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "huichun",
@@ -557,7 +601,8 @@
    "rare": false,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "lingdan",
@@ -572,7 +617,8 @@
    "rare": false,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "xisui",
@@ -587,7 +633,8 @@
    "rare": false,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "jinchuang",
@@ -602,7 +649,8 @@
    "rare": false,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "jingyuan",
@@ -617,7 +665,8 @@
    "rare": false,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "tianlei",
@@ -632,7 +681,8 @@
    "rare": false,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "suodi",
@@ -647,7 +697,8 @@
    "rare": false,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "wuxing",
@@ -662,7 +713,8 @@
    "rare": false,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "huti",
@@ -677,7 +729,8 @@
    "rare": false,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "qinlong",
@@ -692,7 +745,8 @@
    "rare": false,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   },
   {
    "id": "liekong",
@@ -707,7 +761,8 @@
    "rare": false,
    "tally2": "",
    "tally3": "",
-   "byStyle": null
+   "byStyle": null,
+   "upByStyle": null
   }
  ],
  "enemies": [
@@ -1421,21 +1476,21 @@
  "floors": [
   {
    "depth": 1,
-   "rooms": 13.8,
-   "normalRooms": 7.9,
-   "eliteRate": 43,
-   "secretRate": 43,
+   "rooms": 13.7,
+   "normalRooms": 8.1,
+   "eliteRate": 38,
+   "secretRate": 20,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 51,
    "sink": 60,
-   "reserve": 13,
-   "eliteMult": 2.44,
+   "reserve": 14,
+   "eliteMult": 2.48,
    "locks": 2,
-   "bombs": 1.5,
-   "enemies": 35.3,
-   "enemiesPerRoom": 4.5,
+   "bombs": 1.4,
+   "enemies": 35.1,
+   "enemiesPerRoom": 4.3,
    "hpScale": 1,
    "power": 1,
    "threat": 1,
@@ -1445,33 +1500,33 @@
   },
   {
    "depth": 2,
-   "rooms": 14.7,
-   "normalRooms": 8.6,
-   "eliteRate": 55,
-   "secretRate": 53,
+   "rooms": 14.8,
+   "normalRooms": 8.9,
+   "eliteRate": 50,
+   "secretRate": 45,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 57,
    "sink": 67,
-   "reserve": 13,
-   "eliteMult": 2.55,
+   "reserve": 14,
+   "eliteMult": 2.6,
    "locks": 2,
    "bombs": 1.4,
-   "enemies": 46.8,
+   "enemies": 47.9,
    "enemiesPerRoom": 5.4,
-   "hpScale": 1.58,
-   "power": 1.93,
-   "threat": 1.75,
-   "mult": 1.285,
-   "count": 1.069,
+   "hpScale": 1.57,
+   "power": 1.92,
+   "threat": 1.76,
+   "mult": 1.29,
+   "count": 1.07,
    "tag": "险"
   },
   {
    "depth": 3,
-   "rooms": 16,
-   "normalRooms": 9.8,
-   "eliteRate": 65,
+   "rooms": 16.1,
+   "normalRooms": 9.9,
+   "eliteRate": 60,
    "secretRate": 50,
    "treasureRate": 100,
    "shopRate": 100,
@@ -1479,71 +1534,71 @@
    "budget": 65,
    "sink": 76,
    "reserve": 14,
-   "eliteMult": 2.43,
+   "eliteMult": 2.49,
    "locks": 2,
-   "bombs": 1.5,
-   "enemies": 64.8,
+   "bombs": 1.6,
+   "enemies": 65.3,
    "enemiesPerRoom": 6.6,
-   "hpScale": 2.21,
-   "power": 2.98,
-   "threat": 3.08,
-   "mult": 1.659,
-   "count": 1.144,
+   "hpScale": 2.25,
+   "power": 3.09,
+   "threat": 3.2,
+   "mult": 1.688,
+   "count": 1.15,
    "tag": "危"
   },
   {
    "depth": 4,
-   "rooms": 15.6,
-   "normalRooms": 9.4,
-   "eliteRate": 68,
-   "secretRate": 53,
+   "rooms": 16.1,
+   "normalRooms": 10.1,
+   "eliteRate": 60,
+   "secretRate": 48,
    "treasureRate": 100,
    "shopRate": 100,
-   "sacrificeRate": 98,
+   "sacrificeRate": 100,
    "budget": 71,
    "sink": 83,
-   "reserve": 14,
-   "eliteMult": 2.58,
+   "reserve": 15,
+   "eliteMult": 2.56,
    "locks": 2,
-   "bombs": 1.6,
-   "enemies": 72.8,
-   "enemiesPerRoom": 7.8,
-   "hpScale": 3.07,
-   "power": 4.74,
-   "threat": 5.06,
-   "mult": 2.073,
-   "count": 1.215,
-   "tag": "绝"
+   "bombs": 1.4,
+   "enemies": 77,
+   "enemiesPerRoom": 7.7,
+   "hpScale": 2.89,
+   "power": 4.09,
+   "threat": 3.12,
+   "mult": 1.67,
+   "count": 1.146,
+   "tag": "危"
   },
   {
    "depth": 5,
-   "rooms": 15.8,
-   "normalRooms": 9.3,
-   "eliteRate": 83,
-   "secretRate": 63,
+   "rooms": 16.1,
+   "normalRooms": 9.4,
+   "eliteRate": 85,
+   "secretRate": 75,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 78,
    "sink": 92,
-   "reserve": 17,
-   "eliteMult": 2.43,
+   "reserve": 15,
+   "eliteMult": 2.55,
    "locks": 2,
    "bombs": 1.5,
-   "enemies": 80,
-   "enemiesPerRoom": 8.6,
-   "hpScale": 3.74,
-   "power": 5.78,
-   "threat": 6.49,
-   "mult": 2.32,
-   "count": 1.252,
-   "tag": "绝"
+   "enemies": 80.6,
+   "enemiesPerRoom": 8.5,
+   "hpScale": 3.77,
+   "power": 5.84,
+   "threat": 3.65,
+   "mult": 1.791,
+   "count": 1.168,
+   "tag": "危"
   },
   {
    "depth": 6,
-   "rooms": 16.2,
-   "normalRooms": 9.5,
-   "eliteRate": 90,
+   "rooms": 16.1,
+   "normalRooms": 9.4,
+   "eliteRate": 98,
    "secretRate": 75,
    "treasureRate": 100,
    "shopRate": 100,
@@ -1551,16 +1606,16 @@
    "budget": 84,
    "sink": 99,
    "reserve": 16,
-   "eliteMult": 2.52,
+   "eliteMult": 2.45,
    "locks": 2,
-   "bombs": 1.6,
-   "enemies": 87.6,
-   "enemiesPerRoom": 9.2,
-   "hpScale": 4.71,
-   "power": 7.57,
-   "threat": 10.49,
-   "mult": 2.88,
-   "count": 1.326,
+   "bombs": 1.5,
+   "enemies": 87.1,
+   "enemiesPerRoom": 9.3,
+   "hpScale": 4.65,
+   "power": 7.56,
+   "threat": 6.12,
+   "mult": 2.259,
+   "count": 1.243,
    "tag": "绝"
   }
  ],
@@ -1924,7 +1979,7 @@
    "name": "剑影三叠",
    "en": "TRIPLE GLEAM",
    "desc": "按住蓄势、松手朝指针突进斩击；蓄势越久突进越远，突进无敌，命中即可接续下一段",
-   "cd": 1800,
+   "cd": 900,
    "base": {
     "dash": 185,
     "dashMin": 74,
@@ -2267,15 +2322,15 @@
    "en": "HASTE",
    "maxLv": 3,
    "vals": [
+    120,
     240,
-    480,
-    720
+    360
    ],
    "dur": null,
    "descs": [
-    "专属冷却 −4 秒",
-    "再 −4 秒（共 22 秒）",
-    "再 −4 秒（共 18 秒）"
+    "专属冷却 −2 秒（15 → 13 秒）",
+    "再 −2 秒（共 −4 秒，11 秒）",
+    "再 −2 秒（共 −6 秒，9 秒）"
    ]
   }
  ],
@@ -2290,11 +2345,12 @@
   "SKILL_MAX_LV": 5,
   "SKILL_GCD": 30,
   "ULT_CD_BASE": 1800,
+  "ULT_CD_MIN": 480,
   "ULT_PATH_MAX": 3,
   "mpRegenPerCopy": 1,
   "mpTickFrames": 0,
   "SHIELD_DUR": 300
  },
- "exportedAt": "2026-09-15 02:39:13",
+ "exportedAt": "2026-09-15 09:51:22",
  "errs": []
 }

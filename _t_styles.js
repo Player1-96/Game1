@@ -265,6 +265,44 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     };
     out.chargeBase = charge(null);
     out.chargeFast = charge(q => { q.stats.fireRate *= 1.35; });
+
+    // ---- 玄元镜在舞剑流下转为「照影」：斩中的术法掉头打回去 ----
+    G.newRun('wujian');
+    const mr = G.player; mr.x = 240; mr.y = 160; mr.invuln = 9999;
+    G.enemies.length = 0;
+    const foe = new Enemy('xiesui', 240, 60, 1);     // 上方留个靶子，当反弹目标
+    foe.spawnT = 0; foe.maxHp = 99999; foe.hp = 99999; foe.speed = 0; foe.cd = 99999; foe.touch = 0;
+    G.enemies.push(foe);
+    mr.give('xuanyuan', G);                          // 拿到玄元镜
+    out.baseDmg = mr.stats.damage;
+    out.mirrorReflect = mr.stats.reflect;
+    out.mirrorDeflect = mr.stats.deflect;
+    const shell = new Bullet(240, 120, 0, 2, { friendly: false, r: 3, dmg: 2, life: 300 });
+    G.bullets.push(shell);                           // 自上方朝玩家飞来的敌方术法
+    inp.mouseDown = true; inp.mouseSeen = true; inp.mx = 300; inp.my = 160;
+    G.update();
+    out.shellAlive = !shell.dead;
+    out.shellReflected = shell.reflected === true && shell.friendly === true;
+    out.shellBack = shell.vy < 0;                    // 掉头朝上，打回那个靶子
+    out.shellDmg = +shell.dmg.toFixed(3);
+    inp.mouseDown = false;
+
+    // 对照 A：没拿镜子 → 斩中即湮灭（舞剑流本来就斩得落）
+    G.newRun('wujian');
+    const m2 = G.player; m2.x = 240; m2.y = 160; m2.invuln = 9999;
+    G.enemies.length = 0;
+    const shell2 = new Bullet(240, 120, 0, 2, { friendly: false, r: 3, dmg: 2, life: 300 });
+    G.bullets.push(shell2);
+    inp.mouseDown = true; inp.mouseSeen = true; inp.mx = 300; inp.my = 160;
+    G.update();
+    out.plainSlash = shell2.dead === true;
+    inp.mouseDown = false;
+
+    // 对照 B：飞剑流拿玄元镜仍是击落，不该变成反弹
+    G.newRun('feijian');
+    G.player.give('xuanyuan', G);
+    out.fjDeflect = G.player.stats.deflect;
+    out.fjReflect = G.player.stats.reflect;
     return out;
   });
   ok('舞剑流已开放且位列可选流派', wj.ids.indexOf('wujian') >= 0, wj.ids.join('/'));
@@ -289,6 +327,19 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('蓄满约 24 帧（0.4 秒）', Math.abs(wj.chargeBase - 24) <= 3, wj.chargeBase + ' 帧');
   ok('射速法宝同时缩短舞剑流蓄势', wj.chargeFast < wj.chargeBase - 3,
      `${wj.chargeBase} → ${wj.chargeFast} 帧`);
+  ok('舞剑流下玄元镜转为「照影」（走 reflect，不再叠斩落半径）',
+     wj.mirrorReflect === 1 && wj.mirrorDeflect === 0,
+     `reflect=${wj.mirrorReflect} deflect=${wj.mirrorDeflect}`);
+  ok('斩中的术法不再湮灭，而是掉头打回去',
+     wj.shellAlive === true && wj.shellReflected === true && wj.shellBack === true,
+     `存活=${wj.shellAlive} 标记=${wj.shellReflected} 掉头=${wj.shellBack}`);
+  ok('打回去的术法按玩家伤害结算（×1.3）',
+     Math.abs(wj.shellDmg - wj.baseDmg * 1.3) < 0.01,
+     `${wj.shellDmg} 伤害（基础 ${wj.baseDmg}）`);
+  ok('对照：没拿镜子时斩中即湮灭', wj.plainSlash === true);
+  ok('对照：飞剑流拿玄元镜仍是击落，不变成反弹',
+     wj.fjDeflect === 1 && wj.fjReflect === 0,
+     `deflect=${wj.fjDeflect} reflect=${wj.fjReflect}`);
 
   sec('T8  运行期无报错');
   ok('无 pageerror / console.error', errs.length === 0, errs.slice(0, 3).join(' | '));

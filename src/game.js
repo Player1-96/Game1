@@ -156,6 +156,19 @@ class GameCore {
     this.state = 'play';
     this.itemPopup = null;
     this.pick = null; this.ultWarn = null; this.ultSword = null; this.ultUpgradeT = 0;
+    // 舞剑流是纯近战，开局就得靠「剑影三叠」的突进贴身，故直接给上
+    // （基础冷却也相应压到 15 秒，见 ULT_DEF.wujian.cd）。其余流派仍是首杀精英才得。
+    // 提示走 itemPopup（DOM 浮层）而非飘字 —— 像素字体 FONT5 只有英文点阵，中文飘字画不出来。
+    if (this.style === 'wujian') {
+      const p = this.player;
+      p.giveUlt('wujian');
+      const UD = ULT_DEF.wujian;
+      this.itemPopup = {
+        def: { id: 'ult_wujian', type: 'ult', name: UD.name, desc: UD.desc, cd: ultCdOf(p.ult, 'wujian') },
+        t: 240, rank: 0
+      };
+      this.floaters.push(new Floater(p.x, p.y - 32, 'TRIPLE GLEAM', PAL.goldL));
+    }
     renderPickPanel();
     updateOverlay();   // 立刻切 overlay，否则标题会盖在画面上滞留最多 100ms
   }

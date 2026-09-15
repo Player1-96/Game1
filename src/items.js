@@ -102,9 +102,22 @@ const ITEM_DEFS = [
     } },
   { id: 'xuanyuan', name: '玄元镜', rare: true, type: 'fabao', icon: 'mirror', c1: PAL.cyan, c2: PAL.white,
     desc: '飞剑可击落敌方术法', func: true,
-    apply: (p) => { p.stats.deflect += 1; },
+    // 舞剑流自带斩落，再给「扩大斩落半径」是废牌，故改走 reflect：斩中的术法掉头打回去
+    apply: (p, rank, style) => {
+      if (style === 'wujian') p.stats.reflect += 1;
+      else p.stats.deflect += 1;
+    },
     up: ['镜光扩大：击落范围 +4，可同时湮灭更多术法',
-         '镜光如幕：击落范围再 +4，术法近身即散'] },
+         '镜光如幕：击落范围再 +4，术法近身即散'],
+    upByStyle: {
+      wujian: ['照影更疾：打回去的术法伤害 ×1.8，并可多穿透 1 个妖物',
+               '照影如潮：伤害 ×2.3，回敬的术法可多穿透 2 个妖物']
+    },
+    byStyle: {
+      feijian: { name: '玄元镜', desc: '飞剑可击落敌方术法（范围随镜阶扩大）' },
+      jujian: { name: '玄元镜', desc: '巨剑扫过可击落敌方术法（范围随镜阶扩大）' },
+      wujian: { name: '照影镜', desc: '斩中的术法原样打回去（伤害 ×1.3），且自寻最近的妖物' }
+    } },
   { id: 'shidu', name: '尸毒珠', rare: true, type: 'fabao', icon: 'orb', c1: PAL.green, c2: PAL.greenD,
     desc: '被击杀的妖物炸出毒雾（半径 26）', func: true,
     apply: (p) => { p.stats.poison += 1; },
@@ -221,8 +234,9 @@ function itemView(def, style, rank) {
     return { name: name, desc: skillDesc(def.id, Math.max(1, n + 1)), differs: false };
   }
   if (def && def.func && n > 0) {
-    // 进阶：名称加「·二重」，说明换成该阶的数值提升
-    if (def.up && def.up[n - 1]) return { name: name + itemTierSuffix(n), desc: def.up[n - 1], differs: true };
+    // 进阶：名称加「·二重」，说明换成该阶的数值提升（个别法宝的进阶效果也分流派）
+    const ups = (def.upByStyle && def.upByStyle[style]) || def.up;
+    if (ups && ups[n - 1]) return { name: name + itemTierSuffix(n), desc: ups[n - 1], differs: true };
     return { name: name + '·圆满', desc: desc + '（已臻圆满，再得亦是此效）', differs: true };
   }
   // 数值型：重复即堆叠，名称后缀 LvN
