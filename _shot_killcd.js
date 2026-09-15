@@ -1,6 +1,6 @@
 'use strict';
 /* 本轮两项改动：
-   1) 舞剑流「剑意不绝」改为击杀返还冷却（2/4/5 秒）+ HUD 上的返还反馈
+   1) 舞剑流「剑意不绝」改为击杀返还冷却（2/3/4 秒）+ HUD 上的返还反馈
    2) 头目一阶段 45 秒软时限（到点强制转二阶段） */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -36,7 +36,7 @@ const OUT = path.resolve(__dirname);
     G.newRun('wujian');
     const p = G.player;
     p.x = 200; p.y = 170; p.invuln = 99999;
-    for (let i = 0; i < l; i++) p.learnPath('haste');   // 学满 3 级 = 每杀返 300 帧
+    for (let i = 0; i < l; i++) p.learnPath('haste');   // 学满 3 级 = 每杀返 240 帧
     p.ultCd = 600;                                       // 停在冷却条中段，好看出「跳了一截」
     G.enemies.length = 0;
     const e = new Enemy('guixiu', 232, 170, 1);
@@ -48,7 +48,7 @@ const OUT = path.resolve(__dirname);
     return { refund: ultKillRefund(p.ult, 'wujian'), cd: p.ultCd };
   }, lv);
 
-  /* ---- 1. 击杀返还：冷却条缩掉一截 + 青线 + 「−5 秒」 ---- */
+  /* ---- 1. 击杀返还：冷却条缩掉一截 + 青线 + 「−4 秒」 ---- */
   await setup(3);
   const on = await page.evaluate(() => {
     const G = window.Game;

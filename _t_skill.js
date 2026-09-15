@@ -1075,7 +1075,7 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('普通数字画成清色（不抢暴击的戏）', dnum.plainJadePx > 0 && dnum.plainRedPx === 0,
     `青 ${dnum.plainJadePx} px / 红 ${dnum.plainRedPx} px`);
 
-  sec('T20  剑意不绝改击杀返还 2/4/5 秒 · Boss 一阶段 45 秒软时限');
+  sec('T20  剑意不绝改击杀返还 2/3/4 秒 · Boss 一阶段 45 秒软时限');
   const kr = await page.evaluate(() => {
     const G = window.Game;
     const out = {};
@@ -1086,7 +1086,7 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
       return e;
     };
 
-    /* ---- A. 舞剑流：未学 → 一分不返；逐级学 → 120 / 240 / 300 帧 ---- */
+    /* ---- A. 舞剑流：未学 → 一分不返；逐级学 → 120 / 180 / 240 帧 ---- */
     G.newRun('wujian');
     const p = G.player;
     p.invuln = 9999;
@@ -1166,20 +1166,20 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   });
   ok('未学「剑意不绝」时击杀不动冷却', kr.noPath === 900 && kr.refundNone === 0,
     `cd=${kr.noPath} 返还=${kr.refundNone}`);
-  ok('每击杀返还随等级为 120 / 240 / 300 帧（2/4/5 秒）',
-    kr.refund1 === 120 && kr.refund2 === 240 && kr.refund3 === 300,
+  ok('每击杀返还随等级为 120 / 180 / 240 帧（2/3/4 秒）',
+    kr.refund1 === 120 && kr.refund2 === 180 && kr.refund3 === 240,
     `${kr.refund1} / ${kr.refund2} / ${kr.refund3} 帧`);
-  ok('击杀确实从冷却里扣掉对应帧数', kr.afterLv1 === 780 && kr.afterLv2 === 540 && kr.afterLv3 === 240,
+  ok('击杀确实从冷却里扣掉对应帧数', kr.afterLv1 === 780 && kr.afterLv2 === 600 && kr.afterLv3 === 360,
     `900 → ${kr.afterLv1} → ${kr.afterLv2} → ${kr.afterLv3} 帧`);
   ok('返还型不再做释放时扣减（名义冷却仍是 15 秒，不受 8 秒下限牵连）',
     kr.nominal3 === 900, kr.nominal3 + ' 帧');
-  ok('返还时点亮 HUD 高亮并记下返还量', kr.flash === 12 && kr.flashAmt === 300,
+  ok('返还时点亮 HUD 高亮并记下返还量', kr.flash === 12 && kr.flashAmt === 240,
     `${kr.flash} 帧 / ${kr.flashAmt}`);
   ok('返还不把冷却扣成负数（返还量大于剩余时归零）', kr.clamp === 0 && kr.atZero === 0,
     `${kr.clamp} / ${kr.atZero}`);
   ok('伤害击杀同样触发返还（钩在 die 出口，各伤害来源自动覆盖）',
-    kr.fromHurt === 300, '返 ' + kr.fromHurt + ' 帧');
-  ok('Boss 房召唤的爪牙同样返还（不单独豁免）', kr.bossRoomRefund === 300, '返 ' + kr.bossRoomRefund + ' 帧');
+    kr.fromHurt === 240, '返 ' + kr.fromHurt + ' 帧');
+  ok('Boss 房召唤的爪牙同样返还（不单独豁免）', kr.bossRoomRefund === 240, '返 ' + kr.bossRoomRefund + ' 帧');
   ok('飞剑流的剑意不绝不受影响：仍是 30 秒 → 18 秒',
     kr.feiCd0 === 1800 && kr.feiCd3 === 1080, `${kr.feiCd0} → ${kr.feiCd3} 帧`);
   ok('飞剑流击杀不返还冷却', kr.feiRefund0 === 0 && kr.feiRefund3 === 0 && kr.feiKillCd === 900,
