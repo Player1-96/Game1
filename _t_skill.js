@@ -1075,6 +1075,124 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('普通数字画成清色（不抢暴击的戏）', dnum.plainJadePx > 0 && dnum.plainRedPx === 0,
     `青 ${dnum.plainJadePx} px / 红 ${dnum.plainRedPx} px`);
 
+  sec('T20  剑意不绝改击杀返还 2/4/5 秒 · Boss 一阶段 45 秒软时限');
+  const kr = await page.evaluate(() => {
+    const G = window.Game;
+    const out = {};
+    const mk = (type) => {
+      const e = new Enemy(type || 'xiesui', 120, 160, 1);
+      e.spawnT = 0; e.maxHp = 1; e.hp = 1;
+      G.enemies.push(e);
+      return e;
+    };
+
+    /* ---- A. 舞剑流：未学 → 一分不返；逐级学 → 120 / 240 / 300 帧 ---- */
+    G.newRun('wujian');
+    const p = G.player;
+    p.invuln = 9999;
+    G.enemies.length = 0;
+    p.ultCd = 900;
+    mk().die(G);
+    out.noPath = p.ultCd;                       // 没这条线，击杀不该动冷却
+    out.refundNone = ultKillRefund(p.ult, 'wujian');
+    p.learnPath('haste');
+    out.refund1 = ultKillRefund(p.ult, 'wujian');
+    mk().die(G); out.afterLv1 = p.ultCd;
+    p.learnPath('haste');
+    out.refund2 = ultKillRefund(p.ult, 'wujian');
+    mk().die(G); out.afterLv2 = p.ultCd;
+    p.learnPath('haste');
+    out.refund3 = ultKillRefund(p.ult, 'wujian');
+    mk().die(G); out.afterLv3 = p.ultCd;
+    out.nominal3 = ultCdOf(p.ult, 'wujian');    // 返还型不做释放时扣减 → 名义仍是 900
+    out.flash = p.ultCdFlash;
+    out.flashAmt = p.ultCdFlashAmt;
+    // 返还到 0 就停手，不能扣成负数；冷却本来就是 0 时也不该有副作用
+    p.ultCd = 100; mk().die(G); out.clamp = p.ultCd;
+    p.ultCd = 0;   mk().die(G); out.atZero = p.ultCd;
+
+    /* ---- B. 钩在 Enemy.die 出口：任何伤害来源击杀都算 ---- */
+    p.ultCd = 900;
+    mk().hurt(99, G);
+    out.fromHurt = 900 - p.ultCd;
+
+    /* ---- C. Boss 房召唤的爪牙同样返还（不单独豁免，靠软时限兜刷新率） ---- */
+    const savedRoom = G.room;
+    G.room = { type: 'boss' };
+    p.ultCd = 900;
+    mk().die(G);
+    out.bossRoomRefund = 900 - p.ultCd;
+    G.room = savedRoom;
+
+    /* ---- D. 飞剑流的同名路线不受影响：仍是释放时固定扣减 ---- */
+    G.newRun('feijian');
+    const pf = G.player;
+    pf.giveUlt('feijian');
+    pf.invuln = 9999;
+    G.enemies.length = 0;
+    out.feiCd0 = ultCdOf(pf.ult, 'feijian');
+    out.feiRefund0 = ultKillRefund(pf.ult, 'feijian');
+    pf.learnPath('haste'); pf.learnPath('haste'); pf.learnPath('haste');
+    out.feiCd3 = ultCdOf(pf.ult, 'feijian');
+    out.feiRefund3 = ultKillRefund(pf.ult, 'feijian');
+    pf.ultCd = 900;
+    mk().die(G);
+    out.feiKillCd = pf.ultCd;
+
+    /* ---- E. Boss 一阶段软时限：45 秒不打它也强制转二阶段 ---- */
+    out.limit = BOSS_P1_LIMIT;
+    G.newRun('wujian');
+    G.player.invuln = 9999;
+    const b = new Boss('xuemo', 240, 120, 1);
+    b.spawnT = 0; b.maxHp = 1000; b.hp = 1000;   // 血一点不掉 → 永远卡在一阶段
+    G.enemies.length = 0; G.enemies.push(b);
+    G.pickups.length = 0;
+    for (let i = 0; i < BOSS_P1_LIMIT - 1; i++) b.update(G);
+    out.p1Age = b.age; out.p1Phase = b.phase;
+    b.update(G);                                  // 第 45 秒那一帧
+    out.p2Age = b.age; out.p2Phase = b.phase;
+    out.p2Roar = b.state === 'roar' && b.invuln === 40;
+    out.p2Orbs = G.pickups.filter(k => k.kind === 'mp').length;
+    for (let i = 0; i < 600; i++) b.update(G);
+    out.p2Stable = b.phase;                       // 已进二阶段，不该被软时限再推一次
+
+    // 按血量提前转阶段的，不受软时限影响
+    const b2 = new Boss('xuemo', 240, 120, 1);
+    b2.spawnT = 0; b2.maxHp = 100; b2.hp = 100;
+    b2.hurt(40, G);                               // 60% → 二阶段（远早于时限）
+    for (let i = 0; i < BOSS_P1_LIMIT; i++) b2.update(G);
+    out.earlyPhase = b2.phase;
+    return out;
+  });
+  ok('未学「剑意不绝」时击杀不动冷却', kr.noPath === 900 && kr.refundNone === 0,
+    `cd=${kr.noPath} 返还=${kr.refundNone}`);
+  ok('每击杀返还随等级为 120 / 240 / 300 帧（2/4/5 秒）',
+    kr.refund1 === 120 && kr.refund2 === 240 && kr.refund3 === 300,
+    `${kr.refund1} / ${kr.refund2} / ${kr.refund3} 帧`);
+  ok('击杀确实从冷却里扣掉对应帧数', kr.afterLv1 === 780 && kr.afterLv2 === 540 && kr.afterLv3 === 240,
+    `900 → ${kr.afterLv1} → ${kr.afterLv2} → ${kr.afterLv3} 帧`);
+  ok('返还型不再做释放时扣减（名义冷却仍是 15 秒，不受 8 秒下限牵连）',
+    kr.nominal3 === 900, kr.nominal3 + ' 帧');
+  ok('返还时点亮 HUD 高亮并记下返还量', kr.flash === 12 && kr.flashAmt === 300,
+    `${kr.flash} 帧 / ${kr.flashAmt}`);
+  ok('返还不把冷却扣成负数（返还量大于剩余时归零）', kr.clamp === 0 && kr.atZero === 0,
+    `${kr.clamp} / ${kr.atZero}`);
+  ok('伤害击杀同样触发返还（钩在 die 出口，各伤害来源自动覆盖）',
+    kr.fromHurt === 300, '返 ' + kr.fromHurt + ' 帧');
+  ok('Boss 房召唤的爪牙同样返还（不单独豁免）', kr.bossRoomRefund === 300, '返 ' + kr.bossRoomRefund + ' 帧');
+  ok('飞剑流的剑意不绝不受影响：仍是 30 秒 → 18 秒',
+    kr.feiCd0 === 1800 && kr.feiCd3 === 1080, `${kr.feiCd0} → ${kr.feiCd3} 帧`);
+  ok('飞剑流击杀不返还冷却', kr.feiRefund0 === 0 && kr.feiRefund3 === 0 && kr.feiKillCd === 900,
+    `返还=${kr.feiRefund3} cd=${kr.feiKillCd}`);
+  ok('软时限 = 45 秒', kr.limit === 2700, kr.limit + ' 帧');
+  ok('不到 45 秒时不强转（满血站桩仍是二阶段之前的 1 阶段）',
+    kr.p1Phase === 1 && kr.p1Age === 2699, `age=${kr.p1Age} phase=${kr.p1Phase}`);
+  ok('第 45 秒强制转入二阶段（咆哮 + 无敌 + 灵力外溢）',
+    kr.p2Phase === 2 && kr.p2Age === 2700 && kr.p2Roar === true && kr.p2Orbs === 3,
+    `phase=${kr.p2Phase} age=${kr.p2Age} 咆哮=${kr.p2Roar} 灵力珠=${kr.p2Orbs}`);
+  ok('已进二阶段后软时限不会重复触发', kr.p2Stable === 2, 'phase=' + kr.p2Stable);
+  ok('按血量提前转阶段的不受软时限影响', kr.earlyPhase === 2, 'phase=' + kr.earlyPhase);
+
   console.log('\n页面报错：' + (errs.length ? '\n  ' + errs.join('\n  ') : '无'));
   if (errs.length) fail += errs.length;
   console.log('\n通过 ' + pass + ' / 失败 ' + fail);

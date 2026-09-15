@@ -14,6 +14,11 @@ const SPAWN_GRACE = 42;        // 普通妖物
 const SPAWN_GRACE_BOSS = 75;   // 头目（出场更从容）
 const SPAWN_SAFE_DIST = 88;    // 出生点与玩家的最小安全距离
 const PERK_WINDUP = 34;        // 精英环形技的前摇帧数（贴身时也留出躲位时间）
+/* 头目一阶段的软时限：45 秒还没打掉三分之一血就强制转入二阶段。
+   一阶段的爪牙是按 280 帧一批无限召唤的，没有这条线，玩家可以不打 Boss、
+   赖在召唤阶段里刷爪牙 —— 而爪牙既掉灵力珠，又吃「剑意不绝」的击杀返还冷却，
+   于是变成一个「我不想输就不会输」的龟缩洞。时限从凝形结束才开始计。 */
+const BOSS_P1_LIMIT = 45 * 60;
 
 /* 凝形法阵：出生保护期内在脚下旋转的召唤阵 */
 /* 精英光环：脚下常驻的旋转符阵，颜色随精英种类 */
@@ -596,6 +601,19 @@ class Enemy {
     g.shake(3);
     SFX.hit(1);
     g.kills++;
+    /* 剑意不绝（舞剑流的击杀返还）：斩杀即把专属冷却往回退一截。
+       钩在 die() 出口而不是各个伤害来源，飞剑／平A／突进连斩／照影反弹全都自动覆盖。
+       Boss 房召唤出来的爪牙同样算 —— 一阶段已有 45 秒软时限兜住刷新率，
+       这里不必再单独豁免（真豁免了，这条线在最需要它的 Boss 战里反而失效）。 */
+    if (g.player && g.player.ult) {
+      const pl = g.player;
+      const back = ultKillRefund(pl.ult, pl.ult.style);
+      if (back > 0 && pl.ultCd > 0) {
+        pl.ultCd = Math.max(0, pl.ultCd - back);
+        pl.ultCdFlash = 12;         // 让 HUD 冷却条「缩掉一截」，否则秒级减免玩家感知不到
+        pl.ultCdFlashAmt = back;
+      }
+    }
     // 斩妖回灵：让「打得起技能」与「敢不敢打」正相关，而不是纯靠站桩回蓝
     // 灵力不再击杀自动入账，而是掉一颗灵力珠 —— 要跑过去捡，这才构成取舍
     // 掉率与单颗量都乘 lootScale：深层的怪更厚（maxHp 大 → 珠子本来就更大），
@@ -975,11 +993,30 @@ class Boss {
     this.vx = 0; this.vy = 0; this.kbx = 0; this.kby = 0;
     this.flash = 0; this.frost = 0; this.burn = 0; this.burnDmg = 0;
     this.phase = 1; this.dead = false; this.frame = 0;
+    this.age = 0;                    // 战斗计时（凝形结束后才走），用于一阶段软时限
     this.invuln = 0;                 // 转阶段的短暂无敌
     this.name = kind === 'xuemo' ? '血魔尊者' : '白骨夫人';
     this.spiral = 0;
   }
   get frozenMul() { return this.frost > 0 ? 0.6 : 1; }
+  /* 转阶段：咆哮登场 + 清弹幕 + 短暂无敌 + 外溢灵力。
+     两个入口共用 —— hurt() 按血量阈值，update() 按一阶段软时限。 */
+  setPhase(np, g) {
+    this.phase = np; this.state = 'roar'; this.stateT = 60; this.invuln = 40;
+    // 转阶段清掉场上敌方弹幕，并给 Boss 短暂无敌，否则瞬间变强 + 旧弹幕齐飞 = 必吃
+    g.bullets = g.bullets.filter(b => b.friendly);
+    g.shake(10); g.burst(this.x, this.y, 40, this.kind === 'xuemo' ? PAL.red : PAL.bone);
+    // 转阶段外溢灵力：三颗散落，逼玩家在 Boss 变强的当口跑位去捡。
+    // 单颗量同样吃层数衰减 —— Boss 只有一只，若这里是唯一不衰减的口子，
+    // 深层的 Boss 反而成了最肥的补给点。
+    const bossAmt = Math.max(1, Math.round(MP_BOSS_PHASE * lootScale(g.depth)));
+    for (let i = 0; i < 3; i++) {
+      const a = Math.PI * 2 * i / 3 + Math.random() * 0.6;
+      g.dropPickup('mp', this.x + Math.cos(a) * 30, this.y + Math.sin(a) * 26, bossAmt);
+    }
+    g.floaters.push(new Floater(this.x, this.y - 44, '灵力外溢', PAL.cyan));
+    SFX.roar();
+  }
   hurt(dmg, g, src, crit) {
     if (this.dead || this.invuln > 0) return;
     this.hp -= dmg; this.flash = 5;
@@ -989,22 +1026,7 @@ class Boss {
     }
     const pct = this.hp / this.maxHp;
     const np = pct > 0.66 ? 1 : (pct > 0.33 ? 2 : 3);
-    if (np !== this.phase) {
-      this.phase = np; this.state = 'roar'; this.stateT = 60; this.invuln = 40;
-      // 转阶段清掉场上敌方弹幕，并给 Boss 短暂无敌，否则瞬间变强 + 旧弹幕齐飞 = 必吃
-      g.bullets = g.bullets.filter(b => b.friendly);
-      g.shake(10); g.burst(this.x, this.y, 40, this.kind === 'xuemo' ? PAL.red : PAL.bone);
-      // 转阶段外溢灵力：三颗散落，逼玩家在 Boss 变强的当口跑位去捡。
-      // 单颗量同样吃层数衰减 —— Boss 只有一只，若这里是唯一不衰减的口子，
-      // 深层的 Boss 反而成了最肥的补给点。
-      const bossAmt = Math.max(1, Math.round(MP_BOSS_PHASE * lootScale(g.depth)));
-      for (let i = 0; i < 3; i++) {
-        const a = Math.PI * 2 * i / 3 + Math.random() * 0.6;
-        g.dropPickup('mp', this.x + Math.cos(a) * 30, this.y + Math.sin(a) * 26, bossAmt);
-      }
-      g.floaters.push(new Floater(this.x, this.y - 44, '灵力外溢', PAL.cyan));
-      SFX.roar();
-    }
+    if (np !== this.phase) this.setPhase(np, g);
     if (this.hp <= 0) this.die(g);
   }
   die(g) {
@@ -1036,6 +1058,10 @@ class Boss {
       if (this.spawnT % 12 === 0) g.burst(this.x, this.y, 3, this.kind === 'xuemo' ? PAL.red : PAL.bone);
       return;
     }
+    /* 一阶段软时限（BOSS_P1_LIMIT）：到点还没打掉三分之一血就强制转二阶段。
+       凝形结束后才开始计，所以「45 秒」是实打实的战斗时间。 */
+    this.age++;
+    if (this.age >= BOSS_P1_LIMIT && this.phase === 1) this.setPhase(2, g);
     if (this.state === 'roar') {
       this.stateT--; this.vx *= 0.8; this.vy *= 0.8;
       if (this.stateT <= 0) this.state = 'idle';
@@ -1280,6 +1306,8 @@ class Player {
     /* 专属技能：首次斩精英获得，空格释放；paths 记录各升级路线已学级数 */
     this.ult = null;                     // { style, paths: { pathId: lv } }
     this.ultCd = 0;
+    this.ultCdFlash = 0;                 // 击杀返还时的 HUD 高亮倒计时
+    this.ultCdFlashAmt = 0;              // 刚返还了多少帧（供 HUD 标出「−N 秒」）
     /* 专属升级带来的临时增益（移速 / 蓄力 / 伤害），单位是帧 */
     this.buffs = { spdT: 0, spdMul: 0, chargeT: 0, chargeMul: 0, dmgT: 0, dmgMul: 0 };
     this.stats = {
@@ -1437,6 +1465,7 @@ class Player {
     }
     if (this.skillGcd > 0) this.skillGcd--;
     if (this.ultCd > 0) this.ultCd--;
+    if (this.ultCdFlash > 0) this.ultCdFlash--;
     // 各槽位独立冷却（挂在槽位上而不是技能上，切槽不能重置）
     for (let i = 0; i < this.skillCd.length; i++) if (this.skillCd[i] > 0) this.skillCd[i]--;
     // 限时护盾（护体金光）：到点整层散去；常驻护盾不受影响

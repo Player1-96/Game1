@@ -90,6 +90,8 @@ FONT5['8'] = ['01110', '10001', '10001', '01110', '10001', '10001', '01110'];
 FONT5['9'] = ['01110', '10001', '10001', '01111', '00001', '00010', '01100'];
 FONT5[':'] = ['00000', '00100', '00100', '00000', '00100', '00100', '00000'];
 FONT5['!'] = ['00100', '00100', '00100', '00100', '00100', '00000', '00100'];
+// 减号：击杀返还的「−N 秒」要用，此前 FONT5 里没有这个字模（整串会被静默跳过）
+FONT5['-'] = ['00000', '00000', '00000', '11111', '00000', '00000', '00000'];
 
 /* ---------------- 输入 ---------------- */
 const input = {
@@ -1316,6 +1318,23 @@ class GameCore {
           drawPixelText(g, String(p.wjStage + 1), ux + 16, uy + 15, 1,
             p.wjStage > 0 ? PAL.cyan : '#6b6490');
         }
+      }
+      /* 击杀返还的瞬时反馈：冷却条缩掉一截的那一刻，用一道亮线 + 「−N 秒」标出来。
+         没有这个，玩家只会觉得「CD 好像有点怪」，而不会归因到「剑意不绝」这条线上。 */
+      if (p.ultCdFlash > 0) {
+        g.globalAlpha = Math.min(1, p.ultCdFlash / 9);
+        const kf = clamp(p.ultCd / Math.max(1, ultCdOf(p.ult, p.ult.style)), 0, 1);
+        const ly = uy + 1 + 22 * kf;      // 冷却条的边界，返还时会上移一截
+        g.strokeStyle = PAL.cyan; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(ux + 1, ly); g.lineTo(ux + 23, ly); g.stroke();
+        g.lineWidth = 1; g.strokeRect(ux + 0.5, uy + 0.5, 23, 23);
+        if (p.ultCdFlashAmt > 0) {
+          // 垫一层暗底：数字落在石室的砖缝上会看不清，而这行小字的意义就是「让你看见」
+          g.fillStyle = 'rgba(8,6,18,0.78)';
+          g.fillRect(ux, uy + 24, 24, 9);
+          drawPixelText(g, '-' + Math.round(p.ultCdFlashAmt / 60), ux + 3, uy + 25, 1, PAL.cyan);
+        }
+        g.globalAlpha = 1;
       }
     } else {
       drawPixelText(g, '空格', ux + 2, uy + 9, 1, '#4d4478');

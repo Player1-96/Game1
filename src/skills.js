@@ -316,9 +316,13 @@ const ULT_PATH = {
               '连段窗口 +90 帧（共约 2.9 秒）'] },
     { id: 'guard', name: '剑罡护体', en: 'GUARD', val: [30, 60, 90],
       descs: ['突进结束后无敌 0.5 秒', '突进结束后无敌 1 秒', '突进结束后无敌 1.5 秒'] },
-    { id: 'haste', name: '剑意不绝', en: 'HASTE', val: [120, 240, 360],
-      descs: ['专属冷却 −2 秒（15 → 13 秒）', '再 −2 秒（共 −4 秒，11 秒）',
-              '再 −2 秒（共 −6 秒，9 秒）'] }
+    /* 剑意不绝：不走「释放那一刻固定扣减」，而是击杀返还（mode:'kill'）。
+       这是一条有条件的 CDR —— 蓄势被打断、人没杀掉，就一分不返。
+       溢价正来自这个条件：无条件的剑意不绝（飞剑流那条）满级只 −6 秒，
+       这里满级每杀返 5 秒，在一间五只妖物的石室里就能把 15 秒冷却压掉三分之一。 */
+    { id: 'haste', name: '剑意不绝', en: 'HASTE', mode: 'kill', val: [120, 240, 300],
+      descs: ['每击杀一只妖物返还 2 秒冷却', '每击杀一只妖物返还 4 秒',
+              '每击杀一只妖物返还 5 秒'] }
   ]
 };
 const ULT_PATH_KEYS = {};
@@ -335,11 +339,26 @@ function ultPathVal(ult, style, pathId) {
   const def = (ULT_PATH[style] || []).find(p => p.id === pathId);
   return def ? def.val[lv - 1] : 0;
 }
-/* 专属技能冷却（帧）：基础 30 秒减去「剑意不绝」的缩减 */
+/* 取某流派「冷却类」的那条路线（目前只有剑意不绝）。两种模式：
+   缺省 = 释放时固定扣减（飞剑流）；mode:'kill' = 击杀返还（舞剑流）。 */
+function ultCdPath(style) {
+  return (ULT_PATH[style] || []).find(p => p.id === 'haste') || null;
+}
+/* 专属技能的名义冷却（帧）：基础冷却减去「固定扣减」型路线的缩减。
+   击杀返还型不计在这里 —— 那是释放之后才一笔笔赚回来的，见 ultKillRefund()。
+   下限 ULT_CD_MIN 只约束这个名义值，返还本身不受它管。 */
 function ultCdOf(ult, style) {
   const D = ULT_DEF[style];
   const base = (D && D.cd) || ULT_CD_BASE;      // 舞剑流开局即自带，基础冷却压到 15 秒
-  return Math.max(ULT_CD_MIN, base - ultPathVal(ult, style, 'haste'));
+  const h = ultCdPath(style);
+  const cut = (h && h.mode === 'kill') ? 0 : ultPathVal(ult, style, 'haste');
+  return Math.max(ULT_CD_MIN, base - cut);
+}
+/* 击杀一只妖物返还的冷却（帧）：只有「击杀返还」型路线有值，未学返回 0 */
+function ultKillRefund(ult, style) {
+  const h = ultCdPath(style);
+  if (!h || h.mode !== 'kill') return 0;
+  return ultPathVal(ult, style, 'haste');
 }
 /* 专属显示等级 = 1 + 已学路线总级数 */
 function ultLevel(ult) {

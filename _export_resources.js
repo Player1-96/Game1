@@ -261,6 +261,8 @@ const PERK_CN = {
       for (const p of ULT_PATH[st]) {
         ultPaths.push({
           style: st, id: p.id, name: p.name, en: p.en, maxLv: ULT_PATH_MAX,
+          // mode:'kill' = 击杀返还（不在释放时扣减）；null = 释放时固定扣减
+          mode: p.mode || null,
           vals: p.val.slice(), dur: p.dur ? p.dur.slice() : null, descs: p.descs.slice()
         });
       }
@@ -270,6 +272,7 @@ const PERK_CN = {
       MP_DROP_RATE: MP_DROP_RATE, MP_ELITE_DROP: MP_ELITE_DROP, MP_BOSS_PHASE: MP_BOSS_PHASE,
       SLOT_COUNT: SLOT_COUNT, SKILL_MAX_LV: SKILL_MAX_LV, SKILL_GCD: SKILL_GCD,
       ULT_CD_BASE: ULT_CD_BASE, ULT_CD_MIN: ULT_CD_MIN, ULT_PATH_MAX: ULT_PATH_MAX,
+      BOSS_P1_LIMIT: BOSS_P1_LIMIT,               // 头目一阶段软时限（帧）
       // 开局自然回复为 0，涓流全靠「回灵符」法宝（每份 +1/秒）；为 0 时不给帧数，免得导出成 Infinity
       mpRegenPerCopy: 1,
       mpTickFrames: MP_REGEN > 0 ? Math.round(60 / MP_REGEN) : 0,
