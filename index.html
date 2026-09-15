@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>九劫录 · 飞剑问仙 | 修仙 Roguelike</title>
+<style>
+  :root{
+    --jade:#57d6b0; --gold:#f2c761; --ink:#0a0812; --purple:#8f5cf0;
+    --txt:#d8d5e6;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:
+      radial-gradient(1200px 700px at 50% -10%, #1b1633 0%, #0a0812 60%, #05040a 100%);
+    color:var(--txt); display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;
+    min-height:100%; padding:14px 10px 22px;
+  }
+  h1{
+    flex:0 0 auto;
+    font-size:15px; letter-spacing:.42em; margin:0 0 10px; color:var(--gold);
+    text-shadow:0 0 12px rgba(242,199,97,.35); font-weight:600;
+  }
+  #stage{
+    /* flex-shrink:0 —— 说明区展开时不能被压缩，否则画面比例会变形 */
+    flex:0 0 auto;
+    position:relative; width:min(96vw, 960px, calc((100vh - 132px) * 1.5));
+    aspect-ratio:480/320;
+    border:2px solid #2e2748; border-radius:2px;
+    box-shadow:0 0 0 4px #100d1e, 0 18px 60px rgba(0,0,0,.7), 0 0 60px rgba(87,214,176,.06);
+    background:#0a0812; overflow:hidden;
+  }
+  canvas{ width:100%; height:100%; display:block; image-rendering:pixelated; image-rendering:crisp-edges; }
+  #overlay{ position:absolute; inset:0; pointer-events:none; font-size:1em; line-height:1.5; }
+  #floorName{
+    position:absolute; left:50%; transform:translateX(-50%); top:.35em; color:var(--jade); font-size:1.15em; letter-spacing:.14em;
+    text-shadow:0 2px 0 #06110e, 0 0 10px rgba(87,214,176,.35);
+  }
+  /* 状态行上抬一行：右下角留给小技能槽（1/2/3 槽 + 专属格） */
+  #stats{
+    position:absolute; right:.6em; bottom:2.9em; color:#9a97b0; font-size:1em;
+    text-shadow:0 2px 0 #06050d;
+  }
+  #hint{
+    position:absolute; left:50%; transform:translateX(-50%); bottom:1.6em;
+    color:var(--gold); font-size:1.25em; letter-spacing:.1em; white-space:nowrap;
+    text-shadow:0 2px 0 #1a1206, 0 0 14px rgba(242,199,97,.4);
+  }
+  #card{
+    position:absolute; left:50%; top:22%; transform:translateX(-50%);
+    display:none; min-width:14em; max-width:22em; padding:.5em .8em;
+    background:rgba(14,11,26,.88); border:1px solid #4d4478; border-left:3px solid var(--gold);
+    text-align:center;
+  }
+  #card b{ display:block; color:var(--gold); font-size:1.3em; letter-spacing:.08em; }
+  #card span{ display:block; color:#b9b5cc; font-size:1em; margin-top:.15em; }
+  #title{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:.5em; text-align:center;
+  }
+  #title .big{
+    font-size:3.4em; letter-spacing:.22em; color:#fff;
+    text-shadow:0 0 18px rgba(87,214,176,.5), 0 4px 0 #0b2b24, 0 0 44px rgba(143,92,240,.4);
+  }
+  #title .sub{ font-size:1.2em; color:var(--gold); letter-spacing:.3em; }
+  #title .tip{ margin-top:1em; font-size:1.05em; color:#a9a5c0; line-height:1.9; }
+  #title .blink{ color:var(--jade); animation:bl 1.1s steps(2,end) infinite; }
+  @keyframes bl{50%{opacity:.15}}
+  /* 流派选择 / 技能替换 / 专属升级：同一套卡片样式 */
+  #choose, #pick{
+    position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+    gap:.85em; background:rgba(6,4,14,.74); text-align:center; pointer-events:auto;
+  }
+  #pick{ gap:.6em; }
+  .pickTitle{ font-size:1.5em; color:var(--gold); letter-spacing:.34em; text-shadow:0 0 14px rgba(242,199,97,.35); }
+  .pickSub{ font-size:1.02em; color:#a9a5c0; letter-spacing:.06em; }
+  .pickSub b{ color:var(--jade); }
+  .pickRow{ display:flex; gap:1em; }
+  .pickCard{ cursor:pointer; }
+  .pickCard .lv{ font-size:.85em; color:var(--cyan,#57d6e0); letter-spacing:.08em; margin-top:.15em; }
+  .pickCard{
+    width:12.5em; padding:.8em .85em; background:rgba(18,14,34,.92); border:1px solid #4d4478; border-radius:4px;
+    text-align:center; transition:transform .12s, border-color .12s, box-shadow .12s;
+  }
+  .pickCard .nm{ font-size:1.5em; letter-spacing:.16em; color:var(--txt); }
+  .pickCard .tag{ font-size:.95em; color:#8f8ba8; margin-top:.2em; letter-spacing:.1em; }
+  .pickCard .dsc{ font-size:.95em; color:#9a97b0; margin-top:.55em; line-height:1.75; text-align:left; }
+  .pickCard.selA{
+    border-color:var(--jade); transform:translateY(-.4em) scale(1.04);
+    box-shadow:0 0 0 2px rgba(87,214,176,.16), 0 10px 26px rgba(0,0,0,.55);
+  }
+  .pickCard.selA .nm{ color:var(--jade); text-shadow:0 0 12px rgba(87,214,176,.4); }
+  .pickCard.selB{
+    border-color:var(--gold); transform:translateY(-.4em) scale(1.04);
+    box-shadow:0 0 0 2px rgba(242,199,97,.18), 0 10px 26px rgba(0,0,0,.55);
+  }
+  .pickCard.selB .nm{ color:var(--gold); text-shadow:0 0 12px rgba(242,199,97,.4); }
+  .pickCard.selC{
+    border-color:#5ec8e8; transform:translateY(-.4em) scale(1.04);
+    box-shadow:0 0 0 2px rgba(94,200,232,.18), 0 10px 26px rgba(0,0,0,.55);
+  }
+  .pickCard.selC .nm{ color:#8fdcf5; text-shadow:0 0 12px rgba(94,200,232,.4); }
+  .pickTip{ font-size:1.05em; color:#a9a5c0; line-height:2; }
+  .kbd{
+    display:inline-block; padding:0 .45em; margin:0 .12em; border:1px solid #4d4478; border-bottom-width:2px;
+    border-radius:3px; background:#191430; color:#e6e3f2; font-size:.92em;
+  }
+  /* 道具说明浮层：悬停背包 #tip（画布坐标 / 9）、走近坊市 #shopTip（按舞台真实缩放换算） */
+  .tipbox{
+    position:absolute; display:none; z-index:5;
+    min-width:11em; max-width:16em; padding:.42em .6em;
+    background:rgba(10,8,20,.96); border:1px solid #554a80; border-left:3px solid var(--jade);
+    box-shadow:0 6px 18px rgba(0,0,0,.6); pointer-events:none;
+  }
+  .tipbox .tn{ color:var(--gold); font-size:1.05em; letter-spacing:.06em; }
+  .tipbox .tt{ color:#7f7b98; font-size:.82em; margin-left:.4em; letter-spacing:.04em; }
+  .tipbox .td{ color:#c6c2d8; font-size:.92em; margin-top:.2em; line-height:1.6; }
+  .tipbox .talt{ color:#8f8ba8; font-size:.85em; margin-top:.35em; padding-top:.3em; border-top:1px dashed #3a3358; line-height:1.55; }
+  .tipbox .talt b{ color:var(--jade); font-weight:600; }
+  .tipbox .twarn{ color:var(--gold); font-size:.82em; margin-top:.25em; }
+  #shopTip{ border-left-color:var(--gold); min-width:12em; }
+  #shopTip .tbuy{ color:#8f8ba8; font-size:.82em; margin-top:.2em; }
+  /* 说明区：默认折叠，只占一条标题的高度；展开后在内部滚动，不再把画面顶上去 */
+  #help{
+    margin-top:10px; width:min(96vw,960px);
+    color:#8f8ba8; font-size:12.5px; line-height:1.85;
+  }
+  #help > summary{
+    cursor:pointer; list-style:none; display:flex; align-items:center; gap:.6em;
+    padding:7px 11px; border-radius:4px; user-select:none;
+    background:rgba(20,16,38,.55); border:1px solid #221d38;
+    color:var(--jade); font-weight:600; letter-spacing:.06em;
+  }
+  #help > summary::-webkit-details-marker{ display:none; }
+  #help > summary::after{
+    content:''; margin-left:auto; width:0; height:0;
+    border-left:5px solid transparent; border-right:5px solid transparent;
+    border-top:6px solid var(--jade); transition:transform .16s;
+  }
+  #help[open] > summary::after{ transform:rotate(180deg); }
+  #help > summary .more{ color:#7f7b98; font-weight:400; letter-spacing:0; }
+  #help .body{
+    margin-top:8px; display:grid; gap:8px;
+    grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+    max-height:min(38vh, 320px); overflow-y:auto; padding-right:4px;
+  }
+  #help .body::-webkit-scrollbar{ width:6px; }
+  #help .body::-webkit-scrollbar-thumb{ background:#3a3358; border-radius:3px; }
+  #help .body div{ background:rgba(20,16,38,.55); border:1px solid #221d38; padding:8px 10px; border-radius:4px; }
+  #help b{ color:var(--jade); font-weight:600; }
+</style>
+</head>
+<body>
+  <h1>九 劫 录 · 飞 剑 问 仙</h1>
+  <div id="stage">
+    <canvas id="game" width="480" height="320"></canvas>
+    <div id="overlay">
+      <div id="floorName"></div>
+      <div id="tip" class="tipbox"></div>
+      <div id="shopTip" class="tipbox"></div>
+      <div id="card"></div>
+      <div id="hint"></div>
+      <div id="stats"></div>
+      <div id="choose">
+        <div class="pickTitle">择 一 流 派</div>
+        <div class="pickRow">
+          <div class="pickCard selA" id="pickCard0">
+            <div class="nm">飞 剑 流</div>
+            <div class="tag">御剑 · 连发</div>
+            <div class="dsc">按住鼠标持续御剑，出手极快、转向灵动。<br>以频次压制，擅长走位游击。</div>
+          </div>
+          <div class="pickCard" id="pickCard1">
+            <div class="nm">巨 剑 流</div>
+            <div class="tag">蓄力 · 两段</div>
+            <div class="dsc">按住凝聚巨剑，松手一击破军。<br>每段蓄力提升：穿透数 / 剑宽 / 飞行距离。<br>出剑后有回气后摇，段位越高越短 —— 宜蓄满一击，不宜连点。</div>
+          </div>
+          <div class="pickCard" id="pickCard2">
+            <div class="nm">舞 剑 流</div>
+            <div class="tag">近战 · 连斩</div>
+            <div class="dsc">按压横扫，一记三帧挥剑劈开身前的妖物。<br>刀比剑重，剑锋够到 46 px，<b>挥砍顺手就斩落周身的术法</b> —— 贴脸也不怕弹幕。<br>专属技「剑影三叠」：按住<b>空格</b>蓄势、松手朝鼠标突进斩击，<b>蓄势越久突进越远</b>，突进全程无敌。<br>命中即可立即接下一段；三段化作五连斩且必定暴击。<br>蓄势时被打断则剑势溃散，技能立刻进冷却 —— 敢不敢贴上去，是这套流派的赌注。</div>
+          </div>
+        </div>
+        <div class="pickTip">
+          <span class="kbd">←</span><span class="kbd">→</span> 或 <span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span> 择流派　<span class="kbd">Enter</span> 入山门
+        </div>
+      </div>
+      <div id="pick"></div>
+      <div id="title">
+        <div class="big">九劫录</div>
+        <div class="sub">飞 剑 问 仙</div>
+        <div class="tip">
+          <span class="kbd">W</span><span class="kbd">A</span><span class="kbd">S</span><span class="kbd">D</span> 身法移动<br>
+          <span class="kbd">↑</span><span class="kbd">↓</span><span class="kbd">←</span><span class="kbd">→</span> 或 <span class="kbd">鼠标左键</span> 御剑斩妖<br>
+          <span class="kbd">空格</span> 专属技能　<span class="kbd">Q</span> 小技能　<span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span> 切换小技能<br>
+          <span class="kbd">E</span> 交互（坊市 / 祭坛）　<span class="kbd">F</span> 埋设雷符（炸妖 / 开裂缝 / 炸箱 / 碎石柱）<br>
+          <span class="kbd">R</span> 重入轮回（局内长按 1 秒可重开并换流派）　<span class="kbd">M</span> 静音
+        </div>
+        <div class="tip blink">按任意键入山门</div>
+      </div>
+    </div>
+  </div>
+  <details id="help">
+    <summary>操 作 说 明 <span class="more">点击展开 / 收起</span></summary>
+    <div class="body">
+      <div><b>洞天探秘</b><br>石室清空妖物后石门自开；魔窟（Boss）需斩杀尊者，届时传送阵显现，踏入即入下一层。共五层，皆可随机生成。</div>
+      <div><b>三大流派</b><br>
+        <b style="color:var(--gold)">飞剑流</b>：按住鼠标持续御剑，出手极快、转向灵动，以频次压制全场。<br>
+        <b style="color:var(--gold)">巨剑流</b>：按住蓄力凝聚巨剑，松手一击破军 —— 每上升一段蓄力，穿透数、剑身宽度与飞行距离同步提升。出剑后有<b>力竭回气</b>的后摇（头顶紫条回满方可再凝剑），段位越高后摇越短，故狂点射远不如蓄满一击；单体输出仍不及飞剑流，强在一剑贯穿成排妖物。<br>
+        <b style="color:#8fdcf5">舞剑流</b>：<b>近战</b>。按住鼠标朝准星横扫一弧，三帧挥剑动作、刃光跟着剑锋扫出；剑锋触及约 46 px，一刀基础可劈中 3 只（穿云梭再加），单刀比飞剑单发更重（贴脸挨撞的风险溢价），挥砍时还有小幅前冲。更要紧的是<b>挥砍自带剑气，顺手斩落周身的敌方术法</b>（约 52 px 内，不需要法宝，法宝只把范围再撑大）—— 这是近战敢贴脸的底气。专属技「<b>剑影三叠</b>」为<b>按住空格蓄势、松手朝鼠标突进</b>：<b>蓄得越久冲得越远</b> —— 蓄满是 185 px 的全力一段（够横穿大半间石室、直接从尊者身上穿过去），刚够下限也有 74 px 的突进，无敌帧随蓄势由 11 帧拉到 24 帧（蓄势时槽上有「能不能放出」的刻度，地上还会沿指针点出一串落点预览），突进全程无敌，命中即可立即接下一段（二段伤害 +20%），三段化作<b>五连斩</b>并在二段基础上<b>必定暴击</b>；突进撞墙会当场收势，而蓄势这半秒是可以被打断的 —— 一被打断，剑势溃散、技能立刻进冷却。开局面版可选流派。<br><b>同一件法宝在三个流派下效果可能不同</b>（如「御剑术·三重」在巨剑流下化名「重剑诀·三重」改为增宽剑身，在舞剑流下化名「回风拂柳」改为加宽挥砍弧度），悬停道具图标可查看各派差异。</div>
+      <div><b>特殊洞府</b><br>藏珍阁石门上锁，需耗 1 把钥匙开启（无钥匙时亦可按 <span class="kbd">E</span> 用 1 颗雷符炸开）；阁内木箱免费，<b>金匣</b>另需 1 把钥匙、回报双倍法宝；坊市以灵石购入丹药与功法，<b>走到货品跟前会弹出效果预览</b>，看清了再按 <span class="kbd">E</span> 买；祭坛献祭气血赌机缘；墙上有裂缝者，御剑击之三下、或一记雷符即可开密室。</div>
+      <div><b>雷符妙用</b><br>按 <span class="kbd">F</span> 在脚下埋符，1.4 秒后炸开：重创周围妖物、清空弹幕、炸碎石柱与宝箱、轰开裂缝墙；贴脸引爆亦会自伤半颗心。</div>
+      <div><b>资源取用</b><br>灵石每层产出略低于坊市货值，买不齐四件，须有所取舍。<b>钥匙</b>每层按锁的数量配给（藏珍阁门 + 金匣），散落在随机石室，清房才拿得到；<b>雷符</b>每层 1~2 颗，同样藏于石室，可省下一把钥匙去炸门。</div>
+      <div><b>法宝丹药</b><br>青锋、混元、赤焰、玄冰、引雷……二十余种法宝叠加，飞剑可穿透、追踪、分裂、灼烧、引雷、暴击。<br><b>鼠标悬停</b>左下角（或右上角功法）图标，即可查看该法宝在当前流派下的效果与冷却。</div>
+      <div><b>小技能（原功法）</b><br>天雷引、缩地成寸、五行遁术、护体金光、擒龙手、裂空斩 —— 按 <span class="kbd">Q</span> 释放、<span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span> 切换槽位，消耗灵力且各有独立冷却。其中<b>擒龙手</b>把远处的妖物扯到身前、<b>裂空斩</b>劈出一道贯通剑气，两门都不限流派，近战最缺的正是这两件事。</div>
+    </div>
+  </details>
+
+<script src="src/px.js"></script>
+<script src="src/sprites.js"></script>
+<script src="src/skills.js"></script>
+<script src="src/items.js"></script>
+<script src="src/dungeon.js"></script>
+<script src="src/entities.js"></script>
+<script src="src/game.js"></script>
+<script>
+  window.addEventListener('load', function () {
+    boot();
+    var stage = document.getElementById('stage');
+    var canvas = document.getElementById('game');
+    function resize() {
+      stage.style.fontSize = (canvas.clientWidth / 480 * 9) + 'px';
+    }
+    window.addEventListener('resize', resize);
+    resize();
+  });
+</script>
+</body>
+</html>

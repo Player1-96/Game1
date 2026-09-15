@@ -1,0 +1,2300 @@
+{
+ "player": {
+  "maxHP": 6,
+  "hp": 6,
+  "r": 7,
+  "stats": {
+   "damage": 3.5,
+   "fireRate": 2.6,
+   "speed": 2.35,
+   "shotSpeed": 6.4,
+   "range": 210,
+   "pierce": 0,
+   "spread": 0,
+   "homing": 0,
+   "homingRange": 220,
+   "knockback": 0.8,
+   "luck": 0,
+   "burn": 0,
+   "frost": 0,
+   "chain": 0,
+   "iframe": 62,
+   "greed": 0,
+   "crit": 0,
+   "poison": 0,
+   "regen": 0,
+   "soul": 0,
+   "deflect": 0,
+   "fly": false,
+   "mpRegen": 0
+  },
+  "note": "maxHP 单位为半心（6 = 3 颗心）"
+ },
+ "items": [
+  {
+   "id": "qingfeng",
+   "name": "青锋剑",
+   "type": "fabao",
+   "icon": "sword",
+   "desc": "飞剑锋利，伤害 +1",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.damage += 1",
+   "rare": false,
+   "tally2": "每发伤害 +2",
+   "tally3": "每发伤害 +3",
+   "byStyle": {
+    "feijian": {
+     "name": "青锋剑",
+     "desc": "飞剑锋利，每发伤害 +1"
+    },
+    "jujian": {
+     "name": "青锋重剑",
+     "desc": "伤害 +1，且随段位倍率放大（二段实为 +2.8）"
+    },
+    "wujian": {
+     "name": "青锋剑",
+     "desc": "剑锋锋利，每次挥砍伤害 +1（突进连段同样吃到）"
+    }
+   }
+  },
+  {
+   "id": "yujian",
+   "name": "御剑术·三重",
+   "type": "fabao",
+   "icon": "needle",
+   "desc": "每击额外射出 2 柄飞剑（扇形）",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.spread += 2; stats.damage -= 0.6",
+   "rare": false,
+   "tally2": "额外飞剑 +4 柄　单发伤害 -1.2",
+   "tally3": "额外飞剑 +6 柄　单发伤害 -1.8",
+   "byStyle": {
+    "feijian": {
+     "name": "御剑术·三重",
+     "desc": "每击射出 3 柄飞剑（扇形），单发伤害 -0.6"
+    },
+    "jujian": {
+     "name": "重剑诀·三重",
+     "desc": "不分剑：剑身大幅增宽，威力 ×1.7（需扣 0.6 基础伤害）"
+    },
+    "wujian": {
+     "name": "回风拂柳",
+     "desc": "不分剑：挥砍弧度大幅加宽（+2 段弧度），单次伤害 -0.6"
+    }
+   }
+  },
+  {
+   "id": "chuanyun",
+   "name": "穿云梭",
+   "type": "fabao",
+   "icon": "needle",
+   "desc": "飞剑可穿透 2 个敌人",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.pierce += 2",
+   "rare": false,
+   "tally2": "额外穿透 4 个",
+   "tally3": "额外穿透 6 个",
+   "byStyle": {
+    "feijian": {
+     "name": "穿云梭",
+     "desc": "飞剑可额外穿透 2 个妖物"
+    },
+    "jujian": {
+     "name": "破云梭",
+     "desc": "巨剑额外穿透 2 个（叠加在段位自带的 1 / 3 / 8 之上）"
+    },
+    "wujian": {
+     "name": "穿云梭",
+     "desc": "一次挥砍可多命中 2 个妖物（基础 3 个 → 5 个）"
+    }
+   }
+  },
+  {
+   "id": "hunyuan",
+   "name": "混元珠",
+   "type": "fabao",
+   "icon": "orb",
+   "desc": "飞剑自动追敌",
+   "func": true,
+   "up": [
+    "追敌更疾：转向速度 +71%（累计 0.24 rad/帧）",
+    "追敌如影：转向 +171%（累计 0.34），追敌范围 +60"
+   ],
+   "cd": 0,
+   "apply": "stats.homing += (rank > 0 ? 0.10 : 0.14); if (rank >= 2) stats.homingRange += 60",
+   "rare": true,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": {
+    "feijian": {
+     "name": "混元珠",
+     "desc": "飞剑自动追敌"
+    },
+    "jujian": {
+     "name": "引路珠",
+     "desc": "巨剑自动追敌（转向较迟钝，宜配合预判）"
+    },
+    "wujian": {
+     "name": "缠丝珠",
+     "desc": "突进自动偏向最近的妖物（转向 0.14 rad/帧，突进时会拐弯追人）"
+    }
+   }
+  },
+  {
+   "id": "taixu",
+   "name": "太虚护盾",
+   "type": "fabao",
+   "icon": "shield2",
+   "desc": "获得 2 点常驻灵力护盾（不设时限，受击才扣）",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "addShield(2)",
+   "rare": false,
+   "tally2": "常驻灵力护盾 +4",
+   "tally3": "常驻灵力护盾 +6",
+   "byStyle": null
+  },
+  {
+   "id": "lingxi",
+   "name": "灵犀玉佩",
+   "type": "fabao",
+   "icon": "jade",
+   "desc": "御剑速度 +35%",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.fireRate *= 1.35",
+   "rare": false,
+   "tally2": "御剑出手速度 ×1.82",
+   "tally3": "御剑出手速度 ×2.46",
+   "byStyle": {
+    "feijian": {
+     "name": "灵犀玉佩",
+     "desc": "御剑出手速度 +35%"
+    },
+    "jujian": {
+     "name": "聚灵玉佩",
+     "desc": "蓄力速度 +35%，出剑后摇同步缩短（二段由 1.1 秒缩至约 0.8 秒）"
+    },
+    "wujian": {
+     "name": "灵犀玉佩",
+     "desc": "挥砍速度 +35%，蓄势速度同步 +35%（一刀更快、蓄势更短）"
+    }
+   }
+  },
+  {
+   "id": "fengxing",
+   "name": "风行靴",
+   "type": "fabao",
+   "icon": "boot",
+   "desc": "身法 +25%",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.speed *= 1.25",
+   "rare": false,
+   "tally2": "身法 ×1.56",
+   "tally3": "身法 ×1.95",
+   "byStyle": null
+  },
+  {
+   "id": "xuantie",
+   "name": "玄铁重剑",
+   "type": "fabao",
+   "icon": "sword",
+   "desc": "伤害 +3.5，御剑速度 -20%",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.damage += 3.5; stats.fireRate *= 0.8",
+   "rare": true,
+   "tally2": "伤害 +7.0　出手速度 ×0.64",
+   "tally3": "伤害 +10.5　出手速度 ×0.51",
+   "byStyle": {
+    "feijian": {
+     "name": "玄铁重剑",
+     "desc": "伤害 +3.5，但出手速度 -20%"
+    },
+    "jujian": {
+     "name": "玄铁巨剑",
+     "desc": "伤害 +3.5（受段位倍率放大），但蓄力与出剑后摇 -20%"
+    },
+    "wujian": {
+     "name": "玄铁重剑",
+     "desc": "伤害 +3.5（挥砍与突进连段都吃到），但挥砍与蓄势 -20%"
+    }
+   }
+  },
+  {
+   "id": "chiyan",
+   "name": "赤焰符",
+   "type": "fabao",
+   "icon": "flame",
+   "desc": "命中灼烧，持续掉血",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.burn += 2",
+   "rare": false,
+   "tally2": "灼烧层数 +4",
+   "tally3": "灼烧层数 +6",
+   "byStyle": null
+  },
+  {
+   "id": "hanbing",
+   "name": "玄冰符",
+   "type": "fabao",
+   "icon": "ice",
+   "desc": "命中冰封，妖物行动迟缓",
+   "func": true,
+   "up": [
+    "寒气更盛：减速 55% → 62%，冰封持续 +35 帧",
+    "寒气彻骨：减速 62% → 69%，冰封持续再 +35 帧"
+   ],
+   "cd": 0,
+   "apply": "stats.frost += 1",
+   "rare": true,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "leifu",
+   "name": "引雷符",
+   "type": "fabao",
+   "icon": "thunder",
+   "desc": "命中引动雷法，连锁伤害",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.chain += 1",
+   "rare": false,
+   "tally2": "连锁 +2",
+   "tally3": "连锁 +3",
+   "byStyle": null
+  },
+  {
+   "id": "jingang",
+   "name": "金刚不坏",
+   "type": "fabao",
+   "icon": "banner",
+   "desc": "受创后无敌时间延长",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.iframe += 40",
+   "rare": false,
+   "tally2": "受创无敌 +80 帧",
+   "tally3": "受创无敌 +120 帧",
+   "byStyle": null
+  },
+  {
+   "id": "juling",
+   "name": "聚灵阵",
+   "type": "fabao",
+   "icon": "coin",
+   "desc": "灵石掉落大幅增加",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.greed += 2",
+   "rare": false,
+   "tally2": "灵石掉落 +4",
+   "tally3": "灵石掉落 +6",
+   "byStyle": null
+  },
+  {
+   "id": "qiankun",
+   "name": "乾坤袋",
+   "type": "fabao",
+   "icon": "bag",
+   "desc": "气运 +3，开箱更易得好物",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.luck += 3",
+   "rare": false,
+   "tally2": "气运 +6",
+   "tally3": "气运 +9",
+   "byStyle": null
+  },
+  {
+   "id": "zhenhun",
+   "name": "镇魂铃",
+   "type": "fabao",
+   "icon": "bell",
+   "desc": "飞剑击退大幅增强",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.knockback += 2.2",
+   "rare": false,
+   "tally2": "击退 +4.4",
+   "tally3": "击退 +6.6",
+   "byStyle": {
+    "feijian": {
+     "name": "镇魂铃",
+     "desc": "飞剑击退大幅增强"
+    },
+    "jujian": {
+     "name": "震岳铃",
+     "desc": "巨剑击退大幅增强，且随段位进一步加重"
+    },
+    "wujian": {
+     "name": "震岳铃",
+     "desc": "挥砍击退大幅增强（基础击退 1.6，近战一刀推出半间屋）"
+    }
+   }
+  },
+  {
+   "id": "tianyan",
+   "name": "天眼通",
+   "type": "fabao",
+   "icon": "eye",
+   "desc": "窥破弱点，20% 概率双倍伤害",
+   "func": true,
+   "up": [
+    "天眼更明：暴击率 20% → 35%（双倍伤害）",
+    "天眼通玄：暴击率 35% → 50%（双倍伤害）"
+   ],
+   "cd": 0,
+   "apply": "stats.crit += (rank > 0 ? 0.15 : 0.2)",
+   "rare": true,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "xiangyun",
+   "name": "祥云履",
+   "type": "fabao",
+   "icon": "cloud",
+   "desc": "踏云而行，移速 +15% 且免疫地面秽气",
+   "func": true,
+   "up": [
+    "云气更厚：身法再 +10%（累计 +27%），免疫地面秽气",
+    "踏云无迹：身法再 +10%（累计 +40%），免疫地面秽气"
+   ],
+   "cd": 0,
+   "apply": "stats.speed *= (rank > 0 ? 1.10 : 1.15); stats.fly = true",
+   "rare": true,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "fenying",
+   "name": "分影诀",
+   "type": "fabao",
+   "icon": "cloud",
+   "desc": "额外射出 1 柄散剑，伤害 -0.3",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.spread += 1; stats.damage -= 0.3",
+   "rare": false,
+   "tally2": "额外散剑 +2 柄　单发伤害 -0.6",
+   "tally3": "额外散剑 +3 柄　单发伤害 -0.9",
+   "byStyle": {
+    "feijian": {
+     "name": "分影诀",
+     "desc": "额外射出 1 柄散剑，单发伤害 -0.3"
+    },
+    "jujian": {
+     "name": "阔刃诀",
+     "desc": "不分剑：剑身增宽，威力 ×1.35（需扣 0.3 基础伤害）"
+    },
+    "wujian": {
+     "name": "分影诀",
+     "desc": "挥砍弧度更宽（+1 段弧度），单次伤害 -0.3"
+    }
+   }
+  },
+  {
+   "id": "xuanyuan",
+   "name": "玄元镜",
+   "type": "fabao",
+   "icon": "mirror",
+   "desc": "飞剑可击落敌方术法",
+   "func": true,
+   "up": [
+    "镜光扩大：击落范围 +4，可同时湮灭更多术法",
+    "镜光如幕：击落范围再 +4，术法近身即散"
+   ],
+   "cd": 0,
+   "apply": "stats.deflect += 1",
+   "rare": true,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "shidu",
+   "name": "尸毒珠",
+   "type": "fabao",
+   "icon": "orb",
+   "desc": "被击杀的妖物炸出毒雾（半径 26）",
+   "func": true,
+   "up": [
+    "毒雾更浓：半径 26 → 34，持续 +40 帧，伤害 +0.5",
+    "毒雾弥天：半径 34 → 42，持续 +40 帧，伤害再 +0.5"
+   ],
+   "cd": 0,
+   "apply": "stats.poison += 1",
+   "rare": true,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "jindan",
+   "name": "金丹",
+   "type": "fabao",
+   "icon": "orb",
+   "desc": "全属性小幅提升",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.damage += 0.8; stats.fireRate *= 1.1; stats.speed *= 1.08; stats.luck += 1",
+   "rare": true,
+   "tally2": "伤害 +1.6　出手 ×1.21　身法 ×1.17　气运 +2",
+   "tally3": "伤害 +2.4　出手 ×1.33　身法 ×1.26　气运 +3",
+   "byStyle": {
+    "feijian": {
+     "name": "金丹",
+     "desc": "伤害 +0.8、出手速度 +10%、身法 +8%、气运 +1"
+    },
+    "jujian": {
+     "name": "金丹",
+     "desc": "伤害 +0.8（受段位倍率放大）、蓄力与后摇 +10%、身法 +8%、气运 +1"
+    },
+    "wujian": {
+     "name": "金丹",
+     "desc": "伤害 +0.8（挥砍与突进连段都吃到）、挥砍 +10%、身法 +8%、气运 +1"
+    }
+   }
+  },
+  {
+   "id": "liuli",
+   "name": "琉璃盏",
+   "type": "fabao",
+   "icon": "gourd",
+   "desc": "每清一室回复半点气血",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.regen += 0.5",
+   "rare": false,
+   "tally2": "每清一室回 1.0 点气血",
+   "tally3": "每清一室回 1.5 点气血",
+   "byStyle": null
+  },
+  {
+   "id": "shehun",
+   "name": "摄魂幡",
+   "type": "fabao",
+   "icon": "banner",
+   "desc": "斩杀妖物后短暂提升伤害 +1.2（5 秒）",
+   "func": true,
+   "up": [
+    "幡影更盛：斩杀后伤害 +2.1，持续延长 1 秒",
+    "幡影遮天：斩杀后伤害 +3.0，持续再延 1 秒"
+   ],
+   "cd": 0,
+   "apply": "stats.soul += 1",
+   "rare": true,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "yuyi",
+   "name": "羽衣",
+   "type": "fabao",
+   "icon": "feather",
+   "desc": "常驻护盾 +1（受击才扣），受击不易踉跄",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "addShield(1); stats.speed *= 1.05",
+   "rare": false,
+   "tally2": "常驻护盾 +2　身法 ×1.10",
+   "tally3": "常驻护盾 +3　身法 ×1.16",
+   "byStyle": null
+  },
+  {
+   "id": "huiling",
+   "name": "回灵符",
+   "type": "fabao",
+   "icon": "talisman",
+   "desc": "灵力自然回复 +1/秒（开局为 0，全靠此符）",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.mpRegen += 1",
+   "rare": false,
+   "tally2": "灵力自然回复 +2/秒",
+   "tally3": "灵力自然回复 +3/秒",
+   "byStyle": null
+  },
+  {
+   "id": "huichun",
+   "name": "回春丹",
+   "type": "dan",
+   "icon": "gourd",
+   "desc": "立即回复 2 点气血",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "heal(4)",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "lingdan",
+   "name": "灵力丹",
+   "type": "dan",
+   "icon": "gourd",
+   "desc": "立即获得 2 点常驻护盾",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "addShield(2)",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "xisui",
+   "name": "洗髓丹",
+   "type": "dan",
+   "icon": "gourd",
+   "desc": "气血上限 +2，并回满",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "maxHP += 4; hp = maxHP",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "jinchuang",
+   "name": "金疮药",
+   "type": "dan",
+   "icon": "gourd",
+   "desc": "回复 1 点气血",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "heal(2)",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "jingyuan",
+   "name": "精元散",
+   "type": "dan",
+   "icon": "coin",
+   "desc": "获得 15 枚灵石",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "addCoins(15)",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "tianlei",
+   "name": "天雷引",
+   "type": "gongfa",
+   "icon": "thunder",
+   "desc": "召九霄神雷，重创全室妖物　伤害 28（另加伤害 ×2）　冷却 6.0 秒",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "suodi",
+   "name": "缩地成寸",
+   "type": "gongfa",
+   "icon": "cloud",
+   "desc": "瞬移至灵气最盛处，短暂无敌 1.0 秒　冷却 4.0 秒",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "wuxing",
+   "name": "五行遁术",
+   "type": "gongfa",
+   "icon": "lotus",
+   "desc": "遁入五行，3.0 秒内不染尘劫　冷却 9.0 秒",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "huti",
+   "name": "护体金光",
+   "type": "gongfa",
+   "icon": "shield2",
+   "desc": "震退周身妖物并结 2 层护盾，5 秒后消散　范围 140　伤害 6　冷却 10 秒",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "qinlong",
+   "name": "擒龙手",
+   "type": "gongfa",
+   "icon": "hand",
+   "desc": "探掌摄拿，把 120 内的妖物扯到身前，并造成 5 点伤害　冷却 5.0 秒",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  },
+  {
+   "id": "liekong",
+   "name": "裂空斩",
+   "type": "gongfa",
+   "icon": "rift",
+   "desc": "朝指针劈出一道贯通剑气，穿透妖物　伤害 16（另加伤害 ×1.5）　冷却 5.5 秒",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null
+  }
+ ],
+ "enemies": [
+  {
+   "id": "xiesui",
+   "cn": "邪祟",
+   "hp": 12,
+   "speed": 1.35,
+   "r": 7,
+   "touch": 1,
+   "coins": 1,
+   "ai": "chase",
+   "aiCn": "近战追击",
+   "size": 14,
+   "score": 10,
+   "split": false
+  },
+  {
+   "id": "chanchu",
+   "cn": "蟾蜍妖",
+   "hp": 18,
+   "speed": 0.45,
+   "r": 8,
+   "touch": 1,
+   "coins": 2,
+   "ai": "spit",
+   "aiCn": "定点吐弹",
+   "size": 18,
+   "score": 14,
+   "split": false
+  },
+  {
+   "id": "xuefu",
+   "cn": "血蝠",
+   "hp": 10,
+   "speed": 1.1,
+   "r": 7,
+   "touch": 1,
+   "coins": 1,
+   "ai": "dash",
+   "aiCn": "蓄力冲刺",
+   "size": 18,
+   "score": 12,
+   "split": false
+  },
+  {
+   "id": "guixiu",
+   "cn": "鬼修",
+   "hp": 16,
+   "speed": 0.8,
+   "r": 7,
+   "touch": 1,
+   "coins": 2,
+   "ai": "caster",
+   "aiCn": "远程施法",
+   "size": 16,
+   "score": 18,
+   "split": false
+  },
+  {
+   "id": "yinsha",
+   "cn": "阴煞",
+   "hp": 10,
+   "speed": 1,
+   "r": 7,
+   "touch": 1,
+   "coins": 1,
+   "ai": "hop",
+   "aiCn": "跳跃（死亡分裂）",
+   "size": 16,
+   "score": 10,
+   "split": true
+  },
+  {
+   "id": "shikui",
+   "cn": "尸傀",
+   "hp": 34,
+   "speed": 0.62,
+   "r": 8,
+   "touch": 2,
+   "coins": 3,
+   "ai": "chase",
+   "aiCn": "近战追击",
+   "size": 16,
+   "score": 24,
+   "split": false
+  },
+  {
+   "id": "jianling",
+   "cn": "剑灵",
+   "hp": 14,
+   "speed": 1,
+   "r": 7,
+   "touch": 1,
+   "coins": 2,
+   "ai": "caster2",
+   "aiCn": "远程追踪弹",
+   "size": 16,
+   "score": 20,
+   "split": false
+  }
+ ],
+ "elites": [
+  {
+   "id": "xiesha",
+   "cn": "血煞厉鬼",
+   "en": "BLOOD",
+   "base": "shikui",
+   "baseCn": "尸傀",
+   "hpMul": 3,
+   "spdMul": 0.85,
+   "scale": 1.5,
+   "rMul": 1.5,
+   "coins": 9,
+   "score": 70,
+   "perk": "blood",
+   "perkCn": "血箭（受创减免四成）",
+   "perkCd": 150,
+   "desc": "受创减免四成；周身喷薄血箭，死后化血雾",
+   "hpAtD1": 102
+  },
+  {
+   "id": "youyan",
+   "cn": "幽焰鬼修",
+   "en": "FLAME",
+   "base": "guixiu",
+   "baseCn": "鬼修",
+   "hpMul": 2.5,
+   "spdMul": 1,
+   "scale": 1.45,
+   "rMul": 1.45,
+   "coins": 10,
+   "score": 75,
+   "perk": "volley",
+   "perkCn": "符箓三连发+灼烧",
+   "perkCd": 120,
+   "desc": "符箓三连发并附带灼烧，死后留下火圈",
+   "hpAtD1": 40
+  },
+  {
+   "id": "jiying",
+   "cn": "疾影血蝠",
+   "en": "RUSH",
+   "base": "xuefu",
+   "baseCn": "血蝠",
+   "hpMul": 2.2,
+   "spdMul": 1.4,
+   "scale": 1.45,
+   "rMul": 1.45,
+   "coins": 9,
+   "score": 72,
+   "perk": "rush",
+   "perkCn": "瞬影突进",
+   "perkCd": 80,
+   "desc": "瞬影突进，来去无踪",
+   "hpAtD1": 22
+  },
+  {
+   "id": "wandu",
+   "cn": "万毒蟾尊",
+   "en": "VENOM",
+   "base": "chanchu",
+   "baseCn": "蟾蜍妖",
+   "hpMul": 3.4,
+   "spdMul": 0.8,
+   "scale": 1.6,
+   "rMul": 1.6,
+   "coins": 11,
+   "score": 80,
+   "perk": "venom",
+   "perkCn": "毒弹落地成沼",
+   "perkCd": 135,
+   "desc": "毒弹落地成沼，死后毒雾弥漫",
+   "hpAtD1": 61
+  },
+  {
+   "id": "duannian",
+   "cn": "剑灵·断念",
+   "en": "SWORD",
+   "base": "jianling",
+   "baseCn": "剑灵",
+   "hpMul": 2.7,
+   "spdMul": 1.05,
+   "scale": 1.5,
+   "rMul": 1.5,
+   "coins": 12,
+   "score": 85,
+   "perk": "swarm",
+   "perkCn": "环形剑气+召小剑灵",
+   "perkCd": 145,
+   "desc": "环形剑气，并召小剑灵助战",
+   "hpAtD1": 38
+  }
+ ],
+ "bosses": [
+  {
+   "id": "xuemo",
+   "cn": "血魔尊者",
+   "hp": 260,
+   "appear": "奇数层（1/3/5…）"
+  },
+  {
+   "id": "baigu",
+   "cn": "白骨夫人",
+   "hp": 300,
+   "appear": "偶数层（2/4/6…）"
+  }
+ ],
+ "styles": [
+  {
+   "id": "feijian",
+   "name": "飞剑流",
+   "en": "FEIJIAN",
+   "tag": "御剑 · 连发",
+   "ready": true,
+   "consts": {
+    "r": 6,
+    "spreadArc": 0.16,
+    "recoil": 0.35
+   }
+  },
+  {
+   "id": "jujian",
+   "name": "巨剑流",
+   "en": "JUJIAN",
+   "tag": "蓄力 · 两段",
+   "ready": true,
+   "consts": {
+    "T1": 30,
+    "T2": 66,
+    "MAX": 104,
+    "tiers": [
+     {
+      "pierce": 1,
+      "r": 7,
+      "life": 34,
+      "scale": 0.85,
+      "dmgMul": 1,
+      "cd": 30,
+      "name": "点射"
+     },
+     {
+      "pierce": 3,
+      "r": 11,
+      "life": 54,
+      "scale": 1.35,
+      "dmgMul": 1.7,
+      "cd": 20,
+      "name": "一段"
+     },
+     {
+      "pierce": 8,
+      "r": 16,
+      "life": 78,
+      "scale": 2,
+      "dmgMul": 2.8,
+      "cd": 10,
+      "name": "二段"
+     }
+    ],
+    "minRate": 0.35
+   }
+  },
+  {
+   "id": "wujian",
+   "name": "舞剑流",
+   "en": "WUJIAN",
+   "tag": "近战 · 连斩",
+   "ready": true,
+   "consts": {
+    "arc": 1.36,
+    "reach": 46,
+    "dmgScale": 1.1,
+    "spreadArc": 0.24,
+    "rangePer": 0.07,
+    "baseHits": 3,
+    "step": 0.8,
+    "swingMin": 10,
+    "lungeKnock": 1.6,
+    "deflectR": 6
+   }
+  },
+  {
+   "id": "yujian",
+   "name": "御剑流",
+   "en": "YUJIAN",
+   "tag": "环绕 · 随指",
+   "ready": false,
+   "consts": {
+    "count": 1,
+    "radius": 46,
+    "follow": 0.12,
+    "rehitCd": 40
+   }
+  }
+ ],
+ "charge": {
+  "t1": 30,
+  "t2": 66,
+  "max": 104,
+  "tiers": [
+   {
+    "name": "点射",
+    "pierce": 1,
+    "r": 7,
+    "life": 34,
+    "scale": 0.85,
+    "dmgMul": 1,
+    "cd": 30
+   },
+   {
+    "name": "一段",
+    "pierce": 3,
+    "r": 11,
+    "life": 54,
+    "scale": 1.35,
+    "dmgMul": 1.7,
+    "cd": 20
+   },
+   {
+    "name": "二段",
+    "pierce": 8,
+    "r": 16,
+    "life": 78,
+    "scale": 2,
+    "dmgMul": 2.8,
+    "cd": 10
+   }
+  ]
+ },
+ "shopPrices": [
+  {
+   "depth": 1,
+   "slots": [
+    {
+     "idx": 1,
+     "type": "fabao",
+     "price": 15
+    },
+    {
+     "idx": 2,
+     "type": "dan",
+     "price": 8
+    },
+    {
+     "idx": 3,
+     "type": "fabao",
+     "price": 17
+    },
+    {
+     "idx": 4,
+     "type": "gongfa",
+     "price": 20
+    }
+   ],
+   "sink": 60
+  },
+  {
+   "depth": 2,
+   "slots": [
+    {
+     "idx": 1,
+     "type": "fabao",
+     "price": 17
+    },
+    {
+     "idx": 2,
+     "type": "dan",
+     "price": 9
+    },
+    {
+     "idx": 3,
+     "type": "fabao",
+     "price": 19
+    },
+    {
+     "idx": 4,
+     "type": "fabao",
+     "price": 22
+    }
+   ],
+   "sink": 67
+  },
+  {
+   "depth": 3,
+   "slots": [
+    {
+     "idx": 1,
+     "type": "fabao",
+     "price": 19
+    },
+    {
+     "idx": 2,
+     "type": "dan",
+     "price": 11
+    },
+    {
+     "idx": 3,
+     "type": "fabao",
+     "price": 21
+    },
+    {
+     "idx": 4,
+     "type": "gongfa",
+     "price": 25
+    }
+   ],
+   "sink": 76
+  },
+  {
+   "depth": 4,
+   "slots": [
+    {
+     "idx": 1,
+     "type": "fabao",
+     "price": 21
+    },
+    {
+     "idx": 2,
+     "type": "dan",
+     "price": 12
+    },
+    {
+     "idx": 3,
+     "type": "fabao",
+     "price": 23
+    },
+    {
+     "idx": 4,
+     "type": "gongfa",
+     "price": 27
+    }
+   ],
+   "sink": 83
+  },
+  {
+   "depth": 5,
+   "slots": [
+    {
+     "idx": 1,
+     "type": "fabao",
+     "price": 23
+    },
+    {
+     "idx": 2,
+     "type": "dan",
+     "price": 14
+    },
+    {
+     "idx": 3,
+     "type": "fabao",
+     "price": 25
+    },
+    {
+     "idx": 4,
+     "type": "gongfa",
+     "price": 30
+    }
+   ],
+   "sink": 92
+  },
+  {
+   "depth": 6,
+   "slots": [
+    {
+     "idx": 1,
+     "type": "fabao",
+     "price": 25
+    },
+    {
+     "idx": 2,
+     "type": "dan",
+     "price": 15
+    },
+    {
+     "idx": 3,
+     "type": "fabao",
+     "price": 27
+    },
+    {
+     "idx": 4,
+     "type": "gongfa",
+     "price": 32
+    }
+   ],
+   "sink": 99
+  }
+ ],
+ "pools": [
+  {
+   "depth": 1,
+   "pool": [
+    {
+     "id": "xiesui",
+     "cn": "邪祟",
+     "p": 25
+    },
+    {
+     "id": "chanchu",
+     "cn": "蟾蜍妖",
+     "p": 25
+    },
+    {
+     "id": "yinsha",
+     "cn": "阴煞",
+     "p": 25
+    },
+    {
+     "id": "xuefu",
+     "cn": "血蝠",
+     "p": 25
+    }
+   ]
+  },
+  {
+   "depth": 2,
+   "pool": [
+    {
+     "id": "xiesui",
+     "cn": "邪祟",
+     "p": 16.7
+    },
+    {
+     "id": "chanchu",
+     "cn": "蟾蜍妖",
+     "p": 16.7
+    },
+    {
+     "id": "yinsha",
+     "cn": "阴煞",
+     "p": 16.7
+    },
+    {
+     "id": "xuefu",
+     "cn": "血蝠",
+     "p": 16.7
+    },
+    {
+     "id": "guixiu",
+     "cn": "鬼修",
+     "p": 16.7
+    },
+    {
+     "id": "shikui",
+     "cn": "尸傀",
+     "p": 16.7
+    }
+   ]
+  },
+  {
+   "depth": 3,
+   "pool": [
+    {
+     "id": "xiesui",
+     "cn": "邪祟",
+     "p": 14.3
+    },
+    {
+     "id": "chanchu",
+     "cn": "蟾蜍妖",
+     "p": 14.3
+    },
+    {
+     "id": "yinsha",
+     "cn": "阴煞",
+     "p": 14.3
+    },
+    {
+     "id": "xuefu",
+     "cn": "血蝠",
+     "p": 14.3
+    },
+    {
+     "id": "guixiu",
+     "cn": "鬼修",
+     "p": 14.3
+    },
+    {
+     "id": "shikui",
+     "cn": "尸傀",
+     "p": 14.3
+    },
+    {
+     "id": "jianling",
+     "cn": "剑灵",
+     "p": 14.3
+    }
+   ]
+  },
+  {
+   "depth": 4,
+   "pool": [
+    {
+     "id": "xiesui",
+     "cn": "邪祟",
+     "p": 14.3
+    },
+    {
+     "id": "chanchu",
+     "cn": "蟾蜍妖",
+     "p": 14.3
+    },
+    {
+     "id": "yinsha",
+     "cn": "阴煞",
+     "p": 14.3
+    },
+    {
+     "id": "xuefu",
+     "cn": "血蝠",
+     "p": 14.3
+    },
+    {
+     "id": "guixiu",
+     "cn": "鬼修",
+     "p": 14.3
+    },
+    {
+     "id": "shikui",
+     "cn": "尸傀",
+     "p": 14.3
+    },
+    {
+     "id": "jianling",
+     "cn": "剑灵",
+     "p": 14.3
+    }
+   ]
+  },
+  {
+   "depth": 5,
+   "pool": [
+    {
+     "id": "xiesui",
+     "cn": "邪祟",
+     "p": 14.3
+    },
+    {
+     "id": "chanchu",
+     "cn": "蟾蜍妖",
+     "p": 14.3
+    },
+    {
+     "id": "yinsha",
+     "cn": "阴煞",
+     "p": 14.3
+    },
+    {
+     "id": "xuefu",
+     "cn": "血蝠",
+     "p": 14.3
+    },
+    {
+     "id": "guixiu",
+     "cn": "鬼修",
+     "p": 14.3
+    },
+    {
+     "id": "shikui",
+     "cn": "尸傀",
+     "p": 14.3
+    },
+    {
+     "id": "jianling",
+     "cn": "剑灵",
+     "p": 14.3
+    }
+   ]
+  },
+  {
+   "depth": 6,
+   "pool": [
+    {
+     "id": "xiesui",
+     "cn": "邪祟",
+     "p": 14.3
+    },
+    {
+     "id": "chanchu",
+     "cn": "蟾蜍妖",
+     "p": 14.3
+    },
+    {
+     "id": "yinsha",
+     "cn": "阴煞",
+     "p": 14.3
+    },
+    {
+     "id": "xuefu",
+     "cn": "血蝠",
+     "p": 14.3
+    },
+    {
+     "id": "guixiu",
+     "cn": "鬼修",
+     "p": 14.3
+    },
+    {
+     "id": "shikui",
+     "cn": "尸傀",
+     "p": 14.3
+    },
+    {
+     "id": "jianling",
+     "cn": "剑灵",
+     "p": 14.3
+    }
+   ]
+  }
+ ],
+ "floors": [
+  {
+   "depth": 1,
+   "rooms": 13.8,
+   "normalRooms": 7.9,
+   "eliteRate": 43,
+   "secretRate": 43,
+   "treasureRate": 100,
+   "shopRate": 100,
+   "sacrificeRate": 100,
+   "budget": 51,
+   "sink": 60,
+   "reserve": 13,
+   "eliteMult": 2.44,
+   "locks": 2,
+   "bombs": 1.5,
+   "enemies": 35.3,
+   "enemiesPerRoom": 4.5,
+   "hpScale": 1,
+   "power": 1,
+   "threat": 1,
+   "mult": 1,
+   "count": 1,
+   "tag": "平"
+  },
+  {
+   "depth": 2,
+   "rooms": 14.7,
+   "normalRooms": 8.6,
+   "eliteRate": 55,
+   "secretRate": 53,
+   "treasureRate": 100,
+   "shopRate": 100,
+   "sacrificeRate": 100,
+   "budget": 57,
+   "sink": 67,
+   "reserve": 13,
+   "eliteMult": 2.55,
+   "locks": 2,
+   "bombs": 1.4,
+   "enemies": 46.8,
+   "enemiesPerRoom": 5.4,
+   "hpScale": 1.58,
+   "power": 1.93,
+   "threat": 1.75,
+   "mult": 1.285,
+   "count": 1.069,
+   "tag": "险"
+  },
+  {
+   "depth": 3,
+   "rooms": 16,
+   "normalRooms": 9.8,
+   "eliteRate": 65,
+   "secretRate": 50,
+   "treasureRate": 100,
+   "shopRate": 100,
+   "sacrificeRate": 100,
+   "budget": 65,
+   "sink": 76,
+   "reserve": 14,
+   "eliteMult": 2.43,
+   "locks": 2,
+   "bombs": 1.5,
+   "enemies": 64.8,
+   "enemiesPerRoom": 6.6,
+   "hpScale": 2.21,
+   "power": 2.98,
+   "threat": 3.08,
+   "mult": 1.659,
+   "count": 1.144,
+   "tag": "危"
+  },
+  {
+   "depth": 4,
+   "rooms": 15.6,
+   "normalRooms": 9.4,
+   "eliteRate": 68,
+   "secretRate": 53,
+   "treasureRate": 100,
+   "shopRate": 100,
+   "sacrificeRate": 98,
+   "budget": 71,
+   "sink": 83,
+   "reserve": 14,
+   "eliteMult": 2.58,
+   "locks": 2,
+   "bombs": 1.6,
+   "enemies": 72.8,
+   "enemiesPerRoom": 7.8,
+   "hpScale": 3.07,
+   "power": 4.74,
+   "threat": 5.06,
+   "mult": 2.073,
+   "count": 1.215,
+   "tag": "绝"
+  },
+  {
+   "depth": 5,
+   "rooms": 15.8,
+   "normalRooms": 9.3,
+   "eliteRate": 83,
+   "secretRate": 63,
+   "treasureRate": 100,
+   "shopRate": 100,
+   "sacrificeRate": 100,
+   "budget": 78,
+   "sink": 92,
+   "reserve": 17,
+   "eliteMult": 2.43,
+   "locks": 2,
+   "bombs": 1.5,
+   "enemies": 80,
+   "enemiesPerRoom": 8.6,
+   "hpScale": 3.74,
+   "power": 5.78,
+   "threat": 6.49,
+   "mult": 2.32,
+   "count": 1.252,
+   "tag": "绝"
+  },
+  {
+   "depth": 6,
+   "rooms": 16.2,
+   "normalRooms": 9.5,
+   "eliteRate": 90,
+   "secretRate": 75,
+   "treasureRate": 100,
+   "shopRate": 100,
+   "sacrificeRate": 100,
+   "budget": 84,
+   "sink": 99,
+   "reserve": 16,
+   "eliteMult": 2.52,
+   "locks": 2,
+   "bombs": 1.6,
+   "enemies": 87.6,
+   "enemiesPerRoom": 9.2,
+   "hpScale": 4.71,
+   "power": 7.57,
+   "threat": 10.49,
+   "mult": 2.88,
+   "count": 1.326,
+   "tag": "绝"
+  }
+ ],
+ "diffParams": {
+  "POWER_BASE": 1,
+  "DIFF_POW": 0.45,
+  "DIFF_CNT_POW": 0.12,
+  "DIFF_MAX": 3,
+  "DIFF_MIN": 0.8,
+  "countMin": 0.85,
+  "countMax": 1.5,
+  "formula": "threat = power / POWER_BASE；血量 mult = clamp(threat^DIFF_POW, DIFF_MIN, DIFF_MAX)；数量 count = clamp(threat^DIFF_CNT_POW, 0.85, 1.5)",
+  "powerFormula": "dps / (3.5 * 2.6) // 攻击：裸装 ≈ 1.0 + s.pierce * 0.18 + s.homing * 3.0 + (s.homingRange - 220) * 0.002 + s.burn * 0.25 + s.frost * 0.2 + s.chain * 0.35 + s.poison * 0.3 + s.soul * 0.3 + (p.maxHP / 6 - 1) * 0.6 + p.shieldTotal * 0.08 // 生存 + (s.speed / 2.35 - 1) * 0.8 + s.luck * 0.06 + s.regen * 0.15 + (s.mpRegen || 0) * 0.25",
+  "tags": "mult ≤0.95 缓 / ≤1.15 平 / ≤1.5 险 / ≤2.0 危 / >2.0 绝",
+  "LOOT_DECAY": 0.82,
+  "lootFormula": "scale = LOOT_DECAY^(层-1)；心血掉率、灵力珠掉率与单颗量、精英必掉量、Boss 转阶段单颗量 全部 × scale"
+ },
+ "curve": [
+  {
+   "power": 1,
+   "threat": 1,
+   "mult": 1,
+   "count": 1,
+   "tag": "平"
+  },
+  {
+   "power": 1.5,
+   "threat": 1.5,
+   "mult": 1.2,
+   "count": 1.05,
+   "tag": "险"
+  },
+  {
+   "power": 2,
+   "threat": 2,
+   "mult": 1.366,
+   "count": 1.087,
+   "tag": "险"
+  },
+  {
+   "power": 3,
+   "threat": 3,
+   "mult": 1.639,
+   "count": 1.141,
+   "tag": "危"
+  },
+  {
+   "power": 4,
+   "threat": 4,
+   "mult": 1.866,
+   "count": 1.181,
+   "tag": "危"
+  },
+  {
+   "power": 6,
+   "threat": 6,
+   "mult": 2.24,
+   "count": 1.24,
+   "tag": "绝"
+  },
+  {
+   "power": 8,
+   "threat": 8,
+   "mult": 2.549,
+   "count": 1.283,
+   "tag": "绝"
+  },
+  {
+   "power": 12,
+   "threat": 12,
+   "mult": 3,
+   "count": 1.347,
+   "tag": "绝"
+  },
+  {
+   "power": 20,
+   "threat": 20,
+   "mult": 3,
+   "count": 1.433,
+   "tag": "绝"
+  }
+ ],
+ "lootCurve": [
+  {
+   "depth": 1,
+   "scale": 1,
+   "heartFull": 0.02,
+   "heartCritical": 0.24,
+   "mpRate": 0.62,
+   "mpAmt": 7,
+   "mpElite": 18,
+   "mpBoss": 10
+  },
+  {
+   "depth": 2,
+   "scale": 0.82,
+   "heartFull": 0.0164,
+   "heartCritical": 0.1968,
+   "mpRate": 0.5084,
+   "mpAmt": 5,
+   "mpElite": 15,
+   "mpBoss": 8
+  },
+  {
+   "depth": 3,
+   "scale": 0.672,
+   "heartFull": 0.0134,
+   "heartCritical": 0.1614,
+   "mpRate": 0.4169,
+   "mpAmt": 4,
+   "mpElite": 12,
+   "mpBoss": 7
+  },
+  {
+   "depth": 4,
+   "scale": 0.551,
+   "heartFull": 0.011,
+   "heartCritical": 0.1323,
+   "mpRate": 0.3418,
+   "mpAmt": 4,
+   "mpElite": 10,
+   "mpBoss": 6
+  },
+  {
+   "depth": 5,
+   "scale": 0.452,
+   "heartFull": 0.009,
+   "heartCritical": 0.1085,
+   "mpRate": 0.2803,
+   "mpAmt": 3,
+   "mpElite": 8,
+   "mpBoss": 5
+  },
+  {
+   "depth": 6,
+   "scale": 0.371,
+   "heartFull": 0.0074,
+   "heartCritical": 0.089,
+   "mpRate": 0.2299,
+   "mpAmt": 2,
+   "mpElite": 7,
+   "mpBoss": 4
+  }
+ ],
+ "skills": [
+  {
+   "id": "tianlei",
+   "name": "天雷引",
+   "en": "THUNDER",
+   "cost": 35,
+   "maxLv": 5,
+   "vals": [
+    14,
+    20,
+    26,
+    32,
+    38
+   ],
+   "cd": [
+    360,
+    330,
+    300,
+    270,
+    240
+   ],
+   "dur": null,
+   "descs": [
+    "召九霄神雷，重创全室妖物　伤害 28（另加伤害 ×2）　冷却 6.0 秒",
+    "召九霄神雷，重创全室妖物　伤害 34（另加伤害 ×2）　冷却 5.5 秒",
+    "召九霄神雷，重创全室妖物　伤害 40（另加伤害 ×2）　冷却 5.0 秒",
+    "召九霄神雷，重创全室妖物　伤害 46（另加伤害 ×2）　冷却 4.5 秒",
+    "召九霄神雷，重创全室妖物　伤害 52（另加伤害 ×2）　冷却 4.0 秒"
+   ],
+   "shopSlot": 4
+  },
+  {
+   "id": "suodi",
+   "name": "缩地成寸",
+   "en": "BLINK",
+   "cost": 18,
+   "maxLv": 5,
+   "vals": [
+    60,
+    75,
+    90,
+    105,
+    120
+   ],
+   "cd": [
+    240,
+    222,
+    204,
+    186,
+    168
+   ],
+   "dur": null,
+   "descs": [
+    "瞬移至灵气最盛处，短暂无敌 1.0 秒　冷却 4.0 秒",
+    "瞬移至灵气最盛处，短暂无敌 1.3 秒　冷却 3.7 秒",
+    "瞬移至灵气最盛处，短暂无敌 1.5 秒　落地震伤周身妖物　冷却 3.4 秒",
+    "瞬移至灵气最盛处，短暂无敌 1.8 秒　落地震伤周身妖物　冷却 3.1 秒",
+    "瞬移至灵气最盛处，短暂无敌 2.0 秒　落地震伤周身妖物　冷却 2.8 秒"
+   ],
+   "shopSlot": 4
+  },
+  {
+   "id": "wuxing",
+   "name": "五行遁术",
+   "en": "PHASE",
+   "cost": 28,
+   "maxLv": 5,
+   "vals": [
+    180,
+    225,
+    270,
+    315,
+    360
+   ],
+   "cd": [
+    540,
+    504,
+    468,
+    432,
+    396
+   ],
+   "dur": null,
+   "descs": [
+    "遁入五行，3.0 秒内不染尘劫　冷却 9.0 秒",
+    "遁入五行，3.8 秒内不染尘劫　冷却 8.4 秒",
+    "遁入五行，4.5 秒内不染尘劫　冷却 7.8 秒",
+    "遁入五行，5.3 秒内不染尘劫　冷却 7.2 秒",
+    "遁入五行，6.0 秒内不染尘劫　冷却 6.6 秒"
+   ],
+   "shopSlot": 4
+  },
+  {
+   "id": "huti",
+   "name": "护体金光",
+   "en": "AEGIS",
+   "cost": 24,
+   "maxLv": 5,
+   "vals": [
+    2,
+    3,
+    3,
+    4,
+    4
+   ],
+   "cd": [
+    600,
+    600,
+    600,
+    600,
+    600
+   ],
+   "dur": 300,
+   "descs": [
+    "震退周身妖物并结 2 层护盾，5 秒后消散　范围 140　伤害 6　冷却 10 秒",
+    "震退周身妖物并结 3 层护盾，5 秒后消散　范围 160　伤害 9　冷却 10 秒",
+    "震退周身妖物并结 3 层护盾，5 秒后消散　范围 180　伤害 12　冷却 10 秒",
+    "震退周身妖物并结 4 层护盾，5 秒后消散　范围 200　伤害 15　冷却 10 秒",
+    "震退周身妖物并结 4 层护盾，5 秒后消散　范围 220　伤害 18　冷却 10 秒"
+   ],
+   "shopSlot": 4
+  },
+  {
+   "id": "qinlong",
+   "name": "擒龙手",
+   "en": "DRAGON",
+   "cost": 20,
+   "maxLv": 5,
+   "vals": [
+    120,
+    145,
+    170,
+    195,
+    220
+   ],
+   "cd": [
+    300,
+    276,
+    252,
+    228,
+    204
+   ],
+   "dur": null,
+   "descs": [
+    "探掌摄拿，把 120 内的妖物扯到身前，并造成 5 点伤害　冷却 5.0 秒",
+    "探掌摄拿，把 145 内的妖物扯到身前，并造成 8 点伤害　冷却 4.6 秒",
+    "探掌摄拿，把 170 内的妖物扯到身前，并造成 11 点伤害　冷却 4.2 秒",
+    "探掌摄拿，把 195 内的妖物扯到身前，并造成 14 点伤害　冷却 3.8 秒",
+    "探掌摄拿，把 220 内的妖物扯到身前，并造成 17 点伤害　冷却 3.4 秒"
+   ],
+   "shopSlot": 4
+  },
+  {
+   "id": "liekong",
+   "name": "裂空斩",
+   "en": "RIFT",
+   "cost": 30,
+   "maxLv": 5,
+   "vals": [
+    12,
+    16,
+    20,
+    24,
+    28
+   ],
+   "cd": [
+    330,
+    300,
+    270,
+    240,
+    210
+   ],
+   "dur": null,
+   "descs": [
+    "朝指针劈出一道贯通剑气，穿透妖物　伤害 16（另加伤害 ×1.5）　冷却 5.5 秒",
+    "朝指针劈出一道贯通剑气，穿透妖物　伤害 20（另加伤害 ×1.5）　冷却 5.0 秒",
+    "朝指针劈出一道贯通剑气，穿透妖物　伤害 24（另加伤害 ×1.5）　冷却 4.5 秒",
+    "朝指针劈出一道贯通剑气，穿透妖物　伤害 28（另加伤害 ×1.5）　冷却 4.0 秒",
+    "朝指针劈出一道贯通剑气，穿透妖物　伤害 32（另加伤害 ×1.5）　冷却 3.5 秒"
+   ],
+   "shopSlot": 4
+  }
+ ],
+ "ults": [
+  {
+   "id": "feijian",
+   "style": "feijian",
+   "name": "万剑归宗",
+   "en": "MYRIAD SWORDS",
+   "desc": "朝指针方向倾泻飞剑，三柄并列、连绵不绝",
+   "cd": 1800,
+   "base": {
+    "swords": 30,
+    "perVolley": 3,
+    "volleys": 10,
+    "dmgMul": 0.6,
+    "gap": 3,
+    "lane": 11
+   }
+  },
+  {
+   "id": "jujian",
+   "style": "jujian",
+   "name": "天崩剑狱",
+   "en": "HEAVENFALL",
+   "desc": "巨剑自天而降，重创指针周遭妖物",
+   "cd": 1800,
+   "base": {
+    "radius": 90,
+    "dmgMul": 4,
+    "warn": 30,
+    "knock": 14
+   }
+  },
+  {
+   "id": "wujian",
+   "style": "wujian",
+   "name": "剑影三叠",
+   "en": "TRIPLE GLEAM",
+   "desc": "按住蓄势、松手朝指针突进斩击；蓄势越久突进越远，突进无敌，命中即可接续下一段",
+   "cd": 1800,
+   "base": {
+    "dash": 185,
+    "dashMin": 74,
+    "dur": 24,
+    "durMin": 11,
+    "reach": 30,
+    "charge": 24,
+    "chargeMin": 3,
+    "chain": 84,
+    "dmgMul": 2,
+    "s2Mul": 1.2,
+    "hits": 5,
+    "crit": 2
+   }
+  }
+ ],
+ "ultPaths": [
+  {
+   "style": "feijian",
+   "id": "homing",
+   "name": "剑心通明",
+   "en": "SEEK",
+   "maxLv": 3,
+   "vals": [
+    0.08,
+    0.14,
+    0.2
+   ],
+   "dur": null,
+   "descs": [
+    "飞剑自行追敌（转向 0.08）",
+    "追敌更疾（转向 0.14）",
+    "如影随形（转向 0.20，索敌范围 +80）"
+   ]
+  },
+  {
+   "style": "feijian",
+   "id": "element",
+   "name": "五行剑气",
+   "en": "ELEMENT",
+   "maxLv": 3,
+   "vals": [
+    1,
+    2,
+    3
+   ],
+   "dur": null,
+   "descs": [
+    "飞剑附带灼烧",
+    "再附冰封，妖物行动迟缓",
+    "再引雷法，命中连锁伤害"
+   ]
+  },
+  {
+   "style": "feijian",
+   "id": "swift",
+   "name": "御风而行",
+   "en": "SWIFT",
+   "maxLv": 3,
+   "vals": [
+    0.35,
+    0.5,
+    0.7
+   ],
+   "dur": [
+    180,
+    240,
+    300
+   ],
+   "descs": [
+    "释放后身法 +35%，持续 3 秒",
+    "身法 +50%，持续 4 秒",
+    "身法 +70%，持续 5 秒"
+   ]
+  },
+  {
+   "style": "feijian",
+   "id": "more",
+   "name": "万剑盈空",
+   "en": "VOLUME",
+   "maxLv": 3,
+   "vals": [
+    6,
+    12,
+    18
+   ],
+   "dur": null,
+   "descs": [
+    "飞剑 +6 柄",
+    "飞剑再 +6 柄（共 42）",
+    "飞剑再 +6 柄（共 48）"
+   ]
+  },
+  {
+   "style": "feijian",
+   "id": "haste",
+   "name": "剑意不绝",
+   "en": "HASTE",
+   "maxLv": 3,
+   "vals": [
+    240,
+    480,
+    720
+   ],
+   "dur": null,
+   "descs": [
+    "专属冷却 −4 秒",
+    "再 −4 秒（共 22 秒）",
+    "再 −4 秒（共 18 秒）"
+   ]
+  },
+  {
+   "style": "feijian",
+   "id": "pierce",
+   "name": "破魔剑罡",
+   "en": "PIERCE",
+   "maxLv": 3,
+   "vals": [
+    1,
+    2,
+    3
+   ],
+   "dur": null,
+   "descs": [
+    "飞剑额外穿透 1 个",
+    "再 +1（共 2）",
+    "再 +1（共 3）"
+   ]
+  },
+  {
+   "style": "jujian",
+   "id": "shatter",
+   "name": "碎魔罡风",
+   "en": "SHATTER",
+   "maxLv": 3,
+   "vals": [
+    1,
+    2,
+    3
+   ],
+   "dur": null,
+   "descs": [
+    "击碎屏内全部敌方术法",
+    "一并涤荡地面秽气",
+    "每道术法化作一柄己方飞剑"
+   ]
+  },
+  {
+   "style": "jujian",
+   "id": "charge",
+   "name": "蓄势待发",
+   "en": "PREPARE",
+   "maxLv": 3,
+   "vals": [
+    0.35,
+    0.6,
+    0.9
+   ],
+   "dur": [
+    480,
+    600,
+    720
+   ],
+   "descs": [
+    "此后 8 秒蓄力速度 +35%",
+    "10 秒内 +60%",
+    "12 秒内 +90%"
+   ]
+  },
+  {
+   "style": "jujian",
+   "id": "power",
+   "name": "剑气纵横",
+   "en": "POWER",
+   "maxLv": 3,
+   "vals": [
+    0.3,
+    0.5,
+    0.75
+   ],
+   "dur": [
+    480,
+    600,
+    720
+   ],
+   "descs": [
+    "此后 8 秒伤害 +30%",
+    "10 秒内 +50%",
+    "12 秒内 +75%"
+   ]
+  },
+  {
+   "style": "jujian",
+   "id": "radius",
+   "name": "山崩地裂",
+   "en": "QUAKE",
+   "maxLv": 3,
+   "vals": [
+    30,
+    60,
+    90
+   ],
+   "dur": null,
+   "descs": [
+    "落剑范围 +30",
+    "再 +30（共 150）",
+    "再 +30（共 180）"
+   ]
+  },
+  {
+   "style": "jujian",
+   "id": "might",
+   "name": "天崩一击",
+   "en": "MIGHT",
+   "maxLv": 3,
+   "vals": [
+    0.45,
+    0.95,
+    1.5
+   ],
+   "dur": null,
+   "descs": [
+    "落剑伤害 +45%",
+    "再 +50%（共 95%）",
+    "再 +55%（共 150%）"
+   ]
+  },
+  {
+   "style": "jujian",
+   "id": "aftershock",
+   "name": "余震不绝",
+   "en": "ECHO",
+   "maxLv": 3,
+   "vals": [
+    180,
+    270,
+    360
+   ],
+   "dur": null,
+   "descs": [
+    "落点留下 3 秒剑气",
+    "延长至 4.5 秒",
+    "延长至 6 秒"
+   ]
+  },
+  {
+   "style": "wujian",
+   "id": "power",
+   "name": "剑锋凌厉",
+   "en": "POWER",
+   "maxLv": 3,
+   "vals": [
+    0.2,
+    0.4,
+    0.6
+   ],
+   "dur": null,
+   "descs": [
+    "突进斩伤害 +20%",
+    "再 +20%（共 +40%）",
+    "再 +20%（共 +60%）"
+   ]
+  },
+  {
+   "style": "wujian",
+   "id": "reach",
+   "name": "剑势绵长",
+   "en": "REACH",
+   "maxLv": 3,
+   "vals": [
+    0.17,
+    0.33,
+    0.5
+   ],
+   "dur": null,
+   "descs": [
+    "突进距离 +17%（蓄满 216 px）",
+    "突进距离 +33%（蓄满 246 px）",
+    "突进距离 +50%（蓄满 277 px，够横穿整间石室）"
+   ]
+  },
+  {
+   "style": "wujian",
+   "id": "charge",
+   "name": "凝神聚气",
+   "en": "FOCUS",
+   "maxLv": 3,
+   "vals": [
+    0.4,
+    0.7,
+    1
+   ],
+   "dur": null,
+   "descs": [
+    "蓄势速度 +40%",
+    "蓄势速度 +70%",
+    "蓄势速度 +100%（蓄满只需 12 帧）"
+   ]
+  },
+  {
+   "style": "wujian",
+   "id": "chain",
+   "name": "心剑相随",
+   "en": "CHAIN",
+   "maxLv": 3,
+   "vals": [
+    30,
+    60,
+    90
+   ],
+   "dur": null,
+   "descs": [
+    "连段窗口 +30 帧（约 1.4 秒）",
+    "连段窗口 +60 帧（共约 2.4 秒）",
+    "连段窗口 +90 帧（共约 2.9 秒）"
+   ]
+  },
+  {
+   "style": "wujian",
+   "id": "guard",
+   "name": "剑罡护体",
+   "en": "GUARD",
+   "maxLv": 3,
+   "vals": [
+    30,
+    60,
+    90
+   ],
+   "dur": null,
+   "descs": [
+    "突进结束后无敌 0.5 秒",
+    "突进结束后无敌 1 秒",
+    "突进结束后无敌 1.5 秒"
+   ]
+  },
+  {
+   "style": "wujian",
+   "id": "haste",
+   "name": "剑意不绝",
+   "en": "HASTE",
+   "maxLv": 3,
+   "vals": [
+    240,
+    480,
+    720
+   ],
+   "dur": null,
+   "descs": [
+    "专属冷却 −4 秒",
+    "再 −4 秒（共 22 秒）",
+    "再 −4 秒（共 18 秒）"
+   ]
+  }
+ ],
+ "skillConst": {
+  "MP_MAX": 100,
+  "MP_REGEN": 0,
+  "MP_START": 40,
+  "MP_DROP_RATE": 0.62,
+  "MP_ELITE_DROP": 18,
+  "MP_BOSS_PHASE": 10,
+  "SLOT_COUNT": 3,
+  "SKILL_MAX_LV": 5,
+  "SKILL_GCD": 30,
+  "ULT_CD_BASE": 1800,
+  "ULT_PATH_MAX": 3,
+  "mpRegenPerCopy": 1,
+  "mpTickFrames": 0,
+  "SHIELD_DUR": 300
+ },
+ "exportedAt": "2026-09-15 02:39:13",
+ "errs": []
+}

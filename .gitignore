@@ -1,0 +1,14 @@
+# 依赖（Playwright 为全局安装，本地目录仅占位）
+node_modules/
+
+# Python 缓存（_sync_sheet.py 编译产物）
+__pycache__/
+*.pyc
+
+# 机器人批量试玩截图（过程产物，约 5.6M）
+_shots_smart/
+
+# 编辑器 / 系统
+.vscode/
+.DS_Store
+Thumbs.db
