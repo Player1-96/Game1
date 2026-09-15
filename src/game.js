@@ -89,6 +89,7 @@ FONT5['7'] = ['11111', '00001', '00010', '00100', '01000', '01000', '01000'];
 FONT5['8'] = ['01110', '10001', '10001', '01110', '10001', '10001', '01110'];
 FONT5['9'] = ['01110', '10001', '10001', '01111', '00001', '00010', '01100'];
 FONT5[':'] = ['00000', '00100', '00100', '00000', '00100', '00100', '00000'];
+FONT5['!'] = ['00100', '00100', '00100', '00100', '00100', '00000', '00100'];
 
 /* ---------------- 输入 ---------------- */
 const input = {
@@ -137,6 +138,7 @@ class GameCore {
     this.msg = '';
     this.placedBombs = []; this.bombs = 0; this.keys = 0; this.coins = 0;
     this.slashes = [];               // 舞剑流的斩击刃光（纯表现，伤害即时结算）
+    this.dnums = [];                 // 伤害数字（暴击为朱红大字，见 DamageNum）
     this.restartHold = 0;            // 局内长按 R 的累计帧数
     this.timers = [];                // 延迟效果 { t, fn, room }
     this.ultWarn = null;             // 巨剑专属落地前的预警圈
@@ -200,6 +202,7 @@ class GameCore {
     this.eliteMult = this.floor.eliteMult || 1;   // 本层精英窟的灵石倍率，清房时展示给玩家
     this.bullets = []; this.enemies = []; this.pickups = []; this.hazards = [];
     this.particles = []; this.floaters = []; this.zaps = []; this.props = [];
+    this.dnums = [];
     this.placedBombs = []; this.slashes = [];
     this.ultWarn = null; this.ultSword = null;   // 换层即作废，避免预警圈/巨剑残留到下一层
     this.bossRef = null; this.doorLock = 0;   // 清掉上一层的 Boss 引用，否则血条会残留到重开后
@@ -224,6 +227,7 @@ class GameCore {
     }
     this.bullets = []; this.enemies = []; this.pickups = []; this.hazards = [];
     this.props = []; this.particles = []; this.zaps = []; this.slashes = [];
+    this.dnums = [];   // 换房即清：上一间的伤害数字不该飘到新房间里
     this.shopHint = null; this.altarHint = null; this.portalHint = false; this.chestHint = null;
     this.pickHint = null;
 
@@ -469,6 +473,25 @@ class GameCore {
     this.coinReserve -= amt;
     this.dropPickup('coin', x, y, amt);
     return amt;
+  }
+  /* 伤害数字统一出口。
+     闸在 48 枚：链电、万剑归宗这类一次打一片的伤害叠加极快，
+     不设上限就会糊满屏、还拖慢绘制。满了优先保暴击，普通数字直接省掉。 */
+  addDamageNum(x, y, dmg, crit) {
+    if (this.dnums.length >= 48) {
+      if (!crit) return;
+      this.dnums.shift();
+    }
+    /* 挨得太近的两枚数字会叠成一坨，两下的数值就都看不清了。
+       把新来的沿横向推开几档 —— 一次挥砍打中三只贴脸的妖时尤其明显。 */
+    let ox = 0;
+    for (const d of this.dnums) {
+      if (Math.abs(d.y - y) > 18) continue;
+      if (Math.abs(d.x - (x + ox)) < 22) ox += 13;
+    }
+    this.dnums.push(new DamageNum(x + ox, y, dmg, crit));
+    // 暴击再补一点震屏：数字是眼睛看到的，这一下是手上感觉到的
+    if (crit) this.shake(2);
   }
   spawnEnemyBullet(x, y, vx, vy, kind) {
     const sprMap = { blood: SPR.bolt.blood, talisman: SPR.bolt.talisman, flame: SPR.bolt.flame, ice: SPR.bolt.ice, orb: SPR.bolt.orb };
@@ -914,6 +937,7 @@ class GameCore {
     for (const bm of this.placedBombs) if (!bm.dead) bm.update(this);
     for (const pt of this.particles) pt.update();
     for (const f of this.floaters) f.update();
+    for (const d of this.dnums) d.update();
     for (const z of this.zaps) z.life--;
 
     this.enemies = this.enemies.filter(e => !e.dead);
@@ -925,6 +949,7 @@ class GameCore {
     this.placedBombs = this.placedBombs.filter(bm => !bm.dead);
     this.particles = this.particles.filter(pt => !pt.dead);
     this.floaters = this.floaters.filter(f => !f.dead);
+    this.dnums = this.dnums.filter(d => !d.dead);
     this.zaps = this.zaps.filter(z => z.life > 0);
 
     // 隐藏门：被飞剑击中
@@ -1143,6 +1168,8 @@ class GameCore {
     // 粒子
     for (const pt of this.particles) pt.draw(g);
     for (const f of this.floaters) f.draw(g);
+    // 伤害数字压在浮字之上：暴击那一下是全场最该被看见的东西
+    for (const d of this.dnums) d.draw(g);
     // 巨剑流蓄力特效（在房间坐标系内，随画面抖动）
     this.drawChargeFX(g);
 

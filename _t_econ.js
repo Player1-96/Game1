@@ -317,6 +317,54 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     ok(`${style} 灵石未失控溢出`, r.peakCoins < 260, '峰值 ' + r.peakCoins);
   }
 
+  /* ---------- T9 Boss 房：无限召唤的小怪不得成为刷灵石的口子 ---------- */
+  sec('T9  Boss 房小怪不掉灵石（配额留给尊者伏诛时补发）');
+  const bossCoin = await page.evaluate(() => {
+    const G = window.Game;
+    const findRoom = t => { for (const r of G.floor.rooms.values()) if (r.type === t) return r; return null; };
+    const sumCoin = () => G.pickups.filter(k => k.kind === 'coin').reduce((s, k) => s + k.value, 0);
+    const spawn60 = () => {                     // 复刻尊者无限召唤的规模
+      for (let i = 0; i < 60; i++) {
+        const e = new Enemy('yinsha', 70 + (i % 8) * 45, 70 + ((i / 8) | 0) * 28, 1);
+        e.spawnT = 0; G.enemies.push(e); e.die(G);
+      }
+    };
+    // —— Boss 房
+    G.newRun('feijian');
+    const br = findRoom('boss');
+    if (!br) return { skip: true };
+    G.enterRoom(br, null);
+    G.doorLock = 0;
+    const pool0 = G.room.coinPool, c0 = sumCoin();
+    G.player.stats.greed = 8;                   // 连「贪心」这条额外产出口一起验
+    spawn60();
+    const coinBoss = sumCoin() - c0, poolAfter = G.room.coinPool;
+    // 尊者伏诛：本房配额应完整落到玩家手里（一点没少）
+    G.enemies.length = 0;
+    const boss = G.bossRef;
+    for (let i = 0; i < 40 && boss && !boss.dead; i++) { boss.invuln = 0; boss.hurt(999999, G); }
+    const coinFromBoss = sumCoin() - c0;
+    // —— 对照组：普通房的小怪照旧掉灵石（别把口子一刀切死）
+    G.newRun('feijian');
+    const nr = findRoom('normal');
+    G.enterRoom(nr, null);
+    G.doorLock = 0;
+    nr.coinPool = 60;                           // 给足配额，看这笔配额会不会真的发出去
+    const n0 = sumCoin();
+    spawn60();
+    const coinNormal = sumCoin() - n0;
+    return { skip: false, pool0, coinBoss, poolAfter, coinFromBoss, coinNormal, bossAlive: !!(boss && boss.dead) };
+  });
+  ok('Boss 房配额非零（口径可验）', !bossCoin.skip && bossCoin.pool0 > 0, '配额 ' + (bossCoin.pool0 || 0));
+  ok('斩杀 60 只召唤小怪：灵石一枚不掉', !bossCoin.skip && bossCoin.coinBoss === 0,
+    `实掉 ${bossCoin.coinBoss} 枚（贪心 8 级）`);
+  ok('斩杀 60 只召唤小怪：本房配额分文未动', !bossCoin.skip && bossCoin.poolAfter === bossCoin.pool0,
+    `配额 ${bossCoin.pool0} → ${bossCoin.poolAfter}`);
+  ok('尊者伏诛：本房配额完整补发', !bossCoin.skip && bossCoin.bossAlive && bossCoin.coinFromBoss === bossCoin.pool0,
+    `实收 ${bossCoin.coinFromBoss} / 配额 ${bossCoin.pool0}`);
+  ok('对照组：普通房同样 60 只怪照旧掉灵石', !bossCoin.skip && bossCoin.coinNormal > 20,
+    `实掉 ${bossCoin.coinNormal} 枚 / 配额 60`);
+
   ok('全程无 pageerror / console.error', errs.length === 0, errs.slice(0, 3).join(' | '));
 
   console.log('\n──────────────────────────────');

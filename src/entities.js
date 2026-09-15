@@ -154,6 +154,71 @@ class Floater {
 }
 
 /* ------------------------------------------------------------
+ *  伤害数字
+ *  · 普通命中：一枚清色小字，短促上浮 —— 只报数，不抢戏
+ *  · 暴击：朱红大字（2 倍点阵）+ 八向黑描边 + 命中环 + 出场白光 +
+ *    开头几帧的高频抖动，最后缀一个「!」。
+ *    满屏弹幕里一眼就能认出「这一下打实了」，爽感全押在这几帧上。
+ *  位移与缩放全取整，缩放在点阵 scale 上跳变，不做平滑插值 ——
+ *  这个引擎是真像素风，半像素的软边比不够丝滑更容易看出来。
+ * ---------------------------------------------------------- */
+class DamageNum {
+  constructor(x, y, val, crit) {
+    this.crit = !!crit;
+    this.text = String(Math.max(1, Math.round(val))) + (this.crit ? '!' : '');
+    this.x = x + (Math.random() - 0.5) * (this.crit ? 6 : 5);
+    this.y = y - (this.crit ? 10 : 5);
+    this.vx = (Math.random() - 0.5) * (this.crit ? 1.9 : 0.9);
+    this.vy = this.crit ? -2.3 : -1.2;
+    this.grav = this.crit ? 0.10 : 0.055;
+    this.life = this.crit ? 44 : 26;
+    this.max = this.life;
+    this.seed = Math.random() * Math.PI * 2;
+    this.dead = false;
+  }
+  update() {
+    this.x += this.vx; this.y += this.vy;
+    this.vy += this.grav; this.vx *= 0.9;
+    if (--this.life <= 0) this.dead = true;
+  }
+  draw(g) {
+    const t = 1 - this.life / this.max;            // 0 → 1
+    const s = this.crit ? 2 : 1;
+    const tw = this.text.length * 6 * s - s;       // 整串字的像素宽，用于居中
+    const a = this.life < 7 ? this.life / 7 : 1;
+    // 抖动：只有暴击有，且只在前几帧；整数量化，像素不会糊
+    const jt = this.crit ? Math.max(0, 1 - t * 3.2) : 0;
+    const jx = jt ? Math.round(Math.sin(this.life * 1.9 + this.seed) * 1.6 * jt) : 0;
+    const jy = jt ? Math.round(Math.cos(this.life * 2.3 + this.seed) * 1.1 * jt) : 0;
+    const px = Math.round(this.x) - (tw >> 1) + jx;
+    const py = Math.round(this.y) + jy;
+    g.save();
+    g.globalAlpha = a;
+    if (this.crit) {
+      // 命中环：收得比数字快，像是被这一击震出来的
+      const k = Math.min(1, t / 0.3);
+      g.globalAlpha = a * (1 - k) * 0.9;
+      g.strokeStyle = PAL.redL; g.lineWidth = Math.max(1, 3 * (1 - k));
+      g.beginPath(); g.arc(this.x, Math.round(this.y) + 3.5 * s, 5 + k * 24, 0, Math.PI * 2); g.stroke();
+      g.globalAlpha = a;
+    }
+    // 描边：暴击八向加粗，普通只压一道底边 —— 压在艳色弹幕上也读得出
+    if (this.crit) {
+      for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
+        if (!ox && !oy) continue;
+        drawPixelText(g, this.text, px + ox, py + oy, s, PAL.ink);
+      }
+    } else {
+      drawPixelText(g, this.text, px, py + 1, s, PAL.ink);
+    }
+    // 主体：暴击头几帧先闪一道白光，再落成朱红
+    const flash = this.crit && this.life > this.max - 4;
+    drawPixelText(g, this.text, px, py, s, flash ? PAL.white : (this.crit ? PAL.red : PAL.jadeL));
+    g.restore();
+  }
+}
+
+/* ------------------------------------------------------------
  *  飞剑 / 术法
  * ---------------------------------------------------------- */
 class Bullet {
@@ -352,7 +417,7 @@ class Hazard {
     if (this.t > this.warn && this.hitCd <= 0) {
       if (this.friendly) {
         for (const e of g.enemies) {
-          if (!e.dead && circleHit(this.x, this.y, this.r, e.x, e.y, e.r)) { e.hurt(this.dmg / 12, g); }
+          if (!e.dead && circleHit(this.x, this.y, this.r, e.x, e.y, e.r)) { e.hurt(this.dmg / 12, g, 'dot'); }
         }
       } else {
         const p = g.player;
@@ -509,12 +574,18 @@ class Enemy {
     this.shadow = true;
     this.facing = 1;
   }
-  hurt(dmg, g, src) {
+  hurt(dmg, g, src, crit) {
     if (this.dead) return;
     // 血煞厉鬼：受创减免四成
     if (this.elite && this.elite.perk === 'blood') dmg *= 0.6;
     this.hp -= dmg;
     this.flash = 6;
+    // 持续伤害（尸毒 / 燃烧）每数帧触发一次，若照样报数会糊满屏幕，故整类跳过。
+    // 暴击与否：优先用调用方显式给的，其次认来源对象上的 crit 标记。
+    if (dmg > 0 && src !== 'dot') {
+      g.addDamageNum(this.x, this.y - this.r - 4, dmg,
+        crit != null ? crit : !!(src && src.crit));
+    }
     if (this.hp <= 0) this.die(g);
   }
   die(g) {
@@ -548,13 +619,20 @@ class Enemy {
     }
     // 掉落
     const p = g.player;
+    /* Boss 房的小怪是尊者按阶段无限召唤出来的：若照样掉灵石，这一层就多出
+       一个刷不完的口子，planEconomy 锁死的预算立刻失效。这里整段掐掉。
+       Boss 房的灵石配额不受影响 —— 那部分留在 onBossDead 一次性发放。 */
+    const bossRoom = !!(g.room && g.room.type === RT.BOSS);
     // 灵石走本房配额（整层产出由 planEconomy 锁死）；钥匙/雷符不再由小怪乱掉
-    let n = this.def.coins + Math.floor(Math.random() * 2) + Math.floor((p.stats.greed || 0) * 0.6);
-    g.takeCoins(this.x, this.y, Math.min(6, n));
+    if (!bossRoom) {
+      let n = this.def.coins + Math.floor(Math.random() * 2) + Math.floor((p.stats.greed || 0) * 0.6);
+      g.takeCoins(this.x, this.y, Math.min(6, n));
+    }
     // 心血：平时几乎不掉，只剩一格血时才放水，让血量危机真的会咬人
     if (Math.random() < g.heartRate()) g.dropPickup('heart', this.x, this.y, 1);
     // 贪心：额外产出不计入本层预算，否则这条属性会变成废属性
-    if (p.stats.greed && Math.random() < p.stats.greed * 0.12) g.dropPickup('coin', this.x + 8, this.y, 1);
+    // （Boss 房同样封掉，否则无限召唤的小怪会把「贪心」变成印钞机）
+    if (!bossRoom && p.stats.greed && Math.random() < p.stats.greed * 0.12) g.dropPickup('coin', this.x + 8, this.y, 1);
     // 尸毒珠 / 摄魂幡可进阶： poison、soul 的阶数直接换算成范围与增益
     if (p.stats.poison) {
       const k = p.stats.poison - 1;
@@ -902,9 +980,13 @@ class Boss {
     this.spiral = 0;
   }
   get frozenMul() { return this.frost > 0 ? 0.6 : 1; }
-  hurt(dmg, g) {
+  hurt(dmg, g, src, crit) {
     if (this.dead || this.invuln > 0) return;
     this.hp -= dmg; this.flash = 5;
+    if (dmg > 0 && src !== 'dot') {
+      g.addDamageNum(this.x, this.y - this.r - 6, dmg,
+        crit != null ? crit : !!(src && src.crit));
+    }
     const pct = this.hp / this.maxHp;
     const np = pct > 0.66 ? 1 : (pct > 0.33 ? 2 : 3);
     if (np !== this.phase) {
@@ -938,7 +1020,7 @@ class Boss {
     if (this.frost > 0) this.frost--;
     if (this.invuln > 0) this.invuln--;
     // 燃烧走 hurt()：这样燃烧掉血同样能触发阶段切换（过去直接扣 hp，绕过了阶段判定）
-    if (this.burn > 0) { this.burn--; if (this.burn % 20 === 0) { this.hurt(this.burnDmg * 0.8, g); g.burst(this.x, this.y, 2, PAL.fire); } }
+    if (this.burn > 0) { this.burn--; if (this.burn % 20 === 0) { this.hurt(this.burnDmg * 0.8, g, 'dot'); g.burst(this.x, this.y, 2, PAL.fire); } }
     const p = g.player;
     if (this.spawnT > 0) this.spawnT--;
     const dx = p.x - this.x, dy = p.y - this.y;
@@ -1937,7 +2019,7 @@ const STYLES = {
         const e = it.e;
         const crit = Math.random() < s.crit;
         const dmg = base * (crit ? 2 : 1);
-        e.hurt(dmg, g);
+        e.hurt(dmg, g, null, crit);
         const ang = Math.atan2(e.y - pl.y, e.x - pl.x);
         const kb = C.lungeKnock + s.knockback;
         e.kbx += Math.cos(ang) * kb; e.kby += Math.sin(ang) * kb;
@@ -2073,7 +2155,7 @@ const STYLES = {
           if (e.dead || pl.dashHit.has(e)) continue;
           if (!circleHit(pl.x, pl.y + 2, WJ.reach, e.x, e.y, e.r)) continue;
           pl.dashHit.add(e);
-          e.hurt(res.dmg, g);
+          e.hurt(res.dmg, g, null, res.crit);
           const a = Math.atan2(e.y - pl.y, e.x - pl.x);
           e.kbx += Math.cos(a) * (3 + pl.stats.knockback);
           e.kby += Math.sin(a) * (3 + pl.stats.knockback);
@@ -2122,7 +2204,7 @@ const STYLES = {
         const a = Math.atan2(e.y - pl.y, e.x - pl.x);
         e.kbx += Math.cos(a) * (2 + pl.stats.knockback * 0.6);
         e.kby += Math.sin(a) * (2 + pl.stats.knockback * 0.6);
-        e.hurt(res.dmg, g);
+        e.hurt(res.dmg, g, null, res.crit);
         if (pl.stats.frost) e.frost = Math.max(e.frost, 70 + pl.stats.frost * 35);
         if (pl.stats.burn) { e.burn = Math.max(e.burn, 120); e.burnDmg = pl.stats.burn; }
         if (pl.stats.chain) g.chainLightning(e, res.dmg * 0.5, pl.stats.chain);

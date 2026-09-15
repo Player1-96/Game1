@@ -1007,6 +1007,74 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
        `伤害 ${r.rifthit1.toFixed(1)} / ${r.rifthit2.toFixed(1)}`);
   }
 
+  /* ---------- T19 伤害数字：暴击朱红大字 ---------- */
+  sec('T19  伤害数字：暴击朱红大字 / 普通清字 / 持续伤害不刷屏');
+  const dnum = await page.evaluate(() => {
+    const G = window.Game;
+    G.newRun('wujian');
+    const mk = () => { const e = new Enemy('xiesui', 200, 160, 1); e.spawnT = 0; e.maxHp = 99999; e.hp = 99999; return e; };
+    const out = {};
+    const e = mk(); G.enemies.push(e);
+    // 1) 显式暴击
+    G.dnums.length = 0;
+    e.hurt(12, G, null, true);
+    out.critOne = G.dnums.length;
+    out.critFlag = !!(G.dnums[0] && G.dnums[0].crit);
+    out.critText = G.dnums[0] && G.dnums[0].text;
+    // 2) 普通命中
+    G.dnums.length = 0;
+    e.hurt(12, G, null, false);
+    out.plainFlag = !!(G.dnums[0] && G.dnums[0].crit);
+    out.plainText = G.dnums[0] && G.dnums[0].text;
+    // 3) 来源对象自带的 crit（飞剑的暴击挂在弹丸上，靠 hurt 自动识别）
+    G.dnums.length = 0;
+    const b = new Bullet(200, 160, 0, 0, { friendly: true, dmg: 7, crit: true, r: 6 });
+    b.update(G);
+    out.srcCrit = G.dnums.length === 1 && G.dnums[0].crit === true;
+    // 4) 持续伤害（尸毒 / 燃烧）不报数，否则每几帧一次会糊满屏
+    G.dnums.length = 0;
+    e.hurt(3, G, 'dot');
+    out.dotSilent = G.dnums.length;
+    // 5) 上限：一次打一片时数字有闸，且优先保暴击
+    G.dnums.length = 0;
+    for (let i = 0; i < 300; i++) e.hurt(1, G, null, i % 2 === 0);
+    out.cap = G.dnums.length;
+    out.capCrit = G.dnums.filter(d => d.crit).length;
+    // 6) 落色：把数字画到空白画布上数像素 —— 暴击应是朱红、普通应是清色
+    const cv = document.createElement('canvas'); cv.width = 480; cv.height = 320;
+    const cg = cv.getContext('2d');
+    const hexAt = (px, i) => '#' + [px[i], px[i + 1], px[i + 2]].map(v => v.toString(16).padStart(2, '0')).join('');
+    const count = col => {
+      const px = cg.getImageData(0, 0, 480, 320).data; let n = 0;
+      for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 0 && hexAt(px, i) === col) n++;
+      return n;
+    };
+    const red = PAL.red.toLowerCase(), jade = PAL.jadeL.toLowerCase();
+    const dc = new DamageNum(240, 160, 42, true);
+    dc.life = Math.floor(dc.max * 0.5);          // 跳过开场那 4 帧白闪，看落定后的本色
+    dc.draw(cg);
+    out.redPx = count(red);
+    out.critJadePx = count(jade);
+    out.critChars = dc.text.length;              // "42!" → 3 字
+    cg.clearRect(0, 0, 480, 320);
+    const dp = new DamageNum(240, 160, 42, false);
+    dp.life = 20;
+    dp.draw(cg);
+    out.plainRedPx = count(red);
+    out.plainJadePx = count(jade);
+    return out;
+  });
+  ok('暴击命中产生一枚伤害数字', dnum.critOne === 1, '实得 ' + dnum.critOne);
+  ok('暴击数字带「!」后缀', dnum.critFlag === true && dnum.critText === '12!', '文本 ' + dnum.critText);
+  ok('普通命中是清字，不带暴击标记', dnum.plainFlag === false && dnum.plainText === '12', '文本 ' + dnum.plainText);
+  ok('弹丸自带的 crit 被自动识别（飞剑暴击）', dnum.srcCrit === true);
+  ok('持续伤害不报数（不刷屏）', dnum.dotSilent === 0, '实得 ' + dnum.dotSilent);
+  ok('数字有上限且优先保暴击', dnum.cap === 48 && dnum.capCrit === 48, `共 ${dnum.cap}，暴击 ${dnum.capCrit}`);
+  ok('暴击数字画成朱红（比普通更醒目）', dnum.redPx > 0 && dnum.critJadePx === 0,
+    `红 ${dnum.redPx} px / 青 ${dnum.critJadePx} px`);
+  ok('普通数字画成清色（不抢暴击的戏）', dnum.plainJadePx > 0 && dnum.plainRedPx === 0,
+    `青 ${dnum.plainJadePx} px / 红 ${dnum.plainRedPx} px`);
+
   console.log('\n页面报错：' + (errs.length ? '\n  ' + errs.join('\n  ') : '无'));
   if (errs.length) fail += errs.length;
   console.log('\n通过 ' + pass + ' / 失败 ' + fail);
