@@ -990,6 +990,53 @@ class GameCore {
     return -1;
   }
 
+  /* 裂缝墙被打掉一层：扣血、同步邻房、血尽开门。
+     飞剑（checkSecretWalls 的子弹）与舞剑流的近战剑锋共用这一处副作用，
+     免得「开门条件」在两边各写一份、日后漂移。 */
+  crackWallHurt(d) {
+    const r = this.room;
+    if (!r || d < 0) return false;
+    if (!r.doors[d] || !r.doorHidden[d] || r.doorOpen[d]) return false;
+    r.doorHp[d]--;
+    const rect = this.floor.doorRect(d);
+    this.burst(rect.x + rect.w / 2, rect.y + rect.h / 2, 8, PAL.stoneHi);
+    const nb = this.floor.rooms.get(r.neighbors[d]);
+    if (nb) nb.doorHp[DIRS[d].opp] = r.doorHp[d];
+    SFX.hit();
+    if (r.doorHp[d] <= 0) {
+      r.doorOpen[d] = true; r.doorHidden[d] = false; r.secretFound = true;
+      if (nb) { nb.doorOpen[DIRS[d].opp] = true; nb.doorHidden[DIRS[d].opp] = false; }
+      this.shake(8); SFX.secret();
+      this.floaters.push(new Floater(ROOM_W / 2, ROOM_H / 2 - 20, 'SECRET', PAL.jade));
+    }
+    return true;
+  }
+
+  /* 近战剑锋扫到哪面裂缝墙：门矩形离 (x,y) 最近的那一点落在「半径 rad、朝 a、
+     张角 arc」的扇形内即算。子弹走 crackHitDir 的点判定（一帧步进 ~6px，
+     靠判定带内缩 10px 兜住），近战是一记瞬时的弧扫，用扇形判定更贴合手感。
+     贴脸时不看角度 —— 站在墙根劈，门就是脚下那面。 */
+  crackHitSwing(x, y, rad, a, arc) {
+    const r = this.room;
+    if (!r) return -1;
+    let best = -1, bestD = Infinity;
+    for (let d = 0; d < 4; d++) {
+      if (!r.doors[d] || !r.doorHidden[d] || r.doorOpen[d]) continue;
+      const rect = this.floor.doorRect(d);
+      const cx = clamp(x, rect.x, rect.x + rect.w), cy = clamp(y, rect.y, rect.y + rect.h);
+      const dist = Math.hypot(x - cx, y - cy);
+      if (dist > rad) continue;
+      if (dist > 4) {
+        let da = Math.atan2(cy - y, cx - x) - a;
+        while (da > Math.PI) da -= Math.PI * 2;
+        while (da < -Math.PI) da += Math.PI * 2;
+        if (Math.abs(da) > arc / 2) continue;
+      }
+      if (dist < bestD) { bestD = dist; best = d; }
+    }
+    return best;
+  }
+
   checkSecretWalls() {
     const r = this.room;
     for (const b of this.bullets) {
@@ -997,17 +1044,7 @@ class GameCore {
       const d = this.crackHitDir(b);
       if (d < 0) continue;
       b.dead = true;
-      r.doorHp[d]--;
-      this.burst(b.x, b.y, 8, PAL.stoneHi);
-      const nb = this.floor.rooms.get(r.neighbors[d]);
-      if (nb) nb.doorHp[DIRS[d].opp] = r.doorHp[d];
-      SFX.hit();
-      if (r.doorHp[d] <= 0) {
-        r.doorOpen[d] = true; r.doorHidden[d] = false; r.secretFound = true;
-        if (nb) { nb.doorOpen[DIRS[d].opp] = true; nb.doorHidden[DIRS[d].opp] = false; }
-        this.shake(8); SFX.secret();
-        this.floaters.push(new Floater(ROOM_W / 2, ROOM_H / 2 - 20, 'SECRET', PAL.jade));
-      }
+      this.crackWallHurt(d);
     }
   }
 

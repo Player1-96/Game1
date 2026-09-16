@@ -2069,6 +2069,10 @@ const STYLES = {
         if (s.reflect > 0) { reflectBullet(b, pl, g); continue; }
         b.dead = true; g.burst(b.x, b.y, 9, PAL.cyan);
       }
+      // 剑锋也劈得开密室的裂缝墙：近战没有飞剑那样的投射物，不补这条判定，
+      // 舞剑流站在符文墙前就只能干看着（其余流派都能靠子弹打穿）。
+      const crackD = g.crackHitSwing(pl.x, pl.y, reach, a, arc);
+      if (crackD >= 0) g.crackWallHurt(crackD);
       g.slashes.push(new Slash(pl.x, pl.y, a, arc, reach,
         { col: col, life: SWING_ANIM, sweep: true }));
       if (pl.soulBuff > 0) g.slashes.push(new Slash(pl.x, pl.y, a, arc * 0.7, reach * 1.12,

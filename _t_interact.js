@@ -364,6 +364,71 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     ok('身死后坊市预览收起', !r.shown);
   }
 
+  /* ---------------- T5b  舞剑流近战劈裂缝墙 ---------------- */
+  sec('T5b  舞剑流：近战剑锋也劈得开密室的裂缝墙');
+  {
+    const r = await page.evaluate(() => {
+      const G = window.Game;
+      const out = {};
+      /* 北墙开一道隐藏门（裂缝墙），并按规矩把邻房那侧同步成同一条密道 */
+      const setup = (style) => {
+        G.newRun(style);
+        G.state = 'play';
+        G.room.cleared = true;
+        G.enemies.length = 0; G.bullets.length = 0; G.hazards.length = 0;
+        const p = G.player;
+        p.invuln = 9999; p.hp = p.maxHP;
+        const rm = G.room, nb = G.floor.rooms.get(rm.neighbors[0]);
+        rm.doors[0] = true; rm.doorHidden[0] = true; rm.doorOpen[0] = false; rm.doorHp[0] = 3;
+        if (nb) { nb.doors[2] = true; nb.doorHidden[2] = true; nb.doorOpen[2] = false; nb.doorHp[2] = 3; }
+        return { p, rm, nb };
+      };
+
+      /* 主循环里的 attack 只认真实鼠标事件，自动化环境下 input.shooting 会被
+         computeAim() 当场清掉，所以这里按帧喂一份合成输入（节奏仍由 shootCd 把关）。 */
+      const swingLoop = (frames, ang) => {
+        for (let i = 0; i < frames; i++) {
+          G.update();
+          STYLES[G.style].attack(G.player, G, { shooting: true, aiming: true, aimAngle: ang });
+        }
+      };
+
+      /* A. 站在北门前朝上砍：三刀应当把墙劈开 */
+      let s = setup('wujian');
+      s.p.x = 240; s.p.y = 40;
+      swingLoop(100, -Math.PI / 2);
+      out.wjHp = s.rm.doorHp[0];
+      out.wjOpen = s.rm.doorOpen[0] && !s.rm.doorHidden[0];
+      out.wjSecret = s.rm.secretFound;
+      out.wjNeighbor = s.nb ? (s.nb.doorOpen[2] && !s.nb.doorHidden[2]) : null;
+
+      /* B. 背对北墙砍：门在身后，一刀都不该落到墙上 */
+      s = setup('wujian');
+      s.p.x = 240; s.p.y = 40;
+      swingLoop(60, Math.PI / 2);
+      out.backHp = s.rm.doorHp[0];
+
+      /* C. 站在屋子中间砍：剑锋够不到墙 */
+      s = setup('wujian');
+      s.p.x = 240; s.p.y = 170;
+      swingLoop(60, -Math.PI / 2);
+      out.farHp = s.rm.doorHp[0];
+
+      /* D. 回归：飞剑流的子弹照旧打得穿 */
+      const f = setup('feijian');
+      f.p.x = 240; f.p.y = 60;
+      swingLoop(120, -Math.PI / 2);
+      out.feiHp = f.rm.doorHp[0];
+      return out;
+    });
+    ok('舞剑流平A 劈得开裂缝墙', r.wjOpen === true, `余血 ${r.wjHp}`);
+    ok('劈开时记为发现密室', r.wjSecret === true);
+    ok('劈开后邻房那侧同步打开', r.wjNeighbor === true);
+    ok('背对墙砍不伤墙（角度判定生效）', r.backHp === 3, `余血 ${r.backHp}`);
+    ok('够不到时砍不到墙（距离判定生效）', r.farHp === 3, `余血 ${r.farHp}`);
+    ok('回归：飞剑流子弹照旧穿得开', r.feiHp < 3, `余血 ${r.feiHp}`);
+  }
+
   /* ---------------- T6  全局错误 ---------------- */
   sec('T6  全局错误检查');
   ok('全程无 pageerror / console.error', errs.length === 0, errs.slice(0, 3).join(' | '));
