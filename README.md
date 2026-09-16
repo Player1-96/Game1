@@ -176,14 +176,26 @@
 ## 文件结构
 
 ```
-index.html        入口页面
-src/px.js         像素绘制引擎
-src/sprites.js    全部像素素材绘制
-src/items.js      法宝 / 丹药 / 功法数据
-src/dungeon.js    以撒式地宫生成
-src/entities.js   玩家 / 妖物 / Boss / 弹道 / 交互物
-src/game.js       主循环 / HUD / 小地图 / 音效
+index.html            入口页面（双击即玩）
+src/                  游戏本体：全部游戏源码
+  px.js               像素绘制引擎
+  sprites.js          全部像素素材绘制
+  items.js            法宝 / 丹药 / 功法数据
+  dungeon.js          以撒式地宫生成
+  entities.js         玩家 / 妖物 / Boss / 弹道 / 交互物
+  game.js             主循环 / HUD / 小地图 / 音效
+dev/                  开发产物，与游戏本体无关（整个删掉游戏照跑）
+  tools/              资源表导出 / 同步 + 杂项调参脚本
+  test/               回归测试 _t_*.js（12 套）
+  shot/               截图脚本 _shot_*.js
+  probe/              逐帧探针 _probe_*.js
+  bot/                机器人自动试玩 _bot_*.js
+  preview/            截图产物（_preview_*.png / _tip_*.png）
+  data/               数据快照（_resources.json 等）
 ```
+
+**游戏本体只有 `index.html` 与 `src/`** —— `dev/` 下全是开发过程产物，
+不参与运行，改游戏数值时不必碰。
 
 ## 资源表与同步
 
@@ -191,11 +203,11 @@ src/game.js       主循环 / HUD / 小地图 / 音效
 汇总在腾讯文档《九劫录·资源表》：
 <https://docs.qq.com/sheet/DTEtrQUFaQmtkamNM>
 
-**改完 `src/` 里的数值后，务必同步一次**：
+**改完 `src/` 里的数值后，务必同步一次**（在仓库根目录执行）：
 
 ```bash
-node _export_resources.js    # 从源码导出 _resources.json
-python _sync_sheet.py        # 整页重写云端资源表
+node dev/tools/_export_resources.js    # 从源码导出 dev/data/_resources.json
+python dev/tools/_sync_sheet.py        # 整页重写云端资源表
 ```
 
 - `_export_resources.js` 用 Playwright 打开 `index.html`，直接读运行时的
@@ -209,6 +221,20 @@ python _sync_sheet.py        # 整页重写云端资源表
   `BOLT_CN` / `BOSS_GIMMICK` 是中文名与说明文案映射（源码只有 id），新增妖物 / 头目时记得补上。
   头目表直接读 `BOSS_DEF`，而 `dungeon.js` 又是按 `BOSS_KEYS[层-1]` 取人 ——
   **改 `BOSS_DEF` 的键序等于改每层打谁**。
+
+### 回归测试
+
+`dev/test/` 下 12 套 Playwright 回归测试，各自独立、开箱即跑（在仓库根目录执行）：
+
+```bash
+node dev/test/_t_foe.js      # 换掉文件名即可跑其它套
+```
+
+全部 12 套：`_t_skill` `_t_styles` `_t_dynamic` `_t_audit` `_t_balance` `_t_econ`
+`_t_elite` `_t_interact` `_t_jujian` `_t_layout` `_t_spawn` `_t_foe`。
+
+> **不要并行跑**。它们都靠逐帧推进 `Game.update()` 来复现时序，同时跑会因资源竞争抖动而偶发失败
+> （实测 `_t_interact` 并行时偶挂，单跑稳定）。
 
 ### 列宽 / 行高设置的几个坑
 
