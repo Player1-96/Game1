@@ -197,6 +197,38 @@ dev/                  开发产物，与游戏本体无关（整个删掉游戏�
 **游戏本体只有 `index.html` 与 `src/`** —— `dev/` 下全是开发过程产物，
 不参与运行，改游戏数值时不必碰。
 
+## 推送到 GitHub
+
+远程仓库：<https://github.com/Player1-96/Game1.git>（分支 `main`）
+
+```bash
+git add -A && git commit -m "..." && git push
+```
+
+⚠️ **如果 `git push` 卡住好几分钟、一点输出都没有**（不是慢，是完全无响应），
+先查凭据链：
+
+```bash
+git config --show-origin --get-all credential.helper
+```
+
+Git for Windows 会在**系统级**配置（`.../PortableGit/.../etc/gitconfig`）里塞一个
+`helper-selector` shim，它排在 Git Credential Manager **前面**，而且收到
+`401` 之后可能既不返回凭据、也不报错 —— git 就一直在那儿等，表面症状就是「push 卡死」。
+（`git credential-manager github list` 能正常列出账号，所以很容易误判成别的问题。）
+
+解法是在**用户级**配置里放一个**空值**，把此前的 helper 列表整个重置掉：
+
+```bash
+git config --global --unset-all credential.helper
+git config --global --add credential.helper ""        # 空值 = 清空此前所有 helper
+git config --global --add credential.helper '!C:/Users/<你>/.workbuddy/binaries/PortableGit/versions/1.2.0/mingw64/bin/git-credential-manager.exe'
+```
+
+改完后 `git config --show-origin --get-all credential.helper` 应该是
+「系统级 helper-selector → 用户级空值 → 用户级 GCM」三行，最终只有 GCM 生效。
+同一个技巧也能临时用：`git -c credential.helper= -c credential.helper='!<GCM路径>' push`。
+
 ## 资源表与同步
 
 游戏内全部数值（法宝 / 丹药 / 功法 / 妖物 / 精英 / Boss / 房间 / 交互物 / 经济 / 动态难度）
