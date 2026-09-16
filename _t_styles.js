@@ -303,6 +303,31 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     G.player.give('xuanyuan', G);
     out.fjDeflect = G.player.stats.deflect;
     out.fjReflect = G.player.stats.reflect;
+
+    // ---- 追敌是满阶专属：一、二阶只是 180° 原路回敬 ----
+    // 靶子摆在侧上方，与术法原路（正上）不在一条线上，于是「追不追敌」一眼可辨
+    const seekCase = rank => {
+      G.newRun('wujian');
+      const p3 = G.player; p3.x = 240; p3.y = 160; p3.invuln = 9999;
+      G.enemies.length = 0; G.bullets.length = 0;
+      const tg = new Enemy('xiesui', 330, 96, 1);
+      tg.spawnT = 0; tg.maxHp = 99999; tg.hp = 99999;
+      tg.speed = 0; tg.cd = 99999; tg.touch = 0;
+      G.enemies.push(tg);
+      for (let i = 0; i < rank; i++) p3.give('xuanyuan', G);
+      const sh = new Bullet(240, 120, 0, 2, { friendly: false, r: 3, dmg: 2, life: 300 });
+      G.bullets.push(sh);
+      inp.mouseDown = true; inp.mouseSeen = true; inp.mx = 300; inp.my = 160;
+      G.update();
+      const dir = { vx: +sh.vx.toFixed(2), vy: +sh.vy.toFixed(2) };
+      inp.mouseDown = false;
+      const hp0 = tg.hp;
+      for (let i = 0; i < 90; i++) { G.player.invuln = 9999; G.update(); }
+      return { dir, hit: tg.hp < hp0, reflect: p3.stats.reflect };
+    };
+    out.seek1 = seekCase(1);
+    out.seek2 = seekCase(2);
+    out.seek3 = seekCase(3);
     return out;
   });
   ok('舞剑流已开放且位列可选流派', wj.ids.indexOf('wujian') >= 0, wj.ids.join('/'));
@@ -340,6 +365,19 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('对照：飞剑流拿玄元镜仍是击落，不变成反弹',
      wj.fjDeflect === 1 && wj.fjReflect === 0,
      `deflect=${wj.fjDeflect} reflect=${wj.fjReflect}`);
+  // 追敌是满阶专属（此前一阶就自寻最近妖物 —— 太强，且三阶就没卖点了）
+  ok('一阶照影只做 180° 原路回敬（不追敌）',
+     wj.seek1.reflect === 1 && Math.abs(wj.seek1.dir.vx) < 0.5 && wj.seek1.dir.vy < 0,
+     `vx=${wj.seek1.dir.vx} vy=${wj.seek1.dir.vy}`);
+  ok('二阶照影同样不追敌',
+     wj.seek2.reflect === 2 && Math.abs(wj.seek2.dir.vx) < 0.5 && wj.seek2.dir.vy < 0,
+     `vx=${wj.seek2.dir.vx} vy=${wj.seek2.dir.vy}`);
+  ok('三阶照影才自寻最近的妖物（满阶卖点）',
+     wj.seek3.reflect === 3 && wj.seek3.dir.vx > 0.5 && wj.seek3.dir.vy < 0,
+     `vx=${wj.seek3.dir.vx} vy=${wj.seek3.dir.vy}`);
+  ok('强度对照：侧边靶子只有满阶打得到（一阶原路飞走）',
+     wj.seek1.hit === false && wj.seek3.hit === true,
+     `一阶命中=${wj.seek1.hit} / 三阶命中=${wj.seek3.hit}`);
 
   sec('T8  运行期无报错');
   ok('无 pageerror / console.error', errs.length === 0, errs.slice(0, 3).join(' | '));

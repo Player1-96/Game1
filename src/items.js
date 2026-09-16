@@ -111,12 +111,12 @@ const ITEM_DEFS = [
          '镜光如幕：击落范围再 +4，术法近身即散'],
     upByStyle: {
       wujian: ['照影更疾：打回去的术法伤害 ×1.8，并可多穿透 1 个妖物',
-               '照影如潮：伤害 ×2.3，回敬的术法可多穿透 2 个妖物']
+               '照影如潮：伤害 ×2.3，可多穿透 2 个妖物，且回敬的术法会自行追敌']
     },
     byStyle: {
       feijian: { name: '玄元镜', desc: '飞剑可击落敌方术法（范围随镜阶扩大）' },
       jujian: { name: '玄元镜', desc: '巨剑扫过可击落敌方术法（范围随镜阶扩大）' },
-      wujian: { name: '照影镜', desc: '斩中的术法原样打回去（伤害 ×1.3），且自寻最近的妖物' }
+      wujian: { name: '照影镜', desc: '斩中的术法原路打回去（伤害 ×1.3）；满阶起自行追敌' }
     } },
   { id: 'shidu', name: '尸毒珠', rare: true, type: 'fabao', icon: 'orb', c1: PAL.green, c2: PAL.greenD,
     desc: '被击杀的妖物炸出毒雾（半径 26）', func: true,

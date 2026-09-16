@@ -103,13 +103,14 @@ function wjDamage(pl, stage, guaranteed) {
 /* ------------------------------------------------------------
  *  照影（玄元镜在舞剑流下的形态）
  *  被剑罡斩中的术法不再湮灭，而是掉头打回去 —— 弹幕越密，回敬越狠。
- *  · 方向优先取最近的妖物，近旁没目标就沿原路返回
+ *  · 一、二阶只是一记 180° 的原路回敬：术法从哪来就回哪去，敌人挪了位就打空
+ *  · 三阶「照影如潮」才补上自导，方向改取最近的妖物（这是三阶的卖点）
  *  · 伤害按玩家伤害折算，镜阶越高回得越重（1 阶 ×1.3 → 3 阶 ×2.3）
- *  · 补一点自导与穿透，免得掉头之后擦肩而过
  * ---------------------------------------------------------- */
 function reflectBullet(b, pl, g) {
   const s = pl.stats;
-  const t = g.nearestEnemy(b.x, b.y, 320, null);
+  const seek = s.reflect >= 3;                    // 只有满阶才追敌
+  const t = seek ? g.nearestEnemy(b.x, b.y, 320, null) : null;
   const a = t ? Math.atan2(t.y - b.y, t.x - b.x) : Math.atan2(-b.vy, -b.vx);
   const sp = Math.max(6, Math.hypot(b.vx, b.vy) * 1.5);
   b.friendly = true;
@@ -119,7 +120,7 @@ function reflectBullet(b, pl, g) {
   b.crit = Math.random() < (s.crit || 0);
   b.pierce = Math.max(b.pierce, s.reflect - 1);   // 镜阶越高，回敬的术法穿得越多
   b.knockback = Math.max(b.knockback, 2.5);
-  b.homing = Math.max(b.homing, 0.05);
+  if (seek) b.homing = Math.max(b.homing, 0.05);
   b.hit.clear();
   b.life = Math.max(b.life, 100);
   g.burst(b.x, b.y, 8, PAL.cyan);
@@ -2005,7 +2006,7 @@ const STYLES = {
       burn: '灼烧', frost: '冰封', chain: '引雷连锁',
       crit: '暴击几率',
       deflect: null,   // 玄元镜在本流派下改走 reflect，不再叠加斩落半径
-      reflect: '玄元镜化名「照影镜」：斩中的术法原样打回去'
+      reflect: '玄元镜化名「照影镜」：斩中的术法原路打回去，满阶起自行追敌'
     },
     /* 蓄势速度：与巨剑流同一口径（fireRate / 基准），
        升级路线「凝神聚气」再乘一层，故射速法宝在舞剑流同样两头都吃到 */
