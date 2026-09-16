@@ -72,6 +72,29 @@ const OUT = path.resolve(__dirname);
   await shot('_preview_killcd_off.png');
   await shot('_preview_killcd_icon_off.png', iconClip);
 
+  /* ---- 2.5 连段窗口开启：格子必须画成「可接段」而不是「冷却中」 ----
+     冷却不再被清零之后，窗口期内 ultCd 仍是几百帧，若照旧画遮罩+秒数，
+     玩家会以为接不上。窗口优先于冷却显示。 */
+  const chain = await page.evaluate(() => {
+    const G = window.Game;
+    G.newRun('wujian');
+    const p = G.player;
+    p.x = 200; p.y = 170; p.invuln = 99999; p.ultCd = 0;
+    G.enemies.length = 0;
+    const e = new Enemy('guixiu', 320, 170, 1);
+    e.spawnT = 0; e.maxHp = 1; e.hp = 1; e.speed = 0; e.cd = 99999; e.touch = 0;
+    G.enemies.push(e);
+    input.mouseSeen = true; input.mx = 460; input.my = 170;
+    input.mouseDown = true; G.useUlt();
+    for (let i = 0; i < 40 && p.wjCharging && p.wjChargeT < WJ.charge; i++) G.update();
+    input.mouseDown = false; G.ultUp();
+    for (let i = 0; i < 40; i++) G.update();
+    G.draw();
+    return { 段位: p.wjStage, 窗口: Math.round(p.wjChainT), cd: Math.round(p.ultCd) };
+  });
+  console.log('连段窗口：', JSON.stringify(chain));
+  await shot('_preview_killcd_chain.png', iconClip);
+
   /* ---- 3. 魔窟：不打尊者，站到第 45 秒，一阶段被强制掀掉 ---- */
   const p1 = await page.evaluate(() => {
     const G = window.Game;

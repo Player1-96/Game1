@@ -1297,8 +1297,11 @@ class GameCore {
 
     /* 专属技能（右上）：空格释放 */
     const ux = 452, uy = 4;
+    /* 舞剑流在连段窗口内可以无视冷却直接接招，所以这时候不能把格子画成「冷却中」——
+       玩家盯着「14 秒」会以为接不上，而实际上完全接得上。窗口优先于冷却显示。 */
+    const chainOpen = !!(p.ult && p.ult.style === 'wujian' && p.wjStage > 0 && p.wjChainT > 0);
     g.fillStyle = '#1d1832'; g.fillRect(ux, uy, 24, 24);
-    g.strokeStyle = p.ult ? PAL.gold : '#4d4478';
+    g.strokeStyle = p.ult ? (chainOpen ? PAL.cyan : PAL.gold) : '#4d4478';
     g.lineWidth = 1; g.strokeRect(ux + 0.5, uy + 0.5, 23, 23);
     if (p.ult) {
       const UD = ULT_DEF[p.ult.style] || ULT_DEF.feijian;
@@ -1306,7 +1309,7 @@ class GameCore {
       g.save(); g.translate(ux + 12, uy + 12); g.scale(0.8, 0.8);
       g.drawImage(ic, -ic.width / 2, -ic.height / 2); g.restore();
       this.ultHit = { x: ux, y: uy, w: 24, h: 24 };
-      if (p.ultCd > 0) {
+      if (p.ultCd > 0 && !chainOpen) {
         const k = p.ultCd / ultCdOf(p.ult, p.ult.style);
         g.fillStyle = 'rgba(8,6,18,0.72)';
         g.fillRect(ux + 1, uy + 1, 22, 22 * k);

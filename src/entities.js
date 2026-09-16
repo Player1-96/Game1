@@ -2113,7 +2113,10 @@ const STYLES = {
       pl.dashA = ultAimAngle(pl);            // 一律朝鼠标指针，鼠标没动过才退回朝向
       pl.dashHit = new Set();
       pl.dashFlurry = 0; pl.dashFlurryT = 0;
-      pl.ultCd = ultCdOf(U, 'wujian');       // 冷却自释放那一刻起算
+      // 冷却自「第一段」释放那一刻起算；后续段一律不重置 —— 重置等于把前面
+      // 突进里斩获的击杀返还整个抹掉。能不能接下一段由 ultDown 的 wjChainT 豁免决定，
+      // 与 ultCd 无关，所以这里停手不影响连招。
+      if (pl.dashStage === 0) pl.ultCd = ultCdOf(U, 'wujian');
       pl.wjStage = 0; pl.wjChainT = 0;       // 本段已消耗，命中后再点亮连段窗口
       SFX.dash();
       g.burst(pl.x, pl.y, k >= 1 ? 14 : 8, PAL.jadeL);
@@ -2213,7 +2216,9 @@ const STYLES = {
       } else if (hitN > 0) {
         pl.wjStage = pl.dashStage + 1;               // 命中 → 立即接续下一段
         pl.wjChainT = WJ.chain + ultPathVal(pl.ult, 'wujian', 'chain');
-        pl.ultCd = 0;
+        // 这里刻意不再把 ultCd 清零。旧写法靠「清零 = 表示可接段」，但那会连带
+        // 抹掉本段突进斩获的击杀返还（一二段白打）；接段其实由 ultDown 里
+        // 「ultCd > 0 && wjChainT <= 0」的 wjChainT 豁免放行，用不着清零。
         g.floaters.push(new Floater(pl.x, pl.y - 30,
           (pl.wjStage + 1) + ' 段 · 可续', PAL.jadeL));
       } else {

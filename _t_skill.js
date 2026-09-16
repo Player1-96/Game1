@@ -845,6 +845,53 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
       for (let i = 0; i < 40; i++) { G.update(); if (w.dashing) out.wallFrames++; }
       out.wallX = Math.round(w.x);
 
+      // ---- 三段之内斩获的返还必须累积下来 ----
+      // 旧写法在一/二段命中后把 ultCd 清零（当作「可接段」的标记），连带把该段突进
+      // 斩获的击杀返还一起抹掉。现在改为：只有第一段起算冷却，后续段既不重置也不清零。
+      const comboRefund = () => {
+        G.newRun('wujian');
+        const a = G.player; a.giveUlt('wujian'); a.ultCd = 0; a.invuln = 9999;
+        for (let i = 0; i < 3; i++) a.learnPath('haste');     // 满级：每杀返 240 帧
+        a.x = 200; a.y = 160;
+        inp.mouseSeen = true; inp.mx = 460; inp.my = 160;      // 一律朝正右，避开墙体
+        const seg = () => {
+          G.enemies.length = 0;
+          const e = new Enemy('xiesui', a.x + 165, a.y, 1);    // 钉在突进落点前，必被斩中
+          e.spawnT = 0; e.maxHp = 1; e.hp = 1; e.speed = 0; e.cd = 99999; e.touch = 0;
+          G.enemies.push(e);
+          G.useUlt();
+          for (let i = 0; i < 40 && a.wjCharging && a.wjChargeT < WJ.charge; i++) G.update();
+          G.ultUp();
+          const rel = Math.round(a.ultCd);
+          for (let i = 0; i < 40; i++) G.update();
+          return { rel: rel, after: Math.round(a.ultCd), stage: a.wjStage,
+                   killed: G.kills, dead: e.dead };
+        };
+        const s1 = seg(); a.x = 200; a.y = 160;
+        const s2 = seg(); a.x = 200; a.y = 160;
+        const s3 = seg();
+        return { s1: s1, s2: s2, s3: s3, final: Math.round(a.ultCd), stage: a.wjStage };
+      };
+      out.combo = comboRefund();
+      // 对照：同样跑完三段但不杀任何东西，收招时的余量
+      const comboNoKill = () => {
+        G.newRun('wujian');
+        const a = G.player; a.giveUlt('wujian'); a.ultCd = 0; a.invuln = 9999;
+        for (let i = 0; i < 3; i++) a.learnPath('haste');
+        a.x = 200; a.y = 160;
+        inp.mouseSeen = true; inp.mx = 460; inp.my = 160;
+        for (let s = 0; s < 3; s++) {
+          G.enemies.length = 0;
+          G.useUlt();
+          for (let i = 0; i < 40 && a.wjCharging && a.wjChargeT < WJ.charge; i++) G.update();
+          G.ultUp();
+          for (let i = 0; i < 40; i++) G.update();
+          a.x = 200; a.y = 160;
+        }
+        return Math.round(a.ultCd);
+      };
+      out.comboNoKill = comboNoKill();
+
       // ---- 极短点击（低于 chargeMin）：算误触，收势且不消耗冷却 ----
       G.newRun('wujian');
       const s = G.player; s.giveUlt('wujian'); s.ultCd = 0; s.invuln = 9999;
@@ -884,7 +931,8 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     ok('突进确实拉开距离', r.dashMoved > 50, r.dashMoved + ' px');
     ok('一段命中造成伤害', r.stage1Dmg > 0, r.stage1Dmg + ' 点');
     ok('一段命中后点亮第二段', r.afterStage1 === 1, 'stage=' + r.afterStage1);
-    ok('一段命中后退还冷却（可立即接段）', r.cdAfterHit === 0, 'cd=' + r.cdAfterHit);
+    ok('一段命中后不再清零冷却（冷却连续走，段内返还得以累积）',
+       r.cdAfterHit > 800 && r.cdAfterHit < 900, 'cd=' + Math.round(r.cdAfterHit));
     ok('二段伤害比一段高约 20%',
        Math.abs(r.stage2Dmg / r.stage1Dmg - 1.2) < 0.02,
        `${r.stage1Dmg} → ${r.stage2Dmg}（×${(r.stage2Dmg / r.stage1Dmg).toFixed(3)}）`);
@@ -896,12 +944,23 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     ok('打完三段后段位归零', r.afterStage3 === 0, 'stage=' + r.afterStage3);
     ok('落空不加段位', r.missStage === 0, 'stage=' + r.missStage);
     ok('落空照走完整冷却', r.missCd > 850, r.missCd + ' 帧 ≈ ' + (r.missCd / 60).toFixed(1) + ' 秒');
-    ok('命中后确实点亮了连段窗口', r.litStage === 1 && r.litCd === 0, `${r.litStage} / cd=${r.litCd}`);
+    ok('命中点亮连段窗口，且不再靠清零 ultCd 来表示「可接段」',
+       r.litStage === 1 && r.litCd > 800 && r.litCd < 900,
+       `stage=${r.litStage} / cd=${Math.round(r.litCd)}（旧行为为 0）`);
     ok('窗口内不接招 → 连招中断、冷却回满',
        r.expiredStage === 0 && r.expiredCd > 850,
        `stage=${r.expiredStage} cd=${r.expiredCd}`);
     ok('蓄势中挨打 → 剑势溃散', r.interrupted === true);
     ok('被打断后技能立刻进冷却', r.cdAfterInterrupt === 900, r.cdAfterInterrupt + ' 帧 = 15 秒');
+    ok('一段突进斩获的返还留下（不再被清零抹掉）',
+       r.combo.s1.after > 300, '一段收招后 cd=' + r.combo.s1.after + ' 帧（旧行为 0）');
+    ok('二段释放不重置冷却（继承一段进度，不再跳回 900）',
+       r.combo.s2.rel < 800, '二段释放瞬间 cd=' + r.combo.s2.rel + ' 帧（旧行为 900）');
+    ok('三段连招内斩获的返还逐段累积',
+       r.combo.s2.after < r.combo.s1.after && r.combo.s3.after <= r.combo.s2.after,
+       `${r.combo.s1.after} → ${r.combo.s2.after} → ${r.combo.s3.after} 帧`);
+    ok('全程零击杀时收招仍剩大半冷却（返还没凭空变多）',
+       r.comboNoKill > 700, r.comboNoKill + ' 帧 ≈ ' + (r.comboNoKill / 60).toFixed(1) + ' 秒');
     ok('极短点击（< chargeMin）算误触：收势、不动、不收冷却',
        r.tapCd === 0 && r.tapCharging === false && r.tapDashing === false,
        `cd=${r.tapCd} charging=${r.tapCharging} dashing=${r.tapDashing}（chargeMin=${r.chargeMin}）`);
