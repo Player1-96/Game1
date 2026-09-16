@@ -1,6 +1,6 @@
 'use strict';
-/* 接招期蓄势的无敌：第三段待发时被四只小怪贴身围住蓄势，血量纹丝不动、蓄势条照涨。
-   对照图是同场景的「起手蓄势」（wjStage = 0）—— 那才是赌注所在，会被打断。 */
+/* 蓄势期的取舍：接招（第三段待发）与起手（第一段待发）一样会被贴脸的小怪摸断，
+   两张图的蓄势条都会当场清空 —— 无敌只留在五连斩的收招余韵上，不在蓄势里。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const FILE = 'file:///' + path.resolve(__dirname, 'index.html').replace(/\\/g, '/');
