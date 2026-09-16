@@ -2137,6 +2137,11 @@ const STYLES = {
       if (pl.dashFlurry > 0) STYLES.wujian.tickFlurry(pl, g);
     },
     tickCharge(pl, g) {
+      /* 接招期的蓄势不再被打断：一段命中之后玩家已经贴在怪堆里了，接下来那半秒
+         只要被杂兵摸一下就「剑势溃散 + 技能进完整冷却」，第三段的五连斩根本砍不出来。
+         起手那一记仍保留这条赌注（wjStage === 0 时不给无敌）—— 「敢不敢贴上去」
+         才是这套流派的性格所在，连上之后该让它连完。 */
+      if (pl.wjStage > 0) pl.invuln = Math.max(pl.invuln, 2);
       const rate = STYLES.wujian.chargeRate(pl.stats, pl);
       pl.wjChargeT = Math.min(WJ.charge, pl.wjChargeT + rate);
       if (!pl.wjFull && pl.wjChargeT >= WJ.charge) {
@@ -2255,6 +2260,8 @@ const STYLES = {
       if (--pl.dashFlurry <= 0) {
         pl.dashFlurry = 0;
         pl.wjStage = 0;
+        // 收招余韵：五刀砍完时人还在怪堆正中，一点缓冲都不给会当场被围殴按死
+        pl.invuln = Math.max(pl.invuln, WJ.flurryGrace);
         g.floaters.push(new Floater(pl.x, pl.y - 32, '五连斩', PAL.goldL));
       }
     }

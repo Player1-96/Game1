@@ -807,6 +807,51 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
       out.interrupted = wasCharging && !k.wjCharging;
       out.cdAfterInterrupt = Math.round(k.ultCd);
 
+      // ---- 接招期的蓄势不再被打断（只有起手那一记才是赌注）----
+      // 实测反馈：三段要接的时候人已经贴在怪堆里，被杂兵摸一下就是剑势溃散 +
+      // 技能进完整冷却，五连斩根本砍不出来。现在 wjStage > 0 时蓄势自带无敌。
+      G.newRun('wujian');
+      const k2 = G.player; k2.giveUlt('wujian'); k2.ultCd = 0; k2.invuln = 0;
+      G.enemies.length = 0;
+      k2.wjStage = 2; k2.wjChainT = 999;              // 第三段待发
+      const hpBeforeChain = k2.hp;
+      inp.mouseSeen = true; inp.mx = k2.x + 60; inp.my = k2.y;
+      G.useUlt();
+      for (let i = 0; i < 12; i++) { G.update(); k2.takeDamage(1, G); }
+      out.chainCharging = k2.wjCharging;
+      out.chainHpKept = k2.hp === hpBeforeChain;
+      out.chainCd = Math.round(k2.ultCd);
+      out.chainInvuln = k2.invuln;
+      // 松手后五连斩必须完整砍出 5 刀，且全程无「状态在技能里、invuln 却为 0」的空窗
+      const t3b = new Enemy('guixiu', 0, 0, 1);
+      t3b.spawnT = 0; t3b.maxHp = 999999; t3b.hp = 999999;
+      t3b.speed = 0; t3b.cd = 99999; t3b.touch = 0;
+      G.enemies.push(t3b);
+      G.ultUp();
+      out.chainDashStage = k2.dashStage;
+      let prevB = t3b.hp, hitsB = 0, riskB = 0;
+      for (let i = 0; i < 90; i++) {
+        G.update();
+        if ((k2.dashing || k2.dashFlurry > 0) && k2.invuln <= 0) riskB++;
+        t3b.x = k2.x + 30; t3b.y = k2.y;              // 钉在身前，数得清刀数
+        if (t3b.hp < prevB) { hitsB++; prevB = t3b.hp; }
+        if (!k2.dashing && k2.dashFlurry <= 0) break;
+      }
+      out.chainFlurryHits = hitsB;
+      out.chainRiskFrames = riskB;
+      out.graceInvuln = k2.invuln;                    // 收招余韵
+      out.flurryGrace = WJ.flurryGrace;
+
+      // ---- 起手（wjStage = 0）仍不给无敌：赌注留在「敢不敢贴上去」这一步 ----
+      G.newRun('wujian');
+      const k3 = G.player; k3.giveUlt('wujian'); k3.ultCd = 0; k3.invuln = 0;
+      G.enemies.length = 0;
+      k3.wjStage = 0; k3.wjChainT = 0;
+      inp.mouseSeen = true; inp.mx = k3.x + 60; inp.my = k3.y;
+      G.useUlt();
+      G.update();
+      out.openingInvuln = k3.invuln;                  // 起手蓄势不该被续无敌
+
       // ---- 蓄势越久，突进越远：同一起点、只改松手时机 ----
       const dashAt = (frames) => {
         G.newRun('wujian');
@@ -950,8 +995,23 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     ok('窗口内不接招 → 连招中断、冷却回满',
        r.expiredStage === 0 && r.expiredCd > 850,
        `stage=${r.expiredStage} cd=${r.expiredCd}`);
-    ok('蓄势中挨打 → 剑势溃散', r.interrupted === true);
+    ok('起手蓄势中挨打 → 剑势溃散', r.interrupted === true);
     ok('被打断后技能立刻进冷却', r.cdAfterInterrupt === 900, r.cdAfterInterrupt + ' 帧 = 15 秒');
+    ok('接招期的蓄势挨打不再溃散（第三段必须能接出来）',
+       r.chainCharging === true && r.chainCd === 0,
+       `蓄势中=${r.chainCharging} cd=${r.chainCd}`);
+    ok('接招期蓄势挨打不掉血（该窗口有连续无敌）',
+       r.chainHpKept === true && r.chainInvuln > 0,
+       `血量未变=${r.chainHpKept} invuln=${r.chainInvuln}`);
+    ok('起手那一记仍不给无敌（赌注留在「敢不敢贴上去」）',
+       r.openingInvuln === 0, 'invuln=' + r.openingInvuln);
+    ok('接招蓄势全程挨打后，五连斩照样砍满 5 刀',
+       r.chainDashStage === 2 && r.chainFlurryHits === 5,
+       `段位 ${r.chainDashStage} / ${r.chainFlurryHits} 刀`);
+    ok('突进与五连斩期间没有「技能中却无无敌」的空窗',
+       r.chainRiskFrames === 0, r.chainRiskFrames + ' 帧');
+    ok('五连斩收招给一小段余韵无敌（砍完不至于当场被围殴）',
+       r.graceInvuln >= r.flurryGrace, `余韵 ${r.graceInvuln} 帧 / 设定 ${r.flurryGrace}`);
     ok('一段突进斩获的返还留下（不再被清零抹掉）',
        r.combo.s1.after > 300, '一段收招后 cd=' + r.combo.s1.after + ' 帧（旧行为 0）');
     ok('二段释放不重置冷却（继承一段进度，不再跳回 900）',

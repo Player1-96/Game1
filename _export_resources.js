@@ -273,6 +273,7 @@ const PERK_CN = {
       SLOT_COUNT: SLOT_COUNT, SKILL_MAX_LV: SKILL_MAX_LV, SKILL_GCD: SKILL_GCD,
       ULT_CD_BASE: ULT_CD_BASE, ULT_CD_MIN: ULT_CD_MIN, ULT_PATH_MAX: ULT_PATH_MAX,
       BOSS_P1_LIMIT: BOSS_P1_LIMIT,               // 头目一阶段软时限（帧）
+      WJ: WJ,                                     // 舞剑「剑影三叠」的机制常量（蓄势 / 突进 / 连段 / 五连斩）
       // 开局自然回复为 0，涓流全靠「回灵符」法宝（每份 +1/秒）；为 0 时不给帧数，免得导出成 Infinity
       mpRegenPerCopy: 1,
       mpTickFrames: MP_REGEN > 0 ? Math.round(60 / MP_REGEN) : 0,
