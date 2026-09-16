@@ -469,19 +469,27 @@ class Floor {
         break;
       }
       case RT.BOSS: {
-        r.waves.push([{ type: 'boss', x: ROOM_W / 2, y: 96, boss: (depth % 2 === 1) ? 'xuemo' : 'baigu',
+        /* 一层一位，固定不轮换：五层正好五位尊者，
+           由浅入深依次是「整圈弹幕 → 白骨三阶段 → 弹幕裂变 → 缺口环 → 横扫+鳞罩」，
+           越深的那一位题面越新，玩家每一层都要重学一次怎么走位。 */
+        r.waves.push([{ type: 'boss', x: ROOM_W / 2, y: 96,
+          boss: BOSS_KEYS[Math.min(BOSS_KEYS.length - 1, depth - 1)],
           hpScale: (1 + (depth - 1) * 0.45) * (1 + (dm - 1) * 0.6) }]);
         break;
       }
     }
   }
 
+  /* 妖物池：池内等概率，所以「加一种」等于「稀释全部」。
+     因此新妖物一律按层解锁、一次只放一两种进来 ——
+     既让后四层每层都有新面孔，又不至于把一层的池子冲淡到看不出性格。 */
   enemyPool(depth) {
     const pool = ['xiesui', 'chanchu'];
     pool.push('yinsha');
     if (depth >= 1) pool.push('xuefu');
-    if (depth >= 2) { pool.push('guixiu'); pool.push('shikui'); }
-    if (depth >= 3) pool.push('jianling');
+    if (depth >= 2) { pool.push('guixiu'); pool.push('shikui'); pool.push('bengyao'); }
+    if (depth >= 3) { pool.push('jianling'); pool.push('yingmo'); pool.push('xuanguang'); }
+    if (depth >= 4) { pool.push('tiehun'); pool.push('xuanjia'); }
     return pool;
   }
 

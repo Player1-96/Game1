@@ -20,6 +20,43 @@ const PERK_WINDUP = 34;        // 精英环形技的前摇帧数（贴身时也�
    于是变成一个「我不想输就不会输」的龟缩洞。时限从凝形结束才开始计。 */
 const BOSS_P1_LIMIT = 45 * 60;
 
+/* ------------------------------------------------------------
+ *  后四层新妖物的机制常量（集中在这里，便于平衡时一处调）
+ * ---------------------------------------------------------- */
+/* 玄光瞳：蓄力—发射的激光。BEAM_WARN 内全程有细线预告，
+   方向一路跟着玩家走，直到最后 BEAM_LOCK 帧才钉死 ——
+   「一路压着你、最后半秒才松口」比开局就锁定更逼人走位。 */
+const BEAM = {
+  warn: 78,        // 蓄力总帧数
+  lock: 26,        // 末尾这段方向钉死，留给玩家闪身
+  fire: 12,        // 光束存续帧数
+  len: 520,        // 光束长度（够贯穿整间石室）
+  w: 9,            // 光束判定宽度
+  reCd: 150        // 发射后的冷却（另加随机）
+};
+/* 玄甲卫：两片护盾绕身慢转。
+   arc 越大越难绕后，rot 越大越难「等它转过去」，两者共同决定这道题有多难。 */
+const SHIELD = {
+  arcs: 2,         // 护盾片数
+  arc: 1.5,        // 每片张角（弧度）
+  rot: 0.012,      // 角速度（弧度/帧，约 7.5 秒一圈）
+  mul: 0.25        // 挡下后的伤害倍率（不是完全免疫，免得变成纯绕圈）
+};
+/* 蹦山魈：蓄力—起跳—落地。落点先亮圈，砸中范围 1 颗心。 */
+const LEAP = {
+  wind: 36,        // 蓄力帧数（落点圈在这段时间里收紧）
+  air: 34,         // 腾空帧数（期间不造成接触伤害）
+  r: 26,           // 落地杀伤半径
+  recover: 18      // 落地硬直
+};
+/* 影魅：正常隐身，贴近或受创才现形；现形瞬间有一记扑击 */
+const STEALTH = {
+  near: 110,       // 进入这个距离就现形
+  far: 150,        // 拉开到这个距离才重新隐去
+  hold: 90,        // 现形至少维持这么久
+  burst: 4.6,      // 现形瞬间的扑击速度
+  hiddenMul: 0.72  // 隐身时的移速倍率
+};
 /* 凝形法阵：出生保护期内在脚下旋转的召唤阵 */
 /* 精英光环：脚下常驻的旋转符阵，颜色随精英种类 */
 function drawEliteAura(g, x, y, r, col, t) {
@@ -245,6 +282,15 @@ class Bullet {
     this.kind = opt.kind || 'sword';
     this.sprite = opt.sprite || SPR.sword;
     this.reflected = false;      // 被「照影」打回去的术法：加一圈青光以便和敌弹区分
+    /* 玄铁弹：斩不落、也回敬不了。这是对「照影镜」与「击落术法」的一条硬答案，
+       所以必须一眼可辨 —— 铁灰的方芯 + 一圈铁色微光，与血珠/符箓画风明显不同。 */
+    this.hard = !!opt.hard;
+    /* 裂变弹：飞够 splitT 帧就炸成 splitN 枚低一阶的弹幕（阶数用尽即停）。
+       母弹慢而大、子弹快而小，逼玩家在「先躲大的」和「先清小的」之间选。 */
+    this.splitN = opt.splitN || 0;
+    this.splitTier = opt.splitTier || 0;
+    this.splitT = opt.splitT || 0;
+    this.splitKind = opt.splitKind || null;
     this.hit = new Set();
     this.dead = false;
     this.spin = 0;
@@ -252,6 +298,13 @@ class Bullet {
     this.trail = [];
   }
   update(g) {
+    /* 裂变弹：飞够 splitT 帧就地炸开，一分为 N 枚低一阶的弹幕。
+       放在最前面 —— 母弹在墙上撞碎前就该裂完，否则贴墙打就少了一整层弹幕。 */
+    if (this.splitN > 0 && this.splitTier > 0 && --this.splitT <= 0) {
+      this.dead = true;
+      g.splitBullet(this);
+      return;
+    }
     if (this.homing > 0 && this.friendly) {
       // 只追「还没打过」的目标：否则飞剑会绕着已命中的妖物打转，看着像空转却不掉血
       const R = (g.player && g.player.stats.homingRange) || 220;
@@ -305,7 +358,11 @@ class Bullet {
         const dr = this.r + 2 + this.deflect * 4;
         for (const b of g.bullets) {
           if (b.friendly || b.dead) continue;
-          if (circleHit(this.x, this.y, dr, b.x, b.y, b.r)) { b.dead = true; g.burst(b.x, b.y, 6, PAL.cyan); }
+          if (!circleHit(this.x, this.y, dr, b.x, b.y, b.r)) continue;
+          // 玄铁弹斩不落：火花照爆，弹丸照飞 —— 这一下「咣」是要让玩家看清
+          // 「这不是没打中，是打不动」，不然会被当成判定 bug
+          if (b.hard) { g.burst(b.x, b.y, 4, PAL.greyL); continue; }
+          b.dead = true; g.burst(b.x, b.y, 6, PAL.cyan);
         }
       }
     } else {
@@ -371,7 +428,18 @@ class Bullet {
       g2.restore();
     } else {
       const k = 1 + Math.sin(this.spin * 0.6) * 0.08;
-      g2.drawImage(s, this.x - s.width * k / 2, this.y - s.height * k / 2, s.width * k, s.height * k);
+      // scale 供裂变弹用：母弹/中弹/子弹只差大小，一套 sprite 按倍率放缩即可
+      const sc = this.scale * k;
+      const w = s.width * sc, h = s.height * sc;
+      if (this.hard) {
+        // 玄铁弹再罩一圈淡铁色光晕，混在弹幕里也能一眼认出「这颗打不掉」
+        g2.save();
+        g2.globalAlpha = 0.30;
+        g2.fillStyle = PAL.greyL;
+        g2.beginPath(); g2.arc(this.x, this.y, this.r * 1.15 * k, 0, Math.PI * 2); g2.fill();
+        g2.restore();
+      }
+      g2.drawImage(s, this.x - w / 2, this.y - h / 2, w, h);
     }
   }
 }
@@ -455,6 +523,135 @@ class Hazard {
 }
 
 /* ------------------------------------------------------------
+ *  玄光（激光束）
+ *
+ *  和 Hazard 一样是「先预告、后结算」的地面危险，区别在于杀伤区是一条**射线**，
+ *  而不是圆 —— 这正是它存在的意义：圆的题是「往外跑」，射线的题是「横着挪」，
+ *  两种走位手感完全不同，凑在一起才逼得出真正的跑位。
+ *
+ *  · 蓄力期（warn 帧）：只画一条细线 + 末端收敛的光点，全程零伤害
+ *  · 方向在最后 lock 帧才钉死（锁之前一直跟着玩家转，压力是持续的）
+ *  · swing ≠ 0 时为「横扫」：发射期内角度从 a0 匀速转到 a0+swing
+ *  · follow 传持有者对象时可让光束随其移动（烛龙的扫射要跟着龙眼走）
+ * ---------------------------------------------------------- */
+class Beam {
+  /* opt: { swing, follow, aimAt, lock, col, dmg, hitGap, pierce } */
+  constructor(x, y, a, len, w, warn, fire, opt) {
+    opt = opt || {};
+    this.x = x; this.y = y;
+    this.a = a;                 // 蓄力期的朝向（会被 aimAt 覆盖）
+    this.len = len; this.w = w;
+    this.warn = warn; this.fire = fire;
+    this.t = 0; this.dead = false;
+    this.swing = opt.swing || 0;
+    this.follow = opt.follow || null;     // {x, y} —— 光束起点跟着它走
+    this.aimAt = opt.aimAt || null;       // {x, y} —— 蓄力期朝它转
+    this.lock = opt.lock != null ? opt.lock : 0;
+    this.col = opt.col || PAL.red;
+    this.dmg = opt.dmg || 1;
+    this.hitGap = opt.hitGap || 26;       // 同一道光的两次伤害间隔（防一帧多段）
+    this.hitCd = 0;
+    this.a0 = a;                          // 蓄力结束时钉死的角度（横扫的起点）
+  }
+  get firing() { return this.t > this.warn; }
+  get curA() {
+    if (!this.firing) return this.a;
+    const k = Math.min(1, (this.t - this.warn) / this.fire);
+    return this.a0 + this.swing * k;
+  }
+  /* 点到线段的距离：判定「玩家有没有站在光里」 */
+  segDist(px, py, a) {
+    const ox = this.follow ? this.follow.x : this.x;
+    const oy = this.follow ? this.follow.y : this.y;
+    const dx = Math.cos(a), dy = Math.sin(a);
+    let t = (px - ox) * dx + (py - oy) * dy;
+    t = clamp(t, 0, this.len);
+    return Math.hypot(px - (ox + dx * t), py - (oy + dy * t));
+  }
+  update(g) {
+    this.t++;
+    if (this.hitCd > 0) this.hitCd--;
+    const p = g.player;
+    // 蓄力期：锁定前一直重新指向玩家；到 lock 帧起方向钉死，给玩家闪身的窗口
+    if (!this.firing) {
+      if (this.aimAt && this.t <= this.warn - this.lock) {
+        const ox = this.follow ? this.follow.x : this.x;
+        const oy = this.follow ? this.follow.y : this.y;
+        this.a = Math.atan2(this.aimAt.y - oy, this.aimAt.x - ox);
+      }
+      if (this.t === this.warn) this.a0 = this.a;      // 钉死
+      if (this.t > this.warn + this.fire) this.dead = true;
+      return;
+    }
+    if (this.t > this.warn + this.fire) { this.dead = true; return; }
+    if (this.hitCd <= 0 && p && !p.dead && this.segDist(p.x, p.y, this.curA) <= this.w / 2 + p.r) {
+      // 走 takeDamage 的常规通道：无敌帧、护盾、震屏都照旧生效
+      p.takeDamage(this.dmg, g, p.x, p.y);
+      this.hitCd = this.hitGap;
+    }
+  }
+  draw(g2) {
+    const ox = this.follow ? this.follow.x : this.x;
+    const oy = this.follow ? this.follow.y : this.y;
+    const a = this.firing ? this.curA : this.a;
+    const dx = Math.cos(a), dy = Math.sin(a);
+    const ex = ox + dx * this.len, ey = oy + dy * this.len;
+    g2.save();
+    if (!this.firing) {
+      const k = this.t / this.warn;                    // 0 刚起手 → 1 即将发射
+      if (this.swing !== 0) {
+        /* 横扫：蓄力期就把**整个扇面**点亮。
+           单线的预告对横扫没有意义 —— 玩家要读的是「哪一片会挨打」，
+           所以这里画的是走廊：两条边界 + 一条中轴 + 一段折算过的弧。 */
+        const a1 = this.a + this.swing;
+        g2.globalAlpha = 0.10 + 0.16 * k;
+        g2.fillStyle = this.col;
+        g2.beginPath();
+        g2.moveTo(ox, oy);
+        g2.arc(ox, oy, Math.min(this.len, 300), Math.min(this.a, a1), Math.max(this.a, a1));
+        g2.closePath(); g2.fill();
+        g2.globalAlpha = 0.30 + 0.45 * k;
+        g2.strokeStyle = this.col; g2.lineWidth = 1 + k;
+        for (const aa of [this.a, this.a + this.swing / 2, a1]) {
+          g2.beginPath(); g2.moveTo(ox, oy);
+          g2.lineTo(ox + Math.cos(aa) * this.len, oy + Math.sin(aa) * this.len); g2.stroke();
+        }
+        g2.globalAlpha = 0.40 + 0.4 * k;
+        g2.beginPath();
+        g2.arc(ox, oy, Math.min(this.len, 300), Math.min(this.a, a1), Math.max(this.a, a1));
+        g2.stroke();
+      } else {
+        // 单发：轨迹提示线，越接近发射越亮越粗
+        g2.globalAlpha = 0.22 + 0.5 * k;
+        g2.strokeStyle = this.col; g2.lineWidth = 1 + k * 2;
+        g2.beginPath(); g2.moveTo(ox, oy); g2.lineTo(ex, ey); g2.stroke();
+        // 末端光点：沿光路飞向枪口，做出「充能」的动势
+        g2.globalAlpha = 0.55 + 0.4 * Math.sin(this.t * 0.5);
+        g2.fillStyle = this.col;
+        for (let i = 0; i < 3; i++) {
+          const kk = ((this.t * 0.06 + i / 3) % 1);
+          const px2 = ox + dx * this.len * kk, py2 = oy + dy * this.len * kk;
+          g2.fillRect(px2 - 1, py2 - 1, 2 + k * 2, 2 + k * 2);
+        }
+      }
+      // 枪口收敛圈：k → 1 时收到最小，一眼看出还剩多久
+      g2.globalAlpha = 0.45 + 0.4 * k;
+      g2.strokeStyle = this.col; g2.lineWidth = 2;
+      g2.beginPath(); g2.arc(ox, oy, 16 - 10 * k + Math.sin(this.t * 0.4) * 1.5, 0, Math.PI * 2); g2.stroke();
+    } else {
+      const k = 1 - (this.t - this.warn) / this.fire;   // 1 刚发射 → 0 消散
+      g2.globalAlpha = 0.30 * (0.4 + 0.6 * k);
+      g2.strokeStyle = this.col; g2.lineWidth = this.w * 2.6 * (0.5 + 0.5 * k);
+      g2.beginPath(); g2.moveTo(ox, oy); g2.lineTo(ex, ey); g2.stroke();
+      g2.globalAlpha = 0.85 * (0.4 + 0.6 * k);
+      g2.strokeStyle = '#fff'; g2.lineWidth = this.w * (0.5 + 0.5 * k);
+      g2.beginPath(); g2.moveTo(ox, oy); g2.lineTo(ex, ey); g2.stroke();
+    }
+    g2.restore();
+  }
+}
+
+/* ------------------------------------------------------------
  *  斩击刃光（舞剑流的近战表现）
  *  伤害在挥砍那一帧即时结算，这个对象只负责把「剑扫过去的弧」
  *  画出来：弧线由窄变宽、由亮转淡，扫完即散。
@@ -514,7 +711,13 @@ const ENEMY_DEF = {
   guixiu: { hp: 16, speed: 0.8, r: 7, touch: 1, coins: 2, spr: 'guixiu', ai: 'caster', size: 16, score: 18 },
   yinsha: { hp: 10, speed: 1.0, r: 7, touch: 1, coins: 1, spr: 'yinsha', ai: 'hop', size: 16, score: 10, split: true },
   shikui: { hp: 34, speed: 0.62, r: 8, touch: 2, coins: 3, spr: 'shikui', ai: 'chase', size: 16, score: 24 },
-  jianling: { hp: 14, speed: 1.0, r: 7, touch: 1, coins: 2, spr: 'jianling', ai: 'caster2', size: 16, score: 20 }
+  jianling: { hp: 14, speed: 1.0, r: 7, touch: 1, coins: 2, spr: 'jianling', ai: 'caster2', size: 16, score: 20 },
+  // —— 后四层新增的五种，各带一门必须「换打法」的机制 ——
+  xuanguang: { hp: 20, speed: 0.30, r: 8, touch: 1, coins: 2, spr: 'xuanguang', ai: 'laser', size: 18, score: 22 },
+  bengyao: { hp: 20, speed: 0.9, r: 8, touch: 1, coins: 2, spr: 'bengyao', ai: 'leap', size: 18, score: 20 },
+  yingmo: { hp: 14, speed: 1.05, r: 7, touch: 1, coins: 2, spr: 'yingmo', ai: 'stealth', size: 16, score: 20 },
+  tiehun: { hp: 30, speed: 0.5, r: 8, touch: 1, coins: 3, spr: 'tiehun', ai: 'hardcast', size: 18, score: 26 },
+  xuanjia: { hp: 26, speed: 0.55, r: 9, touch: 1, coins: 3, spr: 'xuanjia', ai: 'chase', size: 20, score: 28, shield: true }
 };
 
 /* ------------------------------------------------------------
@@ -579,11 +782,36 @@ class Enemy {
     this.flash = 0; this.frame = 0;
     this.shadow = true;
     this.facing = 1;
+    /* —— 后四层新妖物的状态位 —— */
+    this.shieldR = d.shield ? SHIELD.arc : 0;   // >0 表示带旋盾（值 = 单片张角）
+    this.shieldA = Math.random() * Math.PI * 2;
+    this.blockFlash = 0;                        // 挡下伤害的那一瞬，护盾亮一下
+    this.leapX = 0; this.leapY = 0;             // 蹦山魈：落点
+    this.air = 0;                               // 腾空剩余帧（>0 时不造成接触伤害）
+    this.hidden = d.ai === 'stealth';           // 影魅：是否处于隐身
+    this.revealT = 0;                           // 现形剩余帧
   }
   hurt(dmg, g, src, crit) {
     if (this.dead) return;
     // 血煞厉鬼：受创减免四成
     if (this.elite && this.elite.perk === 'blood') dmg *= 0.6;
+    /* 旋盾：两片护盾绕身慢转，从护盾那一侧打过去基本白打。
+       攻击来向取伤害源的位置（子弹带 x/y，近战由调用方补一个落点对象）；
+       没有来源位置的伤害（燃烧 / 毒雾这类 DoT、以及天雷引等全屏技）绕过护盾 ——
+       既让「技能破盾」成为一条正解，也避免玩家看着火花搞不清自己打没打中。 */
+    if (this.shieldR > 0 && src && typeof src === 'object' && src.x != null) {
+      const a = Math.atan2(src.y - this.y, src.x - this.x);
+      /* 两片护盾以 shieldA 为基准、每隔 π 一片。把来向折进「最近那片的中心」
+         再比张角，就能一眼看出这一下是砍在盾上还是砍在缺口上。 */
+      const step = Math.PI * 2 / SHIELD.arcs;
+      let rel = a - this.shieldA;
+      rel = ((rel % step) + step) % step;             // 折进 [0, step)：0 = 盾心，step/2 = 缺口
+      const off = Math.min(rel, step - rel);          // 距最近盾心的角差
+      if (off <= this.shieldR / 2) {
+        dmg *= SHIELD.mul;
+        this.blockFlash = 8;
+      }
+    }
     this.hp -= dmg;
     this.flash = 6;
     // 持续伤害（尸毒 / 燃烧）每数帧触发一次，若照样报数会糊满屏幕，故整类跳过。
@@ -593,10 +821,14 @@ class Enemy {
         crit != null ? crit : !!(src && src.crit));
     }
     if (this.hp <= 0) this.die(g);
+    // 影魅：挨了打就藏不住了（也让玩家知道「刚才打中的是什么」）
+    else if (this.hidden) this.reveal(g, 0, 0);
   }
   die(g) {
     if (this.dead) return;
     this.dead = true;
+    // 玄光瞳蓄势中被斩杀：光还没射出来，直接掐掉 —— 集火它是有回报的
+    if (this.beam) { this.beam.dead = true; this.beam = null; }
     g.burst(this.x, this.y, 16, PAL.purpleL);
     g.burst(this.x, this.y, 8, PAL.red);
     g.shake(3);
@@ -784,6 +1016,10 @@ class Enemy {
     const dx = p.x - this.x, dy = p.y - this.y;
     const d = Math.hypot(dx, dy) || 1;
     let ax = 0, ay = 0;
+    // 旋盾慢转 / 格挡闪光的余韵 / 腾空计时（三条都是「按帧推进的表现位」）
+    if (this.shieldR > 0) this.shieldA += SHIELD.rot;
+    if (this.blockFlash > 0) this.blockFlash--;
+    if (this.air > 0) this.air--;
 
     switch (this.def.ai) {
       case 'chase': {
@@ -869,6 +1105,104 @@ class Enemy {
         }
         break;
       }
+      case 'laser': {
+        /* 玄光瞳：悬停在一段距离外，周期性地把一束玄光架到你身上。
+           蓄力全程零伤害，方向一路跟着你转，最后 BEAM.lock 帧才钉死 ——
+           所以「什么时候动」是有答案的，不是凭运气。 */
+        if (this.state === 0) {
+          const want = 175;
+          if (d > want + 30) { ax = dx / d * spd; ay = dy / d * spd; }
+          else if (d < want - 30) { ax = -dx / d * spd; ay = -dy / d * spd; }
+          else { ax = -dy / d * spd * 0.6; ay = dx / d * spd * 0.6; }
+          if (--this.cd <= 0 && this.spawnT <= 0) {
+            this.state = 1; this.stateT = BEAM.warn;
+            this.beam = new Beam(this.x, this.y - 2, Math.atan2(dy, dx), BEAM.len, BEAM.w,
+              BEAM.warn, BEAM.fire,
+              { aimAt: p, lock: BEAM.lock, col: PAL.cyan, dmg: 1, follow: this });
+            g.beams.push(this.beam);
+            SFX.cast();
+          }
+        } else {
+          this.stateT--;                       // 蓄力中站定，成为活靶子
+          ax = 0; ay = 0;
+          this.frame = 1;
+          if (this.stateT <= 0) { this.state = 0; this.cd = BEAM.reCd + Math.floor(Math.random() * 70); }
+        }
+        break;
+      }
+      case 'hardcast': {
+        /* 铁魄妖：与玩家保持中距，周期射出一对玄铁弹。
+           弹丸慢（2.2）而大（r=7），躲得开，但斩不落也回敬不了 ——
+           持「照影镜」的玩家在它面前只剩走位这一条路。 */
+        const want = 140;
+        if (d > want + 25) { ax = dx / d * spd; ay = dy / d * spd; }
+        else if (d < want - 40) { ax = -dx / d * spd; ay = -dy / d * spd; }
+        else { ax = -dy / d * spd * 0.5; ay = dx / d * spd * 0.5; }
+        if (--this.cd <= 0 && this.spawnT <= 0) {
+          this.cd = 150 + Math.floor(Math.random() * 60);
+          this.frame = 1;
+          const base = Math.atan2(dy, dx);
+          for (let i = -1; i <= 1; i += 2) {
+            const a = base + i * 0.16;
+            g.spawnEnemyBullet(this.x, this.y - 2, Math.cos(a) * 2.2, Math.sin(a) * 2.2, 'iron',
+              { hard: true, r: 7, life: 320 });
+          }
+          SFX.spit();
+        } else if (this.cd % 20 === 0) this.frame = 0;
+        break;
+      }
+      case 'leap': {
+        /* 蹦山魈：蹲身蓄势 → 锁定落点 → 腾空 → 砸地。
+           落点圈在蓄势期里收紧，腾空时完全无接触伤害 —— 给了「跑开」之外的
+           第二种答案：从圈里穿过去，或者干脆追着它腾空的空档砍。 */
+        if (this.state === 0) {
+          ax = dx / d * spd * 0.7; ay = dy / d * spd * 0.7;
+          if (--this.cd <= 0 && this.spawnT <= 0) {
+            this.state = 1; this.stateT = LEAP.wind;
+            const m = LEAP.r * 0.6;             // 贴墙时也别把落点定到墙里去
+            this.leapX = clamp(p.x, WALL_L + m, WALL_R - m);
+            this.leapY = clamp(p.y, WALL_T + m, WALL_B - m);
+            this.sx = this.x; this.sy = this.y;
+            SFX.cast();
+          }
+        } else if (this.state === 1) {
+          this.stateT--; ax = 0; ay = 0;
+          if (this.stateT <= 0) { this.state = 2; this.stateT = LEAP.air; this.air = LEAP.air; SFX.dash(); }
+        } else if (this.state === 2) {
+          this.stateT--;
+          const k = 1 - this.stateT / LEAP.air;
+          this.x = this.sx + (this.leapX - this.sx) * k;
+          this.y = this.sy + (this.leapY - this.sy) * k;
+          this.vx = 0; this.vy = 0; this.kbx = 0; this.kby = 0;
+          if (this.stateT <= 0) {
+            this.state = 3; this.stateT = LEAP.recover;
+            g.shake(4); g.burst(this.x, this.y, 14, PAL.orange);
+            for (let i = 0; i < 12; i++) {   // 尘环：落地范围一眼可读
+              const a = i / 12 * Math.PI * 2;
+              g.particles.push(new Particle(this.x + Math.cos(a) * LEAP.r * 0.6, this.y + Math.sin(a) * LEAP.r * 0.6,
+                Math.cos(a) * 2.4, Math.sin(a) * 2.4, 16, PAL.orange, 2, 0.06));
+            }
+            if (!p.dead && circleHit(this.x, this.y, LEAP.r, p.x, p.y, p.r)) p.takeDamage(1, g, this.x, this.y);
+          }
+        } else {
+          this.stateT--; ax = 0; ay = 0;       // 落地硬直
+          if (this.stateT <= 0) { this.state = 0; this.cd = 80 + Math.floor(Math.random() * 60); }
+        }
+        break;
+      }
+      case 'stealth': {
+        /* 影魅：平时只剩一道影，摸到近处才现形 —— 现形那一瞬会朝你扑一下。
+           隐身期间照样能被打中（只是看不清），挨了打也会立刻现形：
+           既不冤枉玩家，又让「它什么时候贴上来」成为真正的压力。 */
+        const hiddenMul = this.hidden ? STEALTH.hiddenMul : 1;
+        ax = dx / d * spd * hiddenMul; ay = dy / d * spd * hiddenMul;
+        if (this.hidden) {
+          if (d < STEALTH.near && this.spawnT <= 0) this.reveal(g, dx / d, dy / d);
+        } else {
+          if (--this.revealT <= 0 && d > STEALTH.far) { this.hidden = true; g.burst(this.x, this.y, 6, PAL.purpleD); }
+        }
+        break;
+      }
     }
 
     // 精英神通：凝形结束后按各自冷却释放；环形技（血箭环 / 环形剑气）先走前摇
@@ -891,21 +1225,49 @@ class Enemy {
     g.collideRoom(this, this.r);
     if (this.x !== p.x) this.facing = dx > 0 ? 1 : -1;
 
-    // 接触伤害（凝形期不伤人）
-    if (this.spawnT <= 0 && !p.dead && circleHit(this.x, this.y, this.r, p.x, p.y, p.r)) {
+    // 接触伤害（凝形期不伤人；腾空中也够不着人 —— 蹦山魈的落点判定另算）
+    if (this.spawnT <= 0 && this.air <= 0 && !p.dead && circleHit(this.x, this.y, this.r, p.x, p.y, p.r)) {
       p.takeDamage(this.def.touch, g, this.x, this.y);
     }
     if (this.t % 16 === 0) this.frame = this.frame ? 0 : 1;
   }
+  /* 影魅现形：进入近距离（或被打了）就显身，并朝 nx,ny 方向扑一记 */
+  reveal(g, nx, ny) {
+    if (!this.hidden) { this.revealT = STEALTH.hold; return; }
+    this.hidden = false;
+    this.revealT = STEALTH.hold;
+    this.vx = (nx || 0) * STEALTH.burst;
+    this.vy = (ny || 0) * STEALTH.burst;
+    this.flash = 4;
+    g.burst(this.x, this.y, 10, PAL.purpleL);
+    SFX.cast();
+  }
   draw(g2) {
     const set = this.small ? SPR.enemies.yinsha_s : SPR.enemies[this.def.spr];
     const s = set[this.frame % set.length];
-    const bobY = (this.def.ai === 'hop' && this.stateT > 0) ? -4 : 0;
+    // 腾空：走一段抛物线，影子留在地面（这是「它现在打不到我」最直观的读法）
+    const airK = this.air > 0 ? Math.sin((1 - this.stateT / LEAP.air) * Math.PI) : 0;
+    const bobY = (this.def.ai === 'hop' && this.stateT > 0) ? -4 : -airK * 26;
     const shaping = this.spawnT > 0;
     const k = shaping ? 1 - this.spawnT / SPAWN_GRACE : 1;
     const esc = this.elite ? this.elite.scale : 1;      // 精英体型放大
+    // 影魅隐去时只剩影子与一抹幽光：看不真切，但并非无迹可寻
+    const vis = this.hidden ? 0.16 : 1;
     // 光环画在缩放之外，尺寸才可控
     if (this.elite && !shaping) drawEliteAura(g2, this.x, this.y + this.r + 2, this.r, this.elite.aura, this.t);
+    // 蹦山魈：落点圈随蓄势收紧，腾空时保持全亮 —— 圈一出现，站位就有答案了
+    if (this.def.ai === 'leap' && this.state === 1) {
+      const kk = 1 - this.stateT / LEAP.wind;
+      g2.save();
+      g2.globalAlpha = 0.30 + 0.35 * kk;
+      g2.strokeStyle = PAL.orange; g2.lineWidth = 2;
+      g2.beginPath(); g2.arc(this.leapX, this.leapY, LEAP.r * (1 + 0.5 * (1 - kk)), 0, Math.PI * 2); g2.stroke();
+      g2.globalAlpha = 0.14 + 0.16 * kk; g2.fillStyle = PAL.orange;
+      g2.beginPath(); g2.arc(this.leapX, this.leapY, LEAP.r, 0, Math.PI * 2); g2.fill();
+      g2.globalAlpha = 0.7;
+      g2.beginPath(); g2.arc(this.leapX, this.leapY, LEAP.r * kk, 0, Math.PI * 2); g2.stroke();
+      g2.restore();
+    }
     // 环形技前摇：扩圈预警（此时尚未出弹，玩家还有时间拉开距离）
     if (this.elite && this.perkT > 0) {
       const kk = 1 - this.perkT / PERK_WINDUP;
@@ -928,31 +1290,44 @@ class Enemy {
       g2.translate(-this.x, -(this.y + this.r));
     }
     if (this.shadow) {
-      g2.globalAlpha = shaping ? 0.16 : 0.28; g2.fillStyle = '#000';
-      g2.beginPath(); g2.ellipse(this.x, this.y + this.r + 2, this.r * 0.9, this.r * 0.42, 0, 0, Math.PI * 2); g2.fill();
-      g2.globalAlpha = shaping ? clamp(0.2 + k * 0.8, 0, 1) : 1;
+      // 腾空时影子缩小并变淡，落地那一刻才「拍」回原样
+      const sk = 1 - airK * 0.45;
+      g2.globalAlpha = (shaping ? 0.16 : 0.28) * sk;
+      g2.fillStyle = '#000';
+      g2.beginPath(); g2.ellipse(this.x, this.y + this.r + 2, this.r * 0.9 * sk, this.r * 0.42 * sk, 0, 0, Math.PI * 2); g2.fill();
+      g2.globalAlpha = (shaping ? clamp(0.2 + k * 0.8, 0, 1) : 1) * vis;
     }
     const x = this.x - s.width / 2, y = this.y - s.height + this.r + 2 + bobY;
     if (this.frost > 0) {
-      g2.globalAlpha = 1;
+      g2.globalAlpha = vis;
       g2.drawImage(s, x, y);
       g2.globalCompositeOperation = 'source-atop';
       g2.fillStyle = 'rgba(120,200,255,0.55)';
       g2.globalCompositeOperation = 'source-over';
-      g2.globalAlpha = 0.35; g2.fillStyle = PAL.cyan;
+      g2.globalAlpha = 0.35 * vis; g2.fillStyle = PAL.cyan;
       g2.fillRect(x, y, s.width, s.height);
-      g2.globalAlpha = 1;
+      g2.globalAlpha = vis;
     } else if (this.flash > 0) {
+      g2.globalAlpha = vis;
       g2.drawImage(s, x, y);
-      g2.globalAlpha = 0.75; g2.fillStyle = '#fff';
+      g2.globalAlpha = 0.75 * vis; g2.fillStyle = '#fff';
       g2.globalCompositeOperation = 'source-atop';
       g2.fillRect(x, y, s.width, s.height);
       g2.globalCompositeOperation = 'source-over';
-      g2.globalAlpha = 1;
+      g2.globalAlpha = vis;
     } else {
+      g2.globalAlpha = vis;
       g2.drawImage(s, x, y);
     }
     g2.restore();
+    // 影魅的提示：影子里的一点幽火，留着给眼尖的玩家一条线索
+    if (this.hidden && !shaping) {
+      g2.save();
+      g2.globalAlpha = 0.35 + Math.sin(this.t * 0.13) * 0.15;
+      g2.fillStyle = PAL.purpleL;
+      g2.fillRect(this.x - 1, this.y + this.r - 3, 3, 3);
+      g2.restore();
+    }
     if (shaping) drawSpawnRune(g2, this.x, this.y, this.r, this.spawnT, SPAWN_GRACE, PAL.jadeL);
     // 血条：小怪受伤后显示，精英常驻一条更宽的、带名号的
     const isEl = !!this.elite;
@@ -974,17 +1349,61 @@ class Enemy {
         drawPixelText(g2, this.elite.en, tx, ty, 1, this.elite.aura);
       }
     }
+    /* 旋盾：两片护盾绕身慢转。画在血条之后、单独一层 ——
+       它是「该从哪边打」的唯一读数，绝不能被别的特效盖掉。 */
+    if (this.shieldR > 0 && !shaping) {
+      const sr = this.r + 7;
+      g2.save();
+      if (this.air <= 0) {   // 腾空时护盾仍随行，但落在身后的影子不画盾
+        for (let i = 0; i < SHIELD.arcs; i++) {
+          const a0 = this.shieldA + i * (Math.PI * 2 / SHIELD.arcs) - this.shieldR / 2;
+          const a1 = a0 + this.shieldR;
+          g2.globalAlpha = 0.5;
+          g2.strokeStyle = '#1b2740'; g2.lineWidth = 5;
+          g2.beginPath(); g2.arc(this.x, this.y, sr, a0, a1); g2.stroke();
+          // 挡下伤害的那几帧整片转白，一眼看出「这一下被吃了」
+          g2.globalAlpha = this.blockFlash > 0 ? 0.95 : 0.7;
+          g2.strokeStyle = this.blockFlash > 0 ? '#ffffff' : PAL.cyan;
+          g2.lineWidth = this.blockFlash > 0 ? 3 : 2;
+          g2.beginPath(); g2.arc(this.x, this.y, sr, a0, a1); g2.stroke();
+          // 盾缘的两点铆钉，让旋转看得见
+          g2.globalAlpha = 0.8; g2.fillStyle = PAL.greyL;
+          for (const aa of [a0, a1]) g2.fillRect((this.x + Math.cos(aa) * sr) | 0, (this.y + Math.sin(aa) * sr) | 0, 2, 2);
+        }
+      }
+      g2.restore();
+    }
   }
 }
 
 /* ------------------------------------------------------------
  *  BOSS
  * ---------------------------------------------------------- */
+/* ------------------------------------------------------------
+ *  头目
+ *
+ *  每层一座魔窟，五层五位互不相同的尊者。原先前两位按奇偶层轮换，
+ *  新增的裂煞 / 轮回 / 烛龙依次接管三、四、五层 —— 越深层的题越新，
+ *  但都建立在同一套「游走 + 冲刺 + 三阶段」的骨架上，只有各自的看家技不同。
+ *
+ *  hp   基础血；spd 基础移速；bolt / alt 主副弹幕色系；aura 登场爆发色
+ *  dash 冲刺冷却基准帧（null = 只知一味前进，不冲刺）
+ * ---------------------------------------------------------- */
+const BOSS_DEF = {
+  xuemo: { name: '血魔尊者', en: 'BLOOD', hp: 260, spd: 1.00, bolt: 'blood', alt: 'flame', aura: PAL.red, dash: 240 },
+  baigu: { name: '白骨夫人', en: 'BONE', hp: 300, spd: 0.85, bolt: 'ice', alt: 'talisman', aura: PAL.bone, dash: 240 },
+  liesha: { name: '裂煞魔尊', en: 'FRACTURE', hp: 300, spd: 0.90, bolt: 'flame', alt: 'blood', aura: PAL.fire, dash: 250 },
+  lunhui: { name: '轮回法王', en: 'WHEEL', hp: 310, spd: 0.70, bolt: 'talisman', alt: 'ice', aura: PAL.gold, dash: null },
+  zhulong: { name: '烛龙', en: 'TORCH', hp: 330, spd: 0.80, bolt: 'flame', alt: 'blood', aura: PAL.fire, dash: 260 }
+};
+const BOSS_KEYS = Object.keys(BOSS_DEF);
+
 class Boss {
   constructor(kind, x, y, hpScale) {
     this.kind = kind;
+    this.bd = BOSS_DEF[kind] || BOSS_DEF.xuemo;
     this.x = x; this.y = y; this.r = 22;
-    this.maxHp = Math.round((kind === 'xuemo' ? 260 : 300) * (hpScale || 1));
+    this.maxHp = Math.round(this.bd.hp * (hpScale || 1));
     this.hp = this.maxHp;
     this.isBoss = true;
     this.def = { touch: 1, coins: 0, score: 200 };
@@ -996,7 +1415,9 @@ class Boss {
     this.phase = 1; this.dead = false; this.frame = 0;
     this.age = 0;                    // 战斗计时（凝形结束后才走），用于一阶段软时限
     this.invuln = 0;                 // 转阶段的短暂无敌
-    this.name = kind === 'xuemo' ? '血魔尊者' : '白骨夫人';
+    this.guard = 0;                  // 烛龙鳞罩：>0 时免疫伤害，同时正是它横扫的时候
+    this.guardCd = 300;
+    this.name = this.bd.name;
     this.spiral = 0;
   }
   get frozenMul() { return this.frost > 0 ? 0.6 : 1; }
@@ -1004,9 +1425,10 @@ class Boss {
      两个入口共用 —— hurt() 按血量阈值，update() 按一阶段软时限。 */
   setPhase(np, g) {
     this.phase = np; this.state = 'roar'; this.stateT = 60; this.invuln = 40;
+    this.guard = 0; this.guardCd = 300;
     // 转阶段清掉场上敌方弹幕，并给 Boss 短暂无敌，否则瞬间变强 + 旧弹幕齐飞 = 必吃
     g.bullets = g.bullets.filter(b => b.friendly);
-    g.shake(10); g.burst(this.x, this.y, 40, this.kind === 'xuemo' ? PAL.red : PAL.bone);
+    g.shake(10); g.burst(this.x, this.y, 40, this.bd.aura);
     // 转阶段外溢灵力：三颗散落，逼玩家在 Boss 变强的当口跑位去捡。
     // 单颗量同样吃层数衰减 —— Boss 只有一只，若这里是唯一不衰减的口子，
     // 深层的 Boss 反而成了最肥的补给点。
@@ -1020,6 +1442,15 @@ class Boss {
   }
   hurt(dmg, g, src, crit) {
     if (this.dead || this.invuln > 0) return;
+    /* 烛龙的鳞罩：结罩期间整只打不动。罩一升起就同步开始横扫，
+       于是「打不动的这两三秒」正好是「必须走位的两秒」——
+       节奏是清楚的，而不是单纯挨一段无敌时间。 */
+    if (this.guard > 0) {
+      if (dmg > 0 && src !== 'dot' && this.t % 6 === 0) {
+        g.burst(this.x + (Math.random() - 0.5) * 46, this.y + (Math.random() - 0.5) * 34, 3, PAL.goldL);
+      }
+      return;
+    }
     this.hp -= dmg; this.flash = 5;
     if (dmg > 0 && src !== 'dot') {
       g.addDamageNum(this.x, this.y - this.r - 6, dmg,
@@ -1048,7 +1479,7 @@ class Boss {
     if (this.spawnT > 0) this.spawnT--;
     const dx = p.x - this.x, dy = p.y - this.y;
     const d = Math.hypot(dx, dy) || 1;
-    const spd = (this.kind === 'xuemo' ? 1.0 : 0.85) * this.frozenMul * (this.phase === 3 ? 1.5 : this.phase === 2 ? 1.2 : 1)
+    const spd = this.bd.spd * this.frozenMul * (this.phase === 3 ? 1.5 : this.phase === 2 ? 1.2 : 1)
       * (this.spawnT > 0 ? 0.3 : 1);      // 登场凝形期行动迟缓
 
     if (this.spawnT > 0) {                // 登场仪式：只缓缓显形，不出手
@@ -1056,29 +1487,56 @@ class Boss {
       this.x += this.vx + this.kbx; this.y += this.vy + this.kby;
       this.kbx *= 0.8; this.kby *= 0.8;
       g.collideRoom(this, this.r);
-      if (this.spawnT % 12 === 0) g.burst(this.x, this.y, 3, this.kind === 'xuemo' ? PAL.red : PAL.bone);
+      if (this.spawnT % 12 === 0) g.burst(this.x, this.y, 3, this.bd.aura);
       return;
     }
     /* 一阶段软时限（BOSS_P1_LIMIT）：到点还没打掉三分之一血就强制转二阶段。
        凝形结束后才开始计，所以「45 秒」是实打实的战斗时间。 */
     this.age++;
     if (this.age >= BOSS_P1_LIMIT && this.phase === 1) this.setPhase(2, g);
+
+    /* 烛龙：结罩 ↔ 横扫的循环。结罩时它站定不动、也免疫伤害，
+       罩碎那一刻向外炸一圈弹 —— 「能打了」这件事必须喊出来。 */
+    if (this.kind === 'zhulong') {
+      if (this.guard > 0) {
+        if (--this.guard <= 0) {
+          this.guardCd = this.phase === 3 ? 250 : 330;
+          g.shake(6); g.burst(this.x, this.y, 30, PAL.fire);
+          for (let i = 0; i < 14; i++) {
+            const a = i / 14 * Math.PI * 2;
+            g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * 2.9, Math.sin(a) * 2.9, this.bd.bolt);
+          }
+        }
+      } else if (this.state !== 'roar' && this.state !== 'dash' && --this.guardCd <= 0) {
+        this.guard = this.phase === 3 ? 240 : 210;
+        this.state = 'sweep'; this.stateT = 200;
+        g.shake(5);
+        g.floaters.push(new Floater(this.x, this.y - 48, '鳞罩', PAL.goldL));
+        this.startSweep(g, p);
+        SFX.roar();
+      }
+    }
+
     if (this.state === 'roar') {
       this.stateT--; this.vx *= 0.8; this.vy *= 0.8;
+      if (this.stateT <= 0) this.state = 'idle';
+    } else if (this.state === 'sweep') {
+      // 扫射期间钉住不动：枢轴稳了，扇面才是可以算清楚、可以躲掉的东西
+      this.stateT--; this.vx *= 0.85; this.vy *= 0.85;
       if (this.stateT <= 0) this.state = 'idle';
     } else if (this.state === 'dash') {
       this.stateT--;
       this.vx *= 0.965; this.vy *= 0.965;
-      if (this.stateT % 4 === 0) g.burst(this.x, this.y, 3, this.kind === 'xuemo' ? PAL.red : PAL.bone);
+      if (this.stateT % 4 === 0) g.burst(this.x, this.y, 3, this.bd.aura);
       if (this.stateT <= 0) { this.state = 'idle'; this.cd2 = 200; }
     } else {
       // 游走接近
       this.vx = lerp(this.vx, dx / d * spd, 0.05);
       this.vy = lerp(this.vy, dy / d * spd, 0.05);
       if (d < 60) { this.vx *= 0.9; this.vy *= 0.9; }
-      // 冲刺
-      if (--this.cd2 <= 0) {
-        this.cd2 = this.phase === 3 ? 150 : 240;
+      // 冲刺（轮回法王不冲刺，只有那一味前进的压迫）
+      if (this.bd.dash && --this.cd2 <= 0) {
+        this.cd2 = this.phase === 3 ? this.bd.dash * 0.62 : this.bd.dash;
         this.vx = dx / d * 8; this.vy = dy / d * 8;
         this.state = 'dash'; this.stateT = 40; SFX.dash();
       }
@@ -1088,8 +1546,8 @@ class Boss {
     this.kbx *= 0.8; this.kby *= 0.8;
     g.collideRoom(this, this.r);
 
-    // 弹幕
-    if (this.state !== 'roar') {
+    // 弹幕（结罩期间不出，手都腾去撑罩了）
+    if (this.state !== 'roar' && this.guard <= 0) {
       if (--this.cd <= 0) {
         this.cd = this.phase === 3 ? 70 : this.phase === 2 ? 100 : 140;
         this.volley(g, dx, dy);
@@ -1103,62 +1561,192 @@ class Boss {
     if (!p.dead && circleHit(this.x, this.y, this.r, p.x, p.y, p.r)) p.takeDamage(1, g, this.x, this.y);
     if (this.t % 20 === 0) this.frame = this.frame ? 0 : 1;
   }
+  /* 烛龙睁眼：从当前朝向起手，把半个扇面扫一遍。
+     扇面在蓄力期就整片点亮（Beam 的 swing 分支会画出走廊），
+     所以「往哪边走」从第一帧起就有答案 —— 难的是执行，不是猜。 */
+  startSweep(g, p) {
+    const a0 = Math.atan2(p.y - this.y, p.x - this.x) - 0.75;
+    const swing = this.phase === 3 ? 1.6 : 1.3;
+    g.beams.push(new Beam(this.x, this.y - 6, a0, 620, 10, 54, 100, {
+      swing: swing, follow: this, col: PAL.fire, dmg: 1, hitGap: 34
+    }));
+    SFX.cast();
+  }
   volley(g, dx, dy) {
+    const B = this.bd;
     const base = Math.atan2(dy, dx);
-    if (this.phase === 1) {
-      const n = this.kind === 'xuemo' ? 14 : 12;
-      for (let i = 0; i < n; i++) {
-        const a = base + i * (Math.PI * 2 / n);
-        g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * 2.7, Math.sin(a) * 2.7, this.kind === 'xuemo' ? 'blood' : 'ice');
+    switch (this.kind) {
+      /* 裂煞魔尊：只放裂变弹。母弹慢而大，飞一段就炸成两枚中弹，
+         中弹再炸成三枚小弹 —— 一发的账最后是 1+2+6 = 9 枚，
+         所以「先躲母弹再躲碎片」的顺序感，就是这场仗的形状。 */
+      case 'liesha': {
+        this.spiral += 0.32;
+        const n = this.phase === 1 ? 2 : this.phase === 2 ? 3 : 4;
+        for (let i = 0; i < n; i++) {
+          const off = (i - (n - 1) / 2) * 0.46;
+          const a = base + off + Math.sin(this.spiral) * 0.18;
+          const sp = 1.8 + (this.phase - 1) * 0.22;
+          const b = g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * sp, Math.sin(a) * sp, 'flame',
+            { r: 9, scale: 1.9, life: 300, splitN: 2, splitTier: 3, splitT: 60 - this.phase * 8 });
+          if (this.phase === 3 && i % 2 === 0) b.homing = 0.02;   // 三阶段母弹会自己拐向你
+        }
+        SFX.cast();
+        break;
       }
-      SFX.cast();
-    } else if (this.phase === 2) {
-      this.spiral += 0.5;
-      for (let k = 0; k < 3; k++) {
-        const a = this.spiral + k * (Math.PI * 2 / 3) + base * 0.15;
-        g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * 3.0, Math.sin(a) * 3.0, this.kind === 'xuemo' ? 'flame' : 'talisman');
+      /* 轮回法王：只放带缺口的环。缺口在每一轮之间换位置，
+         弹一发出去就固定不动 —— 所以答案是「跑到缺口那边」，
+         而不是「一边躲一边追着一个转得比你快的口子」。 */
+      case 'lunhui': {
+        this.spiral += 0.42;
+        const n = this.phase === 1 ? 18 : 20;
+        const gap = this.phase === 1 ? 1.05 : 0.85;
+        for (let i = 0; i < n; i++) {
+          const a = i / n * Math.PI * 2;
+          let da = a - this.spiral;
+          da = Math.abs(((da % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
+          if (da < gap / 2) continue;                  // 缺口处不放弹
+          g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * 2.5, Math.sin(a) * 2.5, B.bolt);
+        }
+        if (this.phase === 3) {                        // 三阶段再补三枚追踪，堵住「绕圈跑」这条路
+          for (let i = 0; i < 3; i++) {
+            const a = base + i * (Math.PI * 2 / 3);
+            const b = g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * 2.2, Math.sin(a) * 2.2, B.alt);
+            b.homing = 0.03;
+          }
+        }
+        SFX.cast();
+        break;
       }
-      SFX.cast();
-    } else {
-      for (let i = -1; i <= 1; i++) {
-        const a = base + i * 0.22;
-        const b = g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * 3.4, Math.sin(a) * 3.4, this.kind === 'xuemo' ? 'blood' : 'ice');
-        b.homing = 0.035;
+      /* 烛龙：扇形火弹为主，横扫交给 special（与鳞罩绑死） */
+      case 'zhulong': {
+        for (let i = -2; i <= 2; i++) {
+          const a = base + i * 0.24;
+          const b = g.spawnEnemyBullet(this.x, this.y - 4, Math.cos(a) * 3.0, Math.sin(a) * 3.0, B.bolt);
+          if (this.phase === 3) b.homing = 0.026;
+        }
+        if (this.phase >= 2) {
+          for (let i = 0; i < 6; i++) {
+            const a = i / 6 * Math.PI * 2 + this.t * 0.03;
+            g.spawnEnemyBullet(this.x, this.y - 4, Math.cos(a) * 2.2, Math.sin(a) * 2.2, B.alt);
+          }
+        }
+        SFX.cast();
+        break;
       }
-      for (let i = 0; i < 8; i++) {
-        const a = i * (Math.PI * 2 / 8) + this.t * 0.02;
-        g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * 2.2, Math.sin(a) * 2.2, 'flame');
+      /* 原两位：整圈 / 螺旋 / 追踪 + 外圈，保持不变 */
+      default: {
+        if (this.phase === 1) {
+          const n = this.kind === 'xuemo' ? 14 : 12;
+          for (let i = 0; i < n; i++) {
+            const a = base + i * (Math.PI * 2 / n);
+            g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * 2.7, Math.sin(a) * 2.7, B.bolt);
+          }
+        } else if (this.phase === 2) {
+          this.spiral += 0.5;
+          for (let k = 0; k < 3; k++) {
+            const a = this.spiral + k * (Math.PI * 2 / 3) + base * 0.15;
+            g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * 3.0, Math.sin(a) * 3.0, B.alt);
+          }
+        } else {
+          for (let i = -1; i <= 1; i++) {
+            const a = base + i * 0.22;
+            const b = g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * 3.4, Math.sin(a) * 3.4, B.bolt);
+            b.homing = 0.035;
+          }
+          for (let i = 0; i < 8; i++) {
+            const a = i * (Math.PI * 2 / 8) + this.t * 0.02;
+            g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * 2.2, Math.sin(a) * 2.2, 'flame');
+          }
+        }
+        SFX.cast();
       }
-      SFX.cast();
     }
   }
   special(g) {
     const p = g.player;
-    if (this.phase === 1) {
-      // 召唤
-      for (let i = 0; i < 2; i++) {
-        const sp = g.safeSpawn(this.x + (i ? 40 : -40), this.y + 30, 12);
-        const e = new Enemy(this.kind === 'xuemo' ? 'xiesui' : 'yinsha', sp.x, sp.y, 1);
-        g.enemies.push(e);
-      }
-      SFX.summon();
-    } else if (this.phase === 2) {
-      for (let i = 0; i < 3; i++) {
-        const ang = Math.random() * Math.PI * 2, rr = 40 + Math.random() * 120;
-        const hx = clamp(this.x + Math.cos(ang) * rr, WALL_L + 20, WALL_R - 20);
-        const hy = clamp(this.y + Math.sin(ang) * rr, WALL_T + 20, WALL_B - 20);
-        g.hazards.push(new Hazard(hx, hy, 30, 45, 30, 1, PAL.red, false));
-      }
-    } else {
-      // 天罚：玩家位置预警 + 十字弹幕
-      g.hazards.push(new Hazard(p.x, p.y, 40, 50, 35, 1, this.kind === 'xuemo' ? PAL.red : PAL.purple, false));
-      for (let i = 0; i < 4; i++) {
-        const a = i * Math.PI / 2 + Math.random() * 0.2;
-        for (let k = 0; k < 5; k++) {
-          g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * (2 + k * 0.3), Math.sin(a) * (2 + k * 0.3), 'blood');
+    const B = this.bd;
+    // 各自独立的特殊技：与常规弹幕错开节奏，逼玩家记两套动作
+    switch (this.kind) {
+      case 'liesha':
+        if (this.phase === 1) {
+          for (let i = 0; i < 2; i++) {           // 召两只阴煞（死后还会分裂，呼应「裂」）
+            const sp = g.safeSpawn(this.x + (i ? 44 : -44), this.y + 30, 12);
+            g.enemies.push(new Enemy('yinsha', sp.x, sp.y, 1));
+          }
+          SFX.summon();
+        } else if (this.phase === 2) {
+          for (let i = 0; i < 3; i++) {
+            const ang = Math.random() * Math.PI * 2, rr = 40 + Math.random() * 120;
+            g.hazards.push(new Hazard(clamp(this.x + Math.cos(ang) * rr, WALL_L + 20, WALL_R - 20),
+              clamp(this.y + Math.sin(ang) * rr, WALL_T + 20, WALL_B - 20), 30, 45, 30, 1, PAL.fire, false));
+          }
+        } else {
+          // 四枚中弹自四面同时裂开，把已经乱掉的场面再搅一层
+          for (let i = 0; i < 4; i++) {
+            const a = i * Math.PI / 2 + Math.random() * 0.2;
+            g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * 2.4, Math.sin(a) * 2.4, 'blood',
+              { r: 6, scale: 1.2, life: 240, splitN: 3, splitTier: 2, splitT: 46 });
+          }
+          SFX.roar();
         }
-      }
-      SFX.roar();
+        break;
+      case 'lunhui':
+        if (this.phase === 1) {
+          for (let i = 0; i < 2; i++) {
+            const sp = g.safeSpawn(this.x + (i ? 44 : -44), this.y + 30, 12);
+            g.enemies.push(new Enemy('guixiu', sp.x, sp.y, 1));
+          }
+          SFX.summon();
+        } else if (this.phase === 2) {
+          g.hazards.push(new Hazard(p.x, p.y, 42, 50, 34, 1, PAL.gold, false));   // 天轮碾压：落点预警
+        } else {
+          // 双环夹击：两道缺口环一快一慢、缺口错开 90°，找得出一道缝才算过
+          for (const [sp, off] of [[2.9, 0], [2.0, Math.PI / 2]]) {
+            const n = 20, gap = 0.9;
+            for (let i = 0; i < n; i++) {
+              const a = i / n * Math.PI * 2;
+              let da = a - (this.spiral + off);
+              da = Math.abs(((da % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
+              if (da < gap / 2) continue;
+              g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * sp, Math.sin(a) * sp, B.bolt);
+            }
+          }
+          SFX.roar();
+        }
+        break;
+      case 'zhulong':
+        // 烛龙的 special 就是横扫，已经和鳞罩绑在 update 里，这里只补一点火雨
+        for (let i = 0; i < 3; i++) {
+          const ang = Math.random() * Math.PI * 2, rr = 50 + Math.random() * 110;
+          g.hazards.push(new Hazard(clamp(this.x + Math.cos(ang) * rr, WALL_L + 20, WALL_R - 20),
+            clamp(this.y + Math.sin(ang) * rr, WALL_T + 20, WALL_B - 20), 26, 45, 26, 1, PAL.fire, false));
+        }
+        break;
+      default:
+        if (this.phase === 1) {
+          for (let i = 0; i < 2; i++) {
+            const sp = g.safeSpawn(this.x + (i ? 40 : -40), this.y + 30, 12);
+            g.enemies.push(new Enemy(this.kind === 'xuemo' ? 'xiesui' : 'yinsha', sp.x, sp.y, 1));
+          }
+          SFX.summon();
+        } else if (this.phase === 2) {
+          for (let i = 0; i < 3; i++) {
+            const ang = Math.random() * Math.PI * 2, rr = 40 + Math.random() * 120;
+            const hx = clamp(this.x + Math.cos(ang) * rr, WALL_L + 20, WALL_R - 20);
+            const hy = clamp(this.y + Math.sin(ang) * rr, WALL_T + 20, WALL_B - 20);
+            g.hazards.push(new Hazard(hx, hy, 30, 45, 30, 1, PAL.red, false));
+          }
+        } else {
+          // 天罚：玩家位置预警 + 十字弹幕
+          g.hazards.push(new Hazard(p.x, p.y, 40, 50, 35, 1, this.kind === 'xuemo' ? PAL.red : PAL.purple, false));
+          for (let i = 0; i < 4; i++) {
+            const a = i * Math.PI / 2 + Math.random() * 0.2;
+            for (let k = 0; k < 5; k++) {
+              g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * (2 + k * 0.3), Math.sin(a) * (2 + k * 0.3), 'blood');
+            }
+          }
+          SFX.roar();
+        }
     }
   }
   draw(g2) {
@@ -1184,16 +1772,35 @@ class Boss {
       g2.fillRect(x, y, s.width, s.height);
       g2.globalCompositeOperation = 'source-over'; g2.globalAlpha = 1;
     }
+    // 鳞罩：罩在身上的符文壳，罩着的时候任何伤害都会被弹开
+    if (this.guard > 0) {
+      // 升起 / 将碎各 24 帧的淡入淡出，中段保持全亮：一眼读出「还有多久能打」
+      const full = this.phase === 3 ? 240 : 210;
+      const bright = Math.min(1, this.guard / 24, (full - this.guard + 24) / 24);
+      g2.globalAlpha = (0.20 + 0.28 * bright) * (0.75 + 0.25 * Math.sin(this.t * 0.25));
+      g2.fillStyle = PAL.fire;
+      g2.beginPath(); g2.ellipse(this.x, this.y + 4, 30, 32, 0, 0, Math.PI * 2); g2.fill();
+      g2.globalAlpha = 0.55 + 0.35 * bright;
+      g2.strokeStyle = PAL.goldL; g2.lineWidth = 2;
+      g2.beginPath(); g2.ellipse(this.x, this.y + 4, 30, 32, 0, 0, Math.PI * 2); g2.stroke();
+      g2.globalAlpha = 0.7;
+      for (let i = 0; i < 6; i++) {           // 六片鳞纹，慢慢转
+        const a = this.t * 0.012 + i * Math.PI / 3;
+        g2.fillStyle = PAL.goldL;
+        g2.fillRect((this.x + Math.cos(a) * 30) | 0, (this.y + 4 + Math.sin(a) * 32) | 0, 2, 2);
+      }
+      g2.globalAlpha = 1;
+    }
     if (this.state === 'roar') {
       g2.globalAlpha = 0.5;
-      g2.strokeStyle = this.kind === 'xuemo' ? PAL.red : PAL.purpleL; g2.lineWidth = 2;
+      g2.strokeStyle = this.bd.aura; g2.lineWidth = 2;
       for (let i = 1; i <= 3; i++) {
         g2.beginPath(); g2.arc(this.x, this.y, 30 + i * 22 + Math.sin(this.t * 0.4) * 4, 0, Math.PI * 2); g2.stroke();
       }
       g2.globalAlpha = 1;
     }
     g2.restore();
-    if (shaping) drawSpawnRune(g2, this.x, this.y, 24, this.spawnT, SPAWN_GRACE_BOSS, this.kind === 'xuemo' ? PAL.red : PAL.purpleL);
+    if (shaping) drawSpawnRune(g2, this.x, this.y, 24, this.spawnT, SPAWN_GRACE_BOSS, this.bd.aura);
   }
 }
 
@@ -2049,7 +2656,9 @@ const STYLES = {
         const e = it.e;
         const crit = Math.random() < s.crit;
         const dmg = base * (crit ? 2 : 1);
-        e.hurt(dmg, g, null, crit);
+        // 传一个带落点的来源对象：玄甲卫的旋盾要按「从哪边打过来」判定格挡，
+        // 近战没有弹丸，只能把玩家位置当作来向
+        e.hurt(dmg, g, { x: pl.x, y: pl.y }, crit);
         const ang = Math.atan2(e.y - pl.y, e.x - pl.x);
         const kb = C.lungeKnock + s.knockback;
         e.kbx += Math.cos(ang) * kb; e.kby += Math.sin(ang) * kb;
@@ -2066,6 +2675,8 @@ const STYLES = {
       for (const b of g.bullets) {
         if (b.friendly || b.dead) continue;
         if (!circleHit(pl.x, pl.y - 2, dr, b.x, b.y, b.r)) continue;
+        // 玄铁弹：剑罡斩上去只会迸火星，弹丸照旧飞 —— 给足反馈，免得被当成判定失灵
+        if (b.hard) { g.burst(b.x, b.y, 5, PAL.greyL); continue; }
         if (s.reflect > 0) { reflectBullet(b, pl, g); continue; }
         b.dead = true; g.burst(b.x, b.y, 9, PAL.cyan);
       }

@@ -375,6 +375,96 @@ function drawJianLing(frame) {
   return p.outline(PAL.ink).done();
 }
 
+/* 玄光瞳：悬浮的独眼，蓄力后射出贯穿一道的玄光 */
+function drawXuanGuang(frame) {
+  const p = new Px(20, 20);
+  const yb = frame ? 0 : 1;
+  const C = PAL.cyan, CD = PAL.cyanD, CL = '#d6f4ff';
+  // 下摆的两条符幡
+  p.rect(6, 15 + yb, 2, 4, CD); p.rect(12, 15 + yb, 2, 4, CD);
+  p.set(7, 18 + yb, C); p.set(13, 18 + yb, C);
+  // 眼身
+  p.disc(10, 10 + yb, 7, CD);
+  p.disc(10, 10 + yb, 6, CL);
+  // 竖瞳
+  p.ell(10, 10 + yb, 2.4, 4.4, PAL.redD);
+  p.ell(10, 10 + yb, 1.2, 2.8, PAL.red);
+  p.set(10, 6 + yb, PAL.redL);
+  // 环状符阵（四面各一颗符钉）
+  p.ring(10, 10 + yb, 8, C);
+  p.set(10, 1 + yb, C); p.set(10, 19, C); p.set(1, 10 + yb, C); p.set(19, 10 + yb, C);
+  return p.outline('#07050f').done();
+}
+
+/* 铁魄妖：玄铁铸的傀儡，射出的弹丸击不碎也反射不掉 */
+function drawTieHun(frame) {
+  const p = new Px(18, 18);
+  const yb = frame ? 0 : 1;
+  const S = PAL.greyD, SL = PAL.grey, SD = '#3a3550';
+  p.rect(4, 1 + yb, 10, 7, SL);                  // 头
+  p.rect(4, 1 + yb, 10, 2, SD);
+  p.rect(6, 4 + yb, 6, 2, SD);                   // 眼槽
+  p.set(7, 4 + yb, PAL.orange); p.set(10, 4 + yb, PAL.orange);
+  p.rect(3, 8 + yb, 12, 8, S);                   // 躯干
+  p.rect(3, 8 + yb, 12, 1, SL);
+  p.set(4, 9 + yb, SL); p.set(13, 9 + yb, SL);
+  p.set(4, 14 + yb, SL); p.set(13, 14 + yb, SL);
+  p.rect(6, 10 + yb, 6, 4, SD);                  // 胸甲铆钉
+  p.set(8, 11 + yb, PAL.orange); p.set(9, 12 + yb, PAL.orange);
+  p.rect(0, 9 + yb, 3, 5, S); p.rect(15, 9 + yb, 3, 5, S);
+  p.rect(5, 16 + yb, 3, 2, SD); p.rect(10, 16 + yb, 3, 2, SD);
+  return p.outline('#07050f').done();
+}
+
+/* 蹦山魈：一蹦一跳，落点先亮圈 */
+function drawBengYao(frame) {
+  const p = new Px(18, 16);
+  const yb = frame ? 0 : 1;                      // frame=0 蜷身蓄势
+  const C = '#c98a4b', CD = '#87552a', CL = '#e8b678';
+  p.rect(4, (frame ? 12 : 11), 3, frame ? 3 : 2, CD);
+  p.rect(11, (frame ? 12 : 11), 3, frame ? 3 : 2, CD);
+  p.ell(9, 9 + yb, 6, 4.4, C);
+  p.ell(9, 8 + yb, 4.6, 3, CL);
+  p.line(5, 6 + yb, 2, 2 + yb, CD);              // 角
+  p.line(13, 6 + yb, 16, 2 + yb, CD);
+  p.set(7, 7 + yb, PAL.red); p.set(11, 7 + yb, PAL.red);
+  p.set(7, 10 + yb, PAL.white); p.set(11, 10 + yb, PAL.white);   // 獠牙
+  return p.outline(PAL.ink).done();
+}
+
+/* 玄甲卫：甲片加身，两片护盾绕身慢转（护盾由代码画，精灵本体不带盾） */
+function drawXuanJia(frame) {
+  const p = new Px(18, 18);
+  const yb = frame ? 0 : 1;
+  const A = '#4a6f9c', AD = '#2b4463', AL = '#7fa6cf';
+  p.rect(5, 1 + yb, 8, 5, AD);                   // 盔
+  p.rect(4, 3 + yb, 10, 3, AD);
+  p.rect(6, 4 + yb, 6, 2, AL);                   // 面甲
+  p.set(7, 5 + yb, PAL.cyan); p.set(10, 5 + yb, PAL.cyan);
+  p.rect(1, 2 + yb, 2, 5, AL); p.rect(15, 2 + yb, 2, 5, AL);     // 盔羽
+  p.rect(3, 7 + yb, 12, 8, A);                   // 甲身
+  p.rect(3, 7 + yb, 12, 1, AL);
+  for (let i = 0; i < 3; i++) p.rect(4, 9 + i * 2 + yb, 10, 1, AD);
+  p.rect(0, 8 + yb, 3, 5, A); p.rect(15, 8 + yb, 3, 5, A);
+  p.rect(5, 15 + yb, 3, 3, AD); p.rect(10, 15 + yb, 3, 3, AD);
+  return p.outline('#07050f').done();
+}
+
+/* 影魅：平时只剩一道影，贴近才现形 */
+function drawYingMo(frame) {
+  const p = new Px(16, 18);
+  const yb = frame ? 0 : 1;
+  const C = '#2a2140', CL = '#4b3c72', F = PAL.purpleL;
+  p.ell(8, 12 + yb, 6, 5, C);                    // 影身
+  p.ell(8, 6 + yb, 4.4, 4.4, C);                 // 兜帽
+  p.rect(3, 8 + yb, 10, 8, C);
+  p.ell(8, 10 + yb, 4, 3, CL);
+  p.set(6, 6 + yb, F); p.set(9, 6 + yb, F);      // 幽火眼
+  p.set(6, 13 + yb, CL); p.set(9, 13 + yb, CL);
+  p.set(4, 16 + yb, C); p.set(11, 16 + yb, C);   // 飘散的影尾
+  return p.outline('#07050f').done();
+}
+
 /* ------------------------------------------------------------
  *  BOSS
  * ---------------------------------------------------------- */
@@ -429,6 +519,86 @@ function drawBossBaiGu(frame) {
   return p.outline('#0a0812').done();
 }
 
+/* 裂煞魔尊：躯干自顶裂到腰，裂隙里透出红光 —— 它的术法也一样，会一分为二 */
+function drawBossLieSha(frame) {
+  const p = new Px(48, 52);
+  const yb = frame ? 0 : 1;
+  const C = '#3a2038', CD = '#241228', CL = '#5e3556', CR = PAL.red, CRL = PAL.redL;
+  p.ell(24, 36 + yb, 20, 16, C);                 // 披风
+  p.ell(24, 32 + yb, 14, 11, CL);
+  p.rect(16, 4 + yb, 16, 12, '#d8cfc4');         // 头
+  p.rect(16, 4 + yb, 16, 3, CD);
+  p.set(20, 10 + yb, CR); p.set(27, 10 + yb, CR);
+  p.line(24, 5 + yb, 22, 15 + yb, CRL);          // 面部裂缝
+  p.rect(22, 14 + yb, 5, 1, CD);
+  p.line(17, 5 + yb, 11, 0 + yb, PAL.bone);      // 角
+  p.line(31, 5 + yb, 37, 0 + yb, PAL.bone);
+  p.rect(5, 19 + yb, 11, 6, CD);                 // 肩甲
+  p.rect(32, 19 + yb, 11, 6, CD);
+  p.set(7, 20 + yb, CR); p.set(41, 20 + yb, CR);
+  p.rect(18, 20 + yb, 12, 16, CD);               // 躯干
+  p.line(24, 18 + yb, 22, 38 + yb, CR, 2);       // 主裂隙
+  p.set(20, 25 + yb, CRL); p.set(26, 28 + yb, CRL);
+  p.set(21, 33 + yb, CRL); p.set(25, 36 + yb, CRL);
+  p.rect(2, 25 + yb, 8, 4, C); p.rect(38, 25 + yb, 8, 4, C);
+  p.line(8, 27 + yb, 2, 40 + yb, PAL.bone);      // 骨爪
+  p.line(40, 27 + yb, 46, 40 + yb, PAL.bone);
+  return p.outline('#0a0308').done();
+}
+
+/* 轮回法王：背悬一座八辐法轮，前进不止、轮转不息 */
+function drawBossLunHui(frame) {
+  const p = new Px(48, 52);
+  const yb = frame ? 0 : 1;
+  const C = '#2a2a4a', CD = '#171732';
+  const G = PAL.gold, GD = PAL.goldD, GL = PAL.goldL;
+  p.ring(24, 22 + yb, 19, GD);                   // 法轮外圈
+  p.ring(24, 22 + yb, 18, GD);
+  for (let i = 0; i < 8; i++) {                  // 八辐
+    const a = i * Math.PI / 4 + 0.2;
+    p.line(24, 22 + yb, 24 + Math.cos(a) * 19, 22 + yb + Math.sin(a) * 19, GD);
+  }
+  p.ring(24, 22 + yb, 8, G);
+  p.rect(17, 22 + yb, 14, 6, CD);                // 肩
+  p.rect(16, 14 + yb, 16, 9, C);                 // 头
+  p.set(20, 19 + yb, G); p.set(27, 19 + yb, G);
+  p.rect(19, 25 + yb, 10, 14, CD);               // 躯干
+  p.set(24, 30 + yb, G); p.set(24, 32 + yb, GL);
+  p.rect(4, 24 + yb, 13, 4, C); p.rect(31, 24 + yb, 13, 4, C);
+  p.set(4, 25 + yb, G); p.set(43, 25 + yb, G);
+  p.ell(24, 42 + yb, 15, 7, CD);                 // 下摆
+  return p.outline('#0a0812').done();
+}
+
+/* 烛龙：独眼竖瞳，闭眼时结出一层符文鳞罩，睁眼便横扫一道玄光 */
+function drawBossZhuLong(frame) {
+  const p = new Px(48, 52);
+  const yb = frame ? 0 : 1;
+  const C = '#5a2418', CD = '#341209', CL = '#8a3a22';
+  const F = PAL.fire, FL = PAL.goldL;
+  p.ell(24, 38 + yb, 19, 12, CD);                // 盘身
+  p.ell(24, 34 + yb, 15, 9, CL);
+  p.rect(6, 34 + yb, 36, 4, CD);
+  p.ell(24, 18 + yb, 15, 12, C);                 // 头
+  p.ell(24, 16 + yb, 11, 8, CL);
+  p.rect(18, 24 + yb, 12, 6, CD);                // 长吻
+  p.rect(19, 25 + yb, 10, 2, CL);
+  p.set(21, 28 + yb, PAL.white); p.set(26, 28 + yb, PAL.white);
+  p.disc(24, 15 + yb, 6, PAL.ink);               // 独眼
+  p.disc(24, 15 + yb, 5, F);
+  p.ell(24, 15 + yb, 1.4, 4.6, PAL.ink);         // 竖瞳
+  p.set(23, 11 + yb, FL); p.set(25, 11 + yb, FL);
+  p.line(14, 9 + yb, 5, 0 + yb, PAL.bone);       // 角
+  p.line(15, 10 + yb, 8, 1 + yb, PAL.bone);
+  p.line(34, 9 + yb, 43, 0 + yb, PAL.bone);
+  p.line(33, 10 + yb, 40, 1 + yb, PAL.bone);
+  p.line(10, 22 + yb, 2, 18 + yb, F);            // 焰须
+  p.line(38, 22 + yb, 46, 18 + yb, F);
+  p.line(8, 42 + yb, 2, 48 + yb, PAL.bone);      // 爪
+  p.line(40, 42 + yb, 46, 48 + yb, PAL.bone);
+  return p.outline('#0a0308').done();
+}
+
 /* ------------------------------------------------------------
  *  弹药
  * ---------------------------------------------------------- */
@@ -456,6 +626,12 @@ function drawBolt(col, colD, kind) {
   } else if (kind === 'ice') {               // 冰锥
     p.line(6, 0, 6, 11, col); p.line(5, 1, 5, 10, colD); p.line(7, 1, 7, 10, colD);
     p.set(6, 0, PAL.white);
+  } else if (kind === 'iron') {              // 玄铁弹：方芯铁块，击不碎也反射不掉
+    p.rect(2, 2, 8, 8, col);
+    p.rect(3, 3, 6, 6, colD);
+    p.rect(2, 2, 8, 1, PAL.greyL);           // 上缘受光
+    p.set(4, 4, PAL.greyL); p.set(7, 7, PAL.greyL);
+    p.set(6, 3, PAL.orange);                 // 一点炼火
   } else {                                   // 血珠/气弹
     p.disc(6, 6, 4, col);
     p.disc(5, 5, 1.8, colD);
@@ -924,9 +1100,20 @@ function buildSprites() {
     yinsha: [drawYinSha(0, false), drawYinSha(1, false)],
     yinsha_s: [drawYinSha(0, true), drawYinSha(1, true)],
     shikui: [drawShiKui(0), drawShiKui(1)],
-    jianling: [drawJianLing(0), drawJianLing(1)]
+    jianling: [drawJianLing(0), drawJianLing(1)],
+    xuanguang: [drawXuanGuang(0), drawXuanGuang(1)],
+    tiehun: [drawTieHun(0), drawTieHun(1)],
+    bengyao: [drawBengYao(0), drawBengYao(1)],
+    xuanjia: [drawXuanJia(0), drawXuanJia(1)],
+    yingmo: [drawYingMo(0), drawYingMo(1)]
   };
-  SPR.boss = { xuemo: [drawBossXueMo(0), drawBossXueMo(1)], baigu: [drawBossBaiGu(0), drawBossBaiGu(1)] };
+  SPR.boss = {
+    xuemo: [drawBossXueMo(0), drawBossXueMo(1)],
+    baigu: [drawBossBaiGu(0), drawBossBaiGu(1)],
+    liesha: [drawBossLieSha(0), drawBossLieSha(1)],
+    lunhui: [drawBossLunHui(0), drawBossLunHui(1)],
+    zhulong: [drawBossZhuLong(0), drawBossZhuLong(1)]
+  };
 
   SPR.sword = drawFeiJian();
   SPR.jujian = drawJuJian();
@@ -937,7 +1124,8 @@ function buildSprites() {
     talisman: drawBolt(PAL.gold, '#e8d9a8', 'talisman'),
     flame: drawBolt(PAL.purple, PAL.fire, 'flame'),
     ice: drawBolt(PAL.cyan, '#bfeaff', 'ice'),
-    orb: drawBolt(PAL.green, PAL.greenD, 'orb')
+    orb: drawBolt(PAL.green, PAL.greenD, 'orb'),
+    iron: drawBolt('#6b6788', '#38344e', 'iron')
   };
   SPR.floor = [];
   for (let i = 0; i < 5; i++) SPR.floor.push(makeFloorTile(1000 + i * 37));

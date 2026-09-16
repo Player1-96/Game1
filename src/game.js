@@ -140,6 +140,7 @@ class GameCore {
     this.msg = '';
     this.placedBombs = []; this.bombs = 0; this.keys = 0; this.coins = 0;
     this.slashes = [];               // 舞剑流的斩击刃光（纯表现，伤害即时结算）
+    this.beams = [];                 // 玄光（激光束）：蓄力预告 + 扫射，见 Beam
     this.dnums = [];                 // 伤害数字（暴击为朱红大字，见 DamageNum）
     this.restartHold = 0;            // 局内长按 R 的累计帧数
     this.timers = [];                // 延迟效果 { t, fn, room }
@@ -203,6 +204,7 @@ class GameCore {
     this.coinReserve = this.floor.coinReserve || 0;
     this.eliteMult = this.floor.eliteMult || 1;   // 本层精英窟的灵石倍率，清房时展示给玩家
     this.bullets = []; this.enemies = []; this.pickups = []; this.hazards = [];
+    this.beams = [];
     this.particles = []; this.floaters = []; this.zaps = []; this.props = [];
     this.dnums = [];
     this.placedBombs = []; this.slashes = [];
@@ -229,6 +231,7 @@ class GameCore {
     }
     this.bullets = []; this.enemies = []; this.pickups = []; this.hazards = [];
     this.props = []; this.particles = []; this.zaps = []; this.slashes = [];
+    this.beams = [];                 // 玄光不跨房残留（蓄力到一半出门会白赚一次闪身）
     this.dnums = [];   // 换房即清：上一间的伤害数字不该飘到新房间里
     this.shopHint = null; this.altarHint = null; this.portalHint = false; this.chestHint = null;
     this.pickHint = null;
@@ -495,14 +498,46 @@ class GameCore {
     // 暴击再补一点震屏：数字是眼睛看到的，这一下是手上感觉到的
     if (crit) this.shake(2);
   }
-  spawnEnemyBullet(x, y, vx, vy, kind) {
-    const sprMap = { blood: SPR.bolt.blood, talisman: SPR.bolt.talisman, flame: SPR.bolt.flame, ice: SPR.bolt.ice, orb: SPR.bolt.orb };
+  /* 敌方弹幕的统一出口。opt 供特殊弹幕用：
+     hard   —— 斩不落也反射不了（铁魄妖的玄铁弹）
+     r/scale/dmg/life —— 体量、大小、伤害、寿命（裂变弹的三档全靠它拉出层次）
+     splitN/splitTier/splitT —— 裂变：飞够 splitT 帧炸成 splitN 枚低一阶的弹 */
+  spawnEnemyBullet(x, y, vx, vy, kind, opt) {
+    const sprMap = { blood: SPR.bolt.blood, talisman: SPR.bolt.talisman, flame: SPR.bolt.flame, ice: SPR.bolt.ice, orb: SPR.bolt.orb, iron: SPR.bolt.iron };
+    const o = opt || {};
     const b = new Bullet(x, y, vx, vy, {
-      friendly: false, dmg: 1, r: 5, life: 260,
-      kind: kind, sprite: sprMap[kind] || SPR.bolt.blood
+      friendly: false, dmg: o.dmg || 1, r: o.r || 5, life: o.life || 260,
+      kind: kind, sprite: sprMap[kind] || SPR.bolt.blood,
+      scale: o.scale, hard: o.hard,
+      splitN: o.splitN, splitTier: o.splitTier, splitT: o.splitT, splitKind: o.splitKind
     });
     this.bullets.push(b);
     return b;
+  }
+  /* 裂变弹炸开：三阶（母）→ 2 枚二阶（中）→ 每枚再 3 枚一阶（小）。
+     一发的账最后是 1+2+6 = 9 枚，母弹慢而大、越裂越快越小 ——
+     玩家要做的是「先看大的」，而不是去追每一枚小的。 */
+  splitBullet(b) {
+    const tier = b.splitTier;                      // 当前阶数（3 / 2）
+    if (tier < 2) return;
+    const n = tier === 3 ? 2 : 3;
+    const nextTier = tier - 1;
+    const kind = nextTier === 2 ? 'blood' : 'orb';
+    const r = nextTier === 2 ? 6 : 4;
+    const spd = Math.max(1.6, Math.hypot(b.vx, b.vy) * 1.3);
+    const base = Math.atan2(b.vy, b.vx);
+    this.burst(b.x, b.y, 8, nextTier === 2 ? PAL.redL : PAL.green);
+    for (let i = 0; i < n; i++) {
+      const a = base + (i - (n - 1) / 2) * 0.44;
+      this.spawnEnemyBullet(b.x, b.y, Math.cos(a) * spd, Math.sin(a) * spd, kind, {
+        r: r, scale: r / 5, life: Math.max(90, b.life - 40),
+        splitN: nextTier > 1 ? 3 : 0,
+        splitTier: nextTier > 1 ? nextTier : 0,
+        splitT: nextTier > 1 ? 42 : 0,
+        hard: b.hard
+      });
+    }
+    this.shake(2);
   }
   nearestEnemy(x, y, range, exclude) {
     let best = null, bd = range * range;
@@ -935,6 +970,7 @@ class GameCore {
     for (const sl of this.slashes) if (!sl.dead) sl.update();
     for (const k of this.pickups) if (!k.dead) k.update(this);
     for (const h of this.hazards) if (!h.dead) h.update(this);
+    for (const bm of this.beams) if (!bm.dead) bm.update(this);
     for (const pr of this.props) if (!pr.dead) pr.update(this);
     for (const bm of this.placedBombs) if (!bm.dead) bm.update(this);
     for (const pt of this.particles) pt.update();
@@ -947,6 +983,7 @@ class GameCore {
     this.slashes = this.slashes.filter(s => !s.dead);
     this.pickups = this.pickups.filter(k => !k.dead);
     this.hazards = this.hazards.filter(h => !h.dead);
+    this.beams = this.beams.filter(bm => !bm.dead);
     this.props = this.props.filter(pr => !pr.dead);
     this.placedBombs = this.placedBombs.filter(bm => !bm.dead);
     this.particles = this.particles.filter(pt => !pt.dead);
@@ -1194,6 +1231,9 @@ class GameCore {
 
     // 斩击刃光（舞剑流）：压在人物之上，扫过去的那道弧才看得清
     for (const sl of this.slashes) sl.draw(g);
+    // 玄光：压在人物与妖物之上 —— 它是光，被谁挡住都说不过去，
+    // 而且「能不能站得住」全靠这条线读得清不清楚
+    for (const bm of this.beams) bm.draw(g);
 
     // 闪电
     for (const z of this.zaps) {

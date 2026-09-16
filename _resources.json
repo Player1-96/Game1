@@ -778,7 +778,9 @@
    "aiCn": "近战追击",
    "size": 14,
    "score": 10,
-   "split": false
+   "split": false,
+   "shield": false,
+   "note": ""
   },
   {
    "id": "chanchu",
@@ -792,7 +794,9 @@
    "aiCn": "定点吐弹",
    "size": 18,
    "score": 14,
-   "split": false
+   "split": false,
+   "shield": false,
+   "note": "死亡分裂成 2 只小阴煞"
   },
   {
    "id": "xuefu",
@@ -806,7 +810,9 @@
    "aiCn": "蓄力冲刺",
    "size": 18,
    "score": 12,
-   "split": false
+   "split": false,
+   "shield": false,
+   "note": ""
   },
   {
    "id": "guixiu",
@@ -820,7 +826,9 @@
    "aiCn": "远程施法",
    "size": 16,
    "score": 18,
-   "split": false
+   "split": false,
+   "shield": false,
+   "note": ""
   },
   {
    "id": "yinsha",
@@ -834,7 +842,9 @@
    "aiCn": "跳跃（死亡分裂）",
    "size": 16,
    "score": 10,
-   "split": true
+   "split": true,
+   "shield": false,
+   "note": ""
   },
   {
    "id": "shikui",
@@ -848,7 +858,9 @@
    "aiCn": "近战追击",
    "size": 16,
    "score": 24,
-   "split": false
+   "split": false,
+   "shield": false,
+   "note": ""
   },
   {
    "id": "jianling",
@@ -862,7 +874,89 @@
    "aiCn": "远程追踪弹",
    "size": 16,
    "score": 20,
-   "split": false
+   "split": false,
+   "shield": false,
+   "note": ""
+  },
+  {
+   "id": "xuanguang",
+   "cn": "玄光瞳",
+   "hp": 20,
+   "speed": 0.3,
+   "r": 8,
+   "touch": 1,
+   "coins": 2,
+   "ai": "laser",
+   "aiCn": "蓄力激光（贯穿光柱）",
+   "size": 18,
+   "score": 22,
+   "split": false,
+   "shield": false,
+   "note": "蓄力 1.3 秒，先亮范围提示；方向钉死后仍可横移躲开，锁定前移动无效"
+  },
+  {
+   "id": "bengyao",
+   "cn": "蹦山魈",
+   "hp": 20,
+   "speed": 0.9,
+   "r": 8,
+   "touch": 1,
+   "coins": 2,
+   "ai": "leap",
+   "aiCn": "弹跳砸地（落点预警）",
+   "size": 18,
+   "score": 20,
+   "split": false,
+   "shield": false,
+   "note": "落点先出预警圈再落地砸击；腾空期间不咬人，可以贴身穿过"
+  },
+  {
+   "id": "yingmo",
+   "cn": "影魅",
+   "hp": 14,
+   "speed": 1.05,
+   "r": 7,
+   "touch": 1,
+   "coins": 2,
+   "ai": "stealth",
+   "aiCn": "隐身突袭（逼近现形）",
+   "size": 16,
+   "score": 20,
+   "split": false,
+   "shield": false,
+   "note": "常驻隐身，逼近 110px 才现形扑击，受创即现形"
+  },
+  {
+   "id": "tiehun",
+   "cn": "铁魄妖",
+   "hp": 30,
+   "speed": 0.5,
+   "r": 8,
+   "touch": 1,
+   "coins": 3,
+   "ai": "hardcast",
+   "aiCn": "玄铁硬弹（不可击落/反射）",
+   "size": 18,
+   "score": 26,
+   "split": false,
+   "shield": false,
+   "note": "玄铁弹斩不落、反射不了、也照不穿，只有走位一条路"
+  },
+  {
+   "id": "xuanjia",
+   "cn": "玄甲卫",
+   "hp": 26,
+   "speed": 0.55,
+   "r": 9,
+   "touch": 1,
+   "coins": 3,
+   "ai": "chase",
+   "aiCn": "近战追击",
+   "size": 20,
+   "score": 28,
+   "split": false,
+   "shield": true,
+   "note": "两片旋盾慢速环绕，正面伤害减免 75%；无来源位置的伤害（DoT / 技能）绕盾"
   }
  ],
  "elites": [
@@ -961,14 +1055,72 @@
   {
    "id": "xuemo",
    "cn": "血魔尊者",
+   "en": "BLOOD",
    "hp": 260,
-   "appear": "奇数层（1/3/5…）"
+   "spd": 1,
+   "bolt": "blood",
+   "boltCn": "血珠",
+   "alt": "flame",
+   "altCn": "炼火",
+   "dash": 240,
+   "appear": "第 1 层",
+   "gimmick": "整圈血弹 + 无限爪牙，最基础的一课：绕着圈子走，别站在他对面"
   },
   {
    "id": "baigu",
    "cn": "白骨夫人",
+   "en": "BONE",
    "hp": 300,
-   "appear": "偶数层（2/4/6…）"
+   "spd": 0.85,
+   "bolt": "ice",
+   "boltCn": "寒冰",
+   "alt": "talisman",
+   "altCn": "符箓",
+   "dash": 240,
+   "appear": "第 2 层",
+   "gimmick": "定点冰符 + 蓄力冲刺，考验拉扯距离：贴脸会被冲，站远会被符箓封角"
+  },
+  {
+   "id": "liesha",
+   "cn": "裂煞魔尊",
+   "en": "FRACTURE",
+   "hp": 300,
+   "spd": 0.9,
+   "bolt": "flame",
+   "boltCn": "炼火",
+   "alt": "blood",
+   "altCn": "血珠",
+   "dash": 250,
+   "appear": "第 3 层",
+   "gimmick": "母弹裂成 2 枚中弹、每枚再裂成 3 枚小弹（一轮 9 枚），越躲越密，要提前找空当而不是追着弹缝钻"
+  },
+  {
+   "id": "lunhui",
+   "cn": "轮回法王",
+   "en": "WHEEL",
+   "hp": 310,
+   "spd": 0.7,
+   "bolt": "talisman",
+   "boltCn": "符箓",
+   "alt": "ice",
+   "altCn": "寒冰",
+   "dash": 0,
+   "appear": "第 4 层",
+   "gimmick": "18~20 枚缓速环弹，环上固定留一道缺口；不冲刺，纯考站位 —— 缺口每轮换位但不追人"
+  },
+  {
+   "id": "zhulong",
+   "cn": "烛龙",
+   "en": "TORCH",
+   "hp": 330,
+   "spd": 0.8,
+   "bolt": "flame",
+   "boltCn": "炼火",
+   "alt": "blood",
+   "altCn": "血珠",
+   "dash": 260,
+   "appear": "第 5 层",
+   "gimmick": "鳞罩期间免疫全部伤害、同时架起横扫激光，罩碎才可反击：打不动的两秒就是必须走位的两秒"
   }
  ],
  "styles": [
@@ -1283,32 +1435,37 @@
     {
      "id": "xiesui",
      "cn": "邪祟",
-     "p": 16.7
+     "p": 14.3
     },
     {
      "id": "chanchu",
      "cn": "蟾蜍妖",
-     "p": 16.7
+     "p": 14.3
     },
     {
      "id": "yinsha",
      "cn": "阴煞",
-     "p": 16.7
+     "p": 14.3
     },
     {
      "id": "xuefu",
      "cn": "血蝠",
-     "p": 16.7
+     "p": 14.3
     },
     {
      "id": "guixiu",
      "cn": "鬼修",
-     "p": 16.7
+     "p": 14.3
     },
     {
      "id": "shikui",
      "cn": "尸傀",
-     "p": 16.7
+     "p": 14.3
+    },
+    {
+     "id": "bengyao",
+     "cn": "蹦山魈",
+     "p": 14.3
     }
    ]
   },
@@ -1318,37 +1475,52 @@
     {
      "id": "xiesui",
      "cn": "邪祟",
-     "p": 14.3
+     "p": 10
     },
     {
      "id": "chanchu",
      "cn": "蟾蜍妖",
-     "p": 14.3
+     "p": 10
     },
     {
      "id": "yinsha",
      "cn": "阴煞",
-     "p": 14.3
+     "p": 10
     },
     {
      "id": "xuefu",
      "cn": "血蝠",
-     "p": 14.3
+     "p": 10
     },
     {
      "id": "guixiu",
      "cn": "鬼修",
-     "p": 14.3
+     "p": 10
     },
     {
      "id": "shikui",
      "cn": "尸傀",
-     "p": 14.3
+     "p": 10
+    },
+    {
+     "id": "bengyao",
+     "cn": "蹦山魈",
+     "p": 10
     },
     {
      "id": "jianling",
      "cn": "剑灵",
-     "p": 14.3
+     "p": 10
+    },
+    {
+     "id": "yingmo",
+     "cn": "影魅",
+     "p": 10
+    },
+    {
+     "id": "xuanguang",
+     "cn": "玄光瞳",
+     "p": 10
     }
    ]
   },
@@ -1358,37 +1530,62 @@
     {
      "id": "xiesui",
      "cn": "邪祟",
-     "p": 14.3
+     "p": 8.3
     },
     {
      "id": "chanchu",
      "cn": "蟾蜍妖",
-     "p": 14.3
+     "p": 8.3
     },
     {
      "id": "yinsha",
      "cn": "阴煞",
-     "p": 14.3
+     "p": 8.3
     },
     {
      "id": "xuefu",
      "cn": "血蝠",
-     "p": 14.3
+     "p": 8.3
     },
     {
      "id": "guixiu",
      "cn": "鬼修",
-     "p": 14.3
+     "p": 8.3
     },
     {
      "id": "shikui",
      "cn": "尸傀",
-     "p": 14.3
+     "p": 8.3
+    },
+    {
+     "id": "bengyao",
+     "cn": "蹦山魈",
+     "p": 8.3
     },
     {
      "id": "jianling",
      "cn": "剑灵",
-     "p": 14.3
+     "p": 8.3
+    },
+    {
+     "id": "yingmo",
+     "cn": "影魅",
+     "p": 8.3
+    },
+    {
+     "id": "xuanguang",
+     "cn": "玄光瞳",
+     "p": 8.3
+    },
+    {
+     "id": "tiehun",
+     "cn": "铁魄妖",
+     "p": 8.3
+    },
+    {
+     "id": "xuanjia",
+     "cn": "玄甲卫",
+     "p": 8.3
     }
    ]
   },
@@ -1398,37 +1595,62 @@
     {
      "id": "xiesui",
      "cn": "邪祟",
-     "p": 14.3
+     "p": 8.3
     },
     {
      "id": "chanchu",
      "cn": "蟾蜍妖",
-     "p": 14.3
+     "p": 8.3
     },
     {
      "id": "yinsha",
      "cn": "阴煞",
-     "p": 14.3
+     "p": 8.3
     },
     {
      "id": "xuefu",
      "cn": "血蝠",
-     "p": 14.3
+     "p": 8.3
     },
     {
      "id": "guixiu",
      "cn": "鬼修",
-     "p": 14.3
+     "p": 8.3
     },
     {
      "id": "shikui",
      "cn": "尸傀",
-     "p": 14.3
+     "p": 8.3
+    },
+    {
+     "id": "bengyao",
+     "cn": "蹦山魈",
+     "p": 8.3
     },
     {
      "id": "jianling",
      "cn": "剑灵",
-     "p": 14.3
+     "p": 8.3
+    },
+    {
+     "id": "yingmo",
+     "cn": "影魅",
+     "p": 8.3
+    },
+    {
+     "id": "xuanguang",
+     "cn": "玄光瞳",
+     "p": 8.3
+    },
+    {
+     "id": "tiehun",
+     "cn": "铁魄妖",
+     "p": 8.3
+    },
+    {
+     "id": "xuanjia",
+     "cn": "玄甲卫",
+     "p": 8.3
     }
    ]
   },
@@ -1438,37 +1660,62 @@
     {
      "id": "xiesui",
      "cn": "邪祟",
-     "p": 14.3
+     "p": 8.3
     },
     {
      "id": "chanchu",
      "cn": "蟾蜍妖",
-     "p": 14.3
+     "p": 8.3
     },
     {
      "id": "yinsha",
      "cn": "阴煞",
-     "p": 14.3
+     "p": 8.3
     },
     {
      "id": "xuefu",
      "cn": "血蝠",
-     "p": 14.3
+     "p": 8.3
     },
     {
      "id": "guixiu",
      "cn": "鬼修",
-     "p": 14.3
+     "p": 8.3
     },
     {
      "id": "shikui",
      "cn": "尸傀",
-     "p": 14.3
+     "p": 8.3
+    },
+    {
+     "id": "bengyao",
+     "cn": "蹦山魈",
+     "p": 8.3
     },
     {
      "id": "jianling",
      "cn": "剑灵",
-     "p": 14.3
+     "p": 8.3
+    },
+    {
+     "id": "yingmo",
+     "cn": "影魅",
+     "p": 8.3
+    },
+    {
+     "id": "xuanguang",
+     "cn": "玄光瞳",
+     "p": 8.3
+    },
+    {
+     "id": "tiehun",
+     "cn": "铁魄妖",
+     "p": 8.3
+    },
+    {
+     "id": "xuanjia",
+     "cn": "玄甲卫",
+     "p": 8.3
     }
    ]
   }
@@ -1476,20 +1723,20 @@
  "floors": [
   {
    "depth": 1,
-   "rooms": 14.1,
-   "normalRooms": 8.5,
-   "eliteRate": 25,
-   "secretRate": 38,
+   "rooms": 13.8,
+   "normalRooms": 8.1,
+   "eliteRate": 35,
+   "secretRate": 33,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 98,
    "budget": 51,
    "sink": 60,
    "reserve": 13,
-   "eliteMult": 2.6,
+   "eliteMult": 2.51,
    "locks": 2,
-   "bombs": 1.6,
-   "enemies": 37.5,
+   "bombs": 1.4,
+   "enemies": 35.9,
    "enemiesPerRoom": 4.4,
    "hpScale": 1,
    "power": 1,
@@ -1500,105 +1747,105 @@
   },
   {
    "depth": 2,
-   "rooms": 14.7,
+   "rooms": 14.8,
    "normalRooms": 8.9,
-   "eliteRate": 43,
-   "secretRate": 35,
+   "eliteRate": 45,
+   "secretRate": 40,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 57,
    "sink": 67,
    "reserve": 14,
-   "eliteMult": 2.47,
+   "eliteMult": 2.44,
    "locks": 2,
-   "bombs": 1.5,
-   "enemies": 46.8,
+   "bombs": 1.4,
+   "enemies": 47.8,
    "enemiesPerRoom": 5.3,
-   "hpScale": 1.59,
-   "power": 1.95,
-   "threat": 1.6,
-   "mult": 1.236,
-   "count": 1.058,
+   "hpScale": 1.56,
+   "power": 1.87,
+   "threat": 1.5,
+   "mult": 1.2,
+   "count": 1.05,
    "tag": "险"
   },
   {
    "depth": 3,
-   "rooms": 16,
-   "normalRooms": 9.8,
-   "eliteRate": 65,
-   "secretRate": 57,
+   "rooms": 16.1,
+   "normalRooms": 10,
+   "eliteRate": 63,
+   "secretRate": 45,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 65,
    "sink": 76,
    "reserve": 14,
-   "eliteMult": 2.35,
+   "eliteMult": 2.54,
    "locks": 2,
-   "bombs": 1.6,
-   "enemies": 62.8,
+   "bombs": 1.4,
+   "enemies": 63.8,
    "enemiesPerRoom": 6.4,
    "hpScale": 2.19,
-   "power": 2.94,
-   "threat": 2.47,
-   "mult": 1.501,
-   "count": 1.114,
-   "tag": "危"
+   "power": 2.96,
+   "threat": 6.24,
+   "mult": 2.28,
+   "count": 1.246,
+   "tag": "绝"
   },
   {
    "depth": 4,
-   "rooms": 16.2,
+   "rooms": 16.4,
    "normalRooms": 9.8,
-   "eliteRate": 73,
-   "secretRate": 63,
+   "eliteRate": 78,
+   "secretRate": 80,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 71,
    "sink": 83,
-   "reserve": 15,
-   "eliteMult": 2.41,
+   "reserve": 13,
+   "eliteMult": 2.42,
    "locks": 2,
-   "bombs": 1.4,
-   "enemies": 76.8,
+   "bombs": 1.5,
+   "enemies": 76,
    "enemiesPerRoom": 7.8,
-   "hpScale": 2.89,
-   "power": 4.12,
-   "threat": 3.13,
-   "mult": 1.672,
-   "count": 1.147,
+   "hpScale": 2.88,
+   "power": 4.11,
+   "threat": 3.48,
+   "mult": 1.752,
+   "count": 1.161,
    "tag": "危"
   },
   {
    "depth": 5,
-   "rooms": 16.4,
-   "normalRooms": 9.7,
-   "eliteRate": 90,
-   "secretRate": 78,
+   "rooms": 16.2,
+   "normalRooms": 9.4,
+   "eliteRate": 95,
+   "secretRate": 80,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 78,
    "sink": 92,
    "reserve": 15,
-   "eliteMult": 2.49,
+   "eliteMult": 2.51,
    "locks": 2,
    "bombs": 1.5,
-   "enemies": 83.3,
-   "enemiesPerRoom": 8.6,
-   "hpScale": 3.79,
-   "power": 6.07,
-   "threat": 3.37,
-   "mult": 1.729,
-   "count": 1.157,
-   "tag": "危"
+   "enemies": 83,
+   "enemiesPerRoom": 8.8,
+   "hpScale": 3.72,
+   "power": 5.62,
+   "threat": 5.66,
+   "mult": 2.182,
+   "count": 1.231,
+   "tag": "绝"
   },
   {
    "depth": 6,
-   "rooms": 16.1,
-   "normalRooms": 9.4,
-   "eliteRate": 90,
+   "rooms": 16.3,
+   "normalRooms": 9.8,
+   "eliteRate": 78,
    "secretRate": 73,
    "treasureRate": 100,
    "shopRate": 100,
@@ -1606,16 +1853,16 @@
    "budget": 84,
    "sink": 99,
    "reserve": 15,
-   "eliteMult": 2.46,
+   "eliteMult": 2.54,
    "locks": 2,
-   "bombs": 1.6,
-   "enemies": 87.5,
-   "enemiesPerRoom": 9.3,
-   "hpScale": 4.71,
-   "power": 7.8,
-   "threat": 5.95,
-   "mult": 2.232,
-   "count": 1.239,
+   "bombs": 1.5,
+   "enemies": 89.9,
+   "enemiesPerRoom": 9.2,
+   "hpScale": 4.58,
+   "power": 7.23,
+   "threat": 13.76,
+   "mult": 3,
+   "count": 1.37,
    "tag": "绝"
   }
  ],
@@ -2387,6 +2634,6 @@
   "mpTickFrames": 0,
   "SHIELD_DUR": 300
  },
- "exportedAt": "2026-09-16 04:14:34",
+ "exportedAt": "2026-09-16 09:16:53",
  "errs": []
 }

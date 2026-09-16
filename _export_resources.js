@@ -20,11 +20,36 @@ const OUT = path.resolve(__dirname, '_resources.json');
 /* 妖物中文名 —— 源码里只有 id，中文名取自 sprites.js 的作画注释 */
 const ENEMY_CN = {
   xiesui: '邪祟', chanchu: '蟾蜍妖', xuefu: '血蝠', guixiu: '鬼修',
-  yinsha: '阴煞', shikui: '尸傀', jianling: '剑灵'
+  yinsha: '阴煞', shikui: '尸傀', jianling: '剑灵',
+  xuanguang: '玄光瞳', bengyao: '蹦山魈', yingmo: '影魅',
+  tiehun: '铁魄妖', xuanjia: '玄甲卫'
 };
 const AI_CN = {
   chase: '近战追击', spit: '定点吐弹', dash: '蓄力冲刺',
-  caster: '远程施法', hop: '跳跃（死亡分裂）', caster2: '远程追踪弹'
+  caster: '远程施法', hop: '跳跃（死亡分裂）', caster2: '远程追踪弹',
+  laser: '蓄力激光（贯穿光柱）', hardcast: '玄铁硬弹（不可击落/反射）',
+  leap: '弹跳砸地（落点预警）', stealth: '隐身突袭（逼近现形）'
+};
+/* 妖物的「特殊」列 —— 只写机制本身，数值一律留在游戏源码里当唯一真相 */
+const ENEMY_NOTE = {
+  chanchu: '死亡分裂成 2 只小阴煞',
+  xuanguang: '蓄力 1.3 秒，先亮范围提示；方向钉死后仍可横移躲开，锁定前移动无效',
+  tiehun: '玄铁弹斩不落、反射不了、也照不穿，只有走位一条路',
+  bengyao: '落点先出预警圈再落地砸击；腾空期间不咬人，可以贴身穿过',
+  xuanjia: '两片旋盾慢速环绕，正面伤害减免 75%；无来源位置的伤害（DoT / 技能）绕盾',
+  yingmo: '常驻隐身，逼近 110px 才现形扑击，受创即现形'
+};
+/* 弹种中文名 —— 头目的主副弹幕 */
+const BOLT_CN = {
+  blood: '血珠', talisman: '符箓', flame: '炼火', ice: '寒冰', orb: '灵珠', iron: '玄铁'
+};
+/* 头目打法要点 —— 题面各不相同，玩家每层都要重学一次走位 */
+const BOSS_GIMMICK = {
+  xuemo: '整圈血弹 + 无限爪牙，最基础的一课：绕着圈子走，别站在他对面',
+  baigu: '定点冰符 + 蓄力冲刺，考验拉扯距离：贴脸会被冲，站远会被符箓封角',
+  liesha: '母弹裂成 2 枚中弹、每枚再裂成 3 枚小弹（一轮 9 枚），越躲越密，要提前找空当而不是追着弹缝钻',
+  lunhui: '18~20 枚缓速环弹，环上固定留一道缺口；不冲刺，纯考站位 —— 缺口每轮换位但不追人',
+  zhulong: '鳞罩期间免疫全部伤害、同时架起横扫激光，罩碎才可反击：打不动的两秒就是必须走位的两秒'
 };
 const PERK_CN = {
   blood: '血箭（受创减免四成）', volley: '符箓三连发+灼烧',
@@ -41,7 +66,7 @@ const PERK_CN = {
   // 停掉主循环，避免后台 update 干扰采样
   await page.evaluate(() => { window.requestAnimationFrame = () => 0; });
 
-  const data = await page.evaluate(({ ENEMY_CN, AI_CN, PERK_CN }) => {
+  const data = await page.evaluate(({ ENEMY_CN, AI_CN, PERK_CN, ENEMY_NOTE, BOLT_CN, BOSS_GIMMICK }) => {
     const G = window.Game;
 
     /* ---------- 1. 玩家基础 ---------- */
@@ -83,7 +108,8 @@ const PERK_CN = {
       return {
         id: k, cn: ENEMY_CN[k] || k, hp: d.hp, speed: d.speed, r: d.r,
         touch: d.touch, coins: d.coins, ai: d.ai, aiCn: AI_CN[d.ai] || d.ai,
-        size: d.size, score: d.score, split: !!d.split
+        size: d.size, score: d.score, split: !!d.split, shield: !!d.shield,
+        note: ENEMY_NOTE[k] || ''
       };
     });
 
@@ -100,11 +126,20 @@ const PERK_CN = {
       };
     });
 
-    /* ---------- 5. Boss ---------- */
-    const bosses = [
-      { id: 'xuemo', cn: '血魔尊者', hp: 260, appear: '奇数层（1/3/5…）' },
-      { id: 'baigu', cn: '白骨夫人', hp: 300, appear: '偶数层（2/4/6…）' }
-    ];
+    /* ---------- 5. Boss ----------
+       一层一位、固定不轮换（dungeon.js 的 RT.BOSS 直接取 BOSS_KEYS[层-1]），
+       所以这里的顺序就是出现顺序，改 BOSS_DEF 的键序等于改每层打谁。 */
+    const bosses = Object.keys(BOSS_DEF).map((k, i) => {
+      const d = BOSS_DEF[k];
+      return {
+        id: k, cn: d.name, en: d.en, hp: d.hp, spd: d.spd,
+        bolt: d.bolt, boltCn: BOLT_CN[d.bolt] || d.bolt,
+        alt: d.alt || null, altCn: d.alt ? (BOLT_CN[d.alt] || d.alt) : '',
+        dash: d.dash || 0,
+        appear: '第 ' + (i + 1) + ' 层',
+        gimmick: BOSS_GIMMICK[k] || ''
+      };
+    });
 
     /* ---------- 6. 流派与蓄力段位 ---------- */
     const styles = Object.keys(STYLES).map(k => ({
@@ -282,7 +317,7 @@ const PERK_CN = {
 
     return { player, items, enemies, elites, bosses, styles, charge, shopPrices, pools, floors,
              diffParams, curve, lootCurve, skills, ults, ultPaths, skillConst };
-  }, { ENEMY_CN, AI_CN, PERK_CN });
+  }, { ENEMY_CN, AI_CN, PERK_CN, ENEMY_NOTE, BOLT_CN, BOSS_GIMMICK });
 
   data.exportedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
   data.errs = errs;
