@@ -375,6 +375,22 @@ function drawJianLing(frame) {
   return p.outline(PAL.ink).done();
 }
 
+/* 剑灵（小体型）：精英「剑灵·断念」殒命时召出的小剑灵。
+   必须单独画一套 —— 通用小体型素材是阴煞（yinsha_s），复用它会让玩家
+   以为精英分裂出了两只阴煞（用户 2026-09-17 的反馈，现象属实）。 */
+function drawJianLingS(frame) {
+  const p = new Px(10, 10);
+  const C = PAL.cyan, CD = PAL.cyanD, CL = '#bfeaff';
+  const yb = frame ? 0 : 1;
+  p.rect(4, 0 + yb, 2, 5, CD);                  // 剑身魂体
+  p.rect(4, 0 + yb, 1, 4, C);
+  p.set(3, 0 + yb, CL); p.set(4, 0 + yb, CL); p.set(5, 0 + yb, CL);
+  p.rect(2, 5 + yb, 6, 1, C);                   // 剑格
+  p.rect(4, 6 + yb, 2, 2, PAL.goldD);           // 柄
+  p.disc(5, 8 + yb, 1, PAL.gold);
+  return p.outline(PAL.ink).done();
+}
+
 /* 玄光瞳：悬浮的独眼，蓄力后射出贯穿一道的玄光 */
 function drawXuanGuang(frame) {
   const p = new Px(20, 20);
@@ -1101,6 +1117,7 @@ function buildSprites() {
     yinsha_s: [drawYinSha(0, true), drawYinSha(1, true)],
     shikui: [drawShiKui(0), drawShiKui(1)],
     jianling: [drawJianLing(0), drawJianLing(1)],
+    jianling_s: [drawJianLingS(0), drawJianLingS(1)],
     xuanguang: [drawXuanGuang(0), drawXuanGuang(1)],
     tiehun: [drawTieHun(0), drawTieHun(1)],
     bengyao: [drawBengYao(0), drawBengYao(1)],

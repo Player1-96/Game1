@@ -751,7 +751,7 @@ const ELITE_DEF = {
   duannian: {
     name: '剑灵·断念', en: 'SWORD', base: 'jianling', perk: 'swarm',
     hpMul: 2.7, spdMul: 1.05, scale: 1.5, rMul: 1.5, coins: 12, score: 85,
-    aura: PAL.gold, perkCd: 145, desc: '环形剑气，并召小剑灵助战'
+    aura: PAL.gold, perkCd: 145, desc: '环形剑气，殒命时召出两只小剑灵'
   }
 };
 const ELITE_KEYS = Object.keys(ELITE_DEF);
@@ -1243,7 +1243,12 @@ class Enemy {
     SFX.cast();
   }
   draw(g2) {
-    const set = this.small ? SPR.enemies.yinsha_s : SPR.enemies[this.def.spr];
+    /* 小体型怪优先用自己那套小素材（<spr>_s），没做素材的才退回通用小体型。
+       旧写法把所有 small 一律画成阴煞，于是精英「剑灵·断念」殒命时召出的
+       两只小剑灵看起来就是阴煞 —— 用户 2026-09-17 反馈「莫名分裂两只阴煞」。 */
+    const set = this.small
+      ? (SPR.enemies[this.def.spr + '_s'] || SPR.enemies.yinsha_s)
+      : SPR.enemies[this.def.spr];
     const s = set[this.frame % set.length];
     // 腾空：走一段抛物线，影子留在地面（这是「它现在打不到我」最直观的读法）
     const airK = this.air > 0 ? Math.sin((1 - this.stateT / LEAP.air) * Math.PI) : 0;
