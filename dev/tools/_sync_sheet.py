@@ -9,12 +9,34 @@ _sync_sheet.py —— 把 _resources.json 同步到腾讯文档《九劫录·资
 表格：https://docs.qq.com/sheet/DTEtrQUFaQmtkamNM
 每改动一次 src/ 里的数值，重跑上面两条命令即可，表格会整页重写。
 """
-import json, os, subprocess, sys, io, math, time
+import json, os, re, subprocess, sys, io, math, time
 
 sys.stdout.reconfigure(encoding='utf-8')
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SKILL = r"C:/Users/MIGO/.workbuddy/plugins/cache/workbuddy-builtin/tencent-docs-plugin/1.0.0/skills/tencent-docs"
+def _find_skill_dir():
+    """自动发现腾讯文档插件目录下的最新版本。
+
+    2026-09-17：插件从 1.0.0 升到 5.5.6 后，旧目录里的 tencentdocs.py
+    拿不到登录票据（报 no_token，而同一时刻 MCP 工具通道完全正常）——
+    硬编码版本号目录必踩这个坑。取版本号最大的那个可用目录。
+    """
+    root = os.path.join(os.path.expanduser("~"), ".workbuddy", "plugins", "cache",
+                        "workbuddy-builtin", "tencent-docs-plugin")
+    cands = []
+    for name in os.listdir(root):
+        d = os.path.join(root, name, "skills", "tencent-docs")
+        if os.path.exists(os.path.join(d, "tencentdocs.py")):
+            m = re.match(r"(\d+)\.(\d+)\.(\d+)", name)
+            cands.append((tuple(int(x) for x in m.groups()) if m else (0, 0, 0), name, d))
+    if not cands:
+        raise RuntimeError("找不到腾讯文档插件的 tencentdocs.py：" + root)
+    cands.sort()
+    print("  插件目录: " + cands[-1][1])
+    return cands[-1][2]
+
+
+SKILL = _find_skill_dir()
 FILE_ID = "DTEtrQUFaQmtkamNM"
 SHEET_URL = "https://docs.qq.com/sheet/" + FILE_ID
 
