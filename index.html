@@ -66,27 +66,52 @@
   }
   #title .sub{ font-size:1.2em; color:var(--gold); letter-spacing:.3em; }
   #title .tip{ margin-top:1em; font-size:1.05em; color:#a9a5c0; line-height:1.9; }
+  /* 续档提示：只在 localStorage 里有存档时显示 */
+  #title .saveTip{
+    margin-top:.4em; font-size:1.05em; color:var(--gold); letter-spacing:.12em; line-height:1.95;
+    text-shadow:0 0 12px rgba(242,199,97,.35);
+    border:1px dashed #6b5a2e; border-radius:4px; padding:.45em .9em; background:rgba(30,24,10,.55);
+  }
+  #title .saveTip small{ display:block; font-size:.78em; color:#a9a5c0; letter-spacing:.06em; margin-bottom:.15em; }
   #title .blink{ color:var(--jade); animation:bl 1.1s steps(2,end) infinite; }
   @keyframes bl{50%{opacity:.15}}
   /* 流派选择 / 技能替换 / 专属升级：同一套卡片样式 */
   #choose, #pick{
-    position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+    position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:flex-start;
     gap:.85em; background:rgba(6,4,14,.74); text-align:center; pointer-events:auto;
+    padding:1.1em .9em; overflow-y:auto; overscroll-behavior:contain;
+  }
+  /* 内容比容器高时，flex 居中会把顶部顶到可视区外（标题直接被裁）——
+     改用首尾 auto 外边距等效居中：不溢出时依然居中，溢出时从顶部开始且可向下滚。 */
+  #choose::before, #choose::after, #pick::before, #pick::after{
+    content:''; flex:0 0 auto; margin:auto;
   }
   #pick{ gap:.6em; }
   .pickTitle{ font-size:1.5em; color:var(--gold); letter-spacing:.34em; text-shadow:0 0 14px rgba(242,199,97,.35); }
   .pickSub{ font-size:1.02em; color:#a9a5c0; letter-spacing:.06em; }
   .pickSub b{ color:var(--jade); }
-  .pickRow{ display:flex; gap:1em; }
+  /* 三张卡等高（stretch），并给整行一个视口内的硬上限：
+     舞剑流的说明有 300+ 字，不封顶就会把卡片撑到屏幕外。 */
+  .pickRow{ display:flex; gap:1em; align-items:stretch; max-width:100%; }
   .pickCard{ cursor:pointer; }
   .pickCard .lv{ font-size:.85em; color:var(--cyan,#57d6e0); letter-spacing:.08em; margin-top:.15em; }
   .pickCard{
     width:12.5em; padding:.8em .85em; background:rgba(18,14,34,.92); border:1px solid #4d4478; border-radius:4px;
     text-align:center; transition:transform .12s, border-color .12s, box-shadow .12s;
+    display:flex; flex-direction:column;
+    max-height:min(34em, calc(100vh - 11em));
   }
   .pickCard .nm{ font-size:1.5em; letter-spacing:.16em; color:var(--txt); }
   .pickCard .tag{ font-size:.95em; color:#8f8ba8; margin-top:.2em; letter-spacing:.1em; }
-  .pickCard .dsc{ font-size:.95em; color:#9a97b0; margin-top:.55em; line-height:1.75; text-align:left; }
+  /* 描述区自己滚（min-height:0 是必需的：flex 子项默认不收缩，不给它就撑破卡片） */
+  .pickCard .dsc{
+    font-size:.95em; color:#9a97b0; margin-top:.55em; line-height:1.75; text-align:left;
+    flex:1 1 auto; min-height:0; overflow-y:auto; padding-right:.4em;
+    scrollbar-width:thin; scrollbar-color:#5b4f8c transparent;
+  }
+  .pickCard .dsc::-webkit-scrollbar{ width:5px; }
+  .pickCard .dsc::-webkit-scrollbar-thumb{ background:#5b4f8c; border-radius:3px; }
+  .pickCard .dsc::-webkit-scrollbar-track{ background:transparent; }
   .pickCard.selA{
     border-color:var(--jade); transform:translateY(-.4em) scale(1.04);
     box-shadow:0 0 0 2px rgba(87,214,176,.16), 0 10px 26px rgba(0,0,0,.55);
@@ -190,12 +215,16 @@
       <div id="title">
         <div class="big">九劫录</div>
         <div class="sub">飞 剑 问 仙</div>
+        <div class="saveTip" id="saveTip" style="display:none">
+          <small>检测到上次未完成的进度</small>
+          <span class="kbd">C</span> 续 前 缘　　其他任意键开新局
+        </div>
         <div class="tip">
           <span class="kbd">W</span><span class="kbd">A</span><span class="kbd">S</span><span class="kbd">D</span> 身法移动<br>
           <span class="kbd">↑</span><span class="kbd">↓</span><span class="kbd">←</span><span class="kbd">→</span> 或 <span class="kbd">鼠标左键</span> 御剑斩妖<br>
           <span class="kbd">空格</span> 专属技能　<span class="kbd">Q</span> 小技能　<span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span> 切换小技能<br>
           <span class="kbd">E</span> 交互（坊市 / 祭坛）　<span class="kbd">F</span> 埋设雷符（炸妖 / 开裂缝 / 炸箱 / 碎石柱）<br>
-          <span class="kbd">R</span> 重入轮回（局内长按 1 秒可重开并换流派）　<span class="kbd">M</span> 静音
+          <span class="kbd">P</span> 或 <span class="kbd">Esc</span> 暂停　<span class="kbd">R</span> 重入轮回（局内长按 1 秒可重开并换流派）　<span class="kbd">M</span> 静音
         </div>
         <div class="tip blink">按任意键入山门</div>
       </div>

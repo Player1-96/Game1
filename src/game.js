@@ -124,6 +124,21 @@ function styleColor(style) {
   return PAL.jade;
 }
 
+/* ---------------- 存档 ----------------
+ *  只存「种子 + 进度 + 玩家」，不存敌人实体。
+ *  Floor 由 mulberry32(seed) 确定性生成 —— 房间布局、波次、交互物位置都能原样重建；
+ *  而存档点定在「进入新房间」那一刻，敌人在进房时才按 waves 排队，两边天然对得上。
+ *
+ *  两个附带好处：
+ *  · 不必序列化 Boss 的三阶段状态机、玄光光束、裂变弹这类瞬时实体；
+ *  · 堵掉了「打一半关页面重来刷掉落」—— 玩家状态同样回滚到进房那一刻，刷不出东西。
+ */
+const SAVE_KEY = 'xiuxian-isaac.save.v1';
+const SAVE_VER = 1;
+/* 房间进度里需要落盘的字段（其余都能由种子重建） */
+const ROOM_SAVE_KEYS = ['cleared', 'visited', 'seen', 'secretFound', 'unlocked',
+                        'waveIdx', 'coinPool', 'keyDrop', 'bombDrop', 'elite'];
+
 /* ---------------- 游戏主体 ---------------- */
 class GameCore {
   constructor(canvas) {
@@ -148,6 +163,7 @@ class GameCore {
     this.ultSword = null;            // 落地后插在地上的巨剑（纯表现）
     this.pick = null;                // 选择界面：{ kind:'skill'|'ult', ... }，非 null 时暂停
     this.ultUpgradeT = 0;            // 斩精英后延迟弹出三选一的倒计时（帧）
+    this.paused = false;             // 主动暂停（P / Esc）：逻辑全停，画面照画
   }
 
   /* ---------------- 生命周期 ---------------- */
@@ -157,8 +173,10 @@ class GameCore {
     this.coins = 0; this.keys = 0; this.bombs = 0; this.kills = 0;
     this.time = 0;
     this.player = new Player(ROOM_W / 2, ROOM_H / 2 + 20);
-    this.newFloor(1);
+    // 先切到 play 再 newFloor：newFloor → enterRoom 里会写存档，
+    // 此时 state 还是 'title'/'choose' 的话那次存档会被跳过（开局第一间房丢档）
     this.state = 'play';
+    this.newFloor(1);
     this.itemPopup = null;
     this.pick = null; this.ultWarn = null; this.ultSword = null; this.ultUpgradeT = 0;
     // 舞剑流是纯近战，开局就得靠「剑影三叠」的突进贴身，故直接给上
@@ -193,9 +211,10 @@ class GameCore {
       + (s.mpRegen || 0) * 0.25;
     return Math.max(0.2, v);
   }
-  newFloor(depth) {
+  newFloor(depth, seed) {
     this.depth = depth;
-    this.floor = new Floor(depth, (Math.random() * 0xffffffff) >>> 0, {
+    // seed 可由读档传入：同一颗种子必须重建出同一层（存档的地基）
+    this.floor = new Floor(depth, seed != null ? (seed >>> 0) : ((Math.random() * 0xffffffff) >>> 0), {
       power: this.powerScore(),
       owned: this.player ? this.player.items.slice() : [],
       slots: this.player ? this.player.slots.map(s => (s ? { id: s.id, lv: s.lv } : null)) : []
@@ -218,6 +237,114 @@ class GameCore {
   floorStart() {
     for (const r of this.floor.rooms.values()) if (r.type === RT.START) return r;
     return [...this.floor.rooms.values()][0];
+  }
+
+  /* ---------------- 存档 / 读档 ---------------- */
+  saveGame() {
+    if (!this.player || this.state !== 'play' || !this.floor) return false;
+    try {
+      const p = this.player;
+      const rooms = {};
+      for (const r of this.floor.rooms.values()) {
+        rooms[r.key] = {
+          cleared: r.cleared, visited: r.visited, seen: r.seen, secretFound: r.secretFound,
+          unlocked: r.unlocked, waveIdx: r.waveIdx, coinPool: r.coinPool,
+          keyDrop: r.keyDrop, bombDrop: r.bombDrop, elite: r.elite,
+          doorOpen: r.doorOpen.slice(), doorHidden: r.doorHidden.slice(), doorHp: r.doorHp.slice(),
+          // 交互物的已开/已售状态就挂在 r.props 的元素上（Prop.open 会写回 src），
+          // 所以连着 taken/opened/sold 一起存，回来时宝箱不会复活
+          props: r.props.map(x => ({ ...x })),
+          drops: (r.drops || []).map(x => ({ ...x }))
+        };
+      }
+      localStorage.setItem(SAVE_KEY, JSON.stringify({
+        v: SAVE_VER, at: Date.now(),
+        style: this.style, depth: this.depth, seed: this.floor.seed,
+        coins: this.coins, keys: this.keys, bombs: this.bombs, kills: this.kills, time: this.time,
+        coinReserve: this.coinReserve, eliteMult: this.eliteMult,
+        roomKey: this.room ? this.room.key : null,
+        player: {
+          hp: p.hp, maxHP: p.maxHP, mp: p.mp, maxMP: p.maxMP,
+          shield: p.shield, tShield: p.tShield, shieldT: p.shieldT, soulBuff: p.soulBuff,
+          stats: { ...p.stats },
+          items: p.items.slice(),                       // 字符串 id 数组，重复即阶数
+          slots: p.slots.map(s => (s ? { id: s.id, lv: s.lv } : null)),
+          slotIdx: p.slotIdx, skillCd: p.skillCd.slice(),
+          ult: p.ult ? { style: p.ult.style, paths: { ...p.ult.paths } } : null,
+          ultCd: p.ultCd
+        },
+        rooms
+      }));
+      this._hasSave = true;
+      return true;
+    } catch (e) { console.warn('[save] 写入失败', e); return false; }
+  }
+  readSave() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return null;
+      const d = JSON.parse(raw);
+      if (!d || d.v !== SAVE_VER || !d.rooms || !d.player) return null;
+      if (!PLAYABLE_STYLES.includes(d.style)) return null;
+      return d;
+    } catch (e) { return null; }
+  }
+  /* 缓存一下：updateOverlay 每 100ms 跑一次，每次都 JSON.parse 整份存档太浪费 */
+  hasSave() {
+    if (this._hasSave == null) this._hasSave = !!this.readSave();
+    return this._hasSave;
+  }
+  clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { } this._hasSave = false; }
+
+  /* 读档：同一颗种子重建楼层 → 把进度套回去 → 重进存档时所在的那间房。
+     注意顺序 —— 必须先 newFloor 再套进度，最后 enterRoom，
+     因为 enterRoom 会清空本房实体并按 waves 重新排队。 */
+  continueGame() {
+    const d = this.readSave();
+    if (!d) return false;
+    this.style = d.style;
+    this.depth = d.depth;
+    this.coins = d.coins || 0; this.keys = d.keys || 0; this.bombs = d.bombs || 0;
+    this.kills = d.kills || 0; this.time = d.time || 0;
+    this.paused = false; this.pick = null;
+    this.itemPopup = null; this.ultWarn = null; this.ultSword = null; this.ultUpgradeT = 0;
+    this.player = new Player(ROOM_W / 2, ROOM_H / 2 + 20);
+    this.state = 'play';       // 同上：重建期间也要处在 play，否则中途那次自动存档会被跳过
+    this.newFloor(d.depth, d.seed);
+    for (const key in d.rooms) {
+      const r = this.floor.rooms.get(key);
+      if (!r) continue;
+      const o = d.rooms[key];
+      for (const k of ROOM_SAVE_KEYS) if (k in o) r[k] = o[k];
+      if (o.doorOpen) r.doorOpen = o.doorOpen.slice();
+      if (o.doorHidden) r.doorHidden = o.doorHidden.slice();
+      if (o.doorHp) r.doorHp = o.doorHp.slice();
+      if (o.props) r.props = o.props.map(x => ({ ...x }));
+      if (o.drops) r.drops = o.drops.map(x => ({ ...x }));
+    }
+    this.coinReserve = d.coinReserve || 0;
+    this.eliteMult = d.eliteMult || 1;
+    const p = this.player, sp = d.player;
+    p.maxHP = sp.maxHP; p.hp = sp.hp;
+    p.mp = sp.mp; p.maxMP = sp.maxMP;
+    p.shield = sp.shield || 0; p.tShield = sp.tShield || 0; p.shieldT = sp.shieldT || 0;
+    p.soulBuff = sp.soulBuff || 0;
+    // 直接盖上去而不是走 give()：法宝效果早已计入 stats，再 apply 一次会重复叠加
+    Object.assign(p.stats, sp.stats || {});
+    p.items = (sp.items || []).slice();
+    p.slots = (sp.slots || [null, null, null]).map(x => (x ? { id: x.id, lv: x.lv } : null));
+    p.slotIdx = sp.slotIdx || 0;
+    p.skillCd = (sp.skillCd || [0, 0, 0]).slice();
+    p.ult = sp.ult ? { style: sp.ult.style, paths: { ...sp.ult.paths } } : null;
+    p.ultCd = sp.ultCd || 0;
+    this.state = 'play';
+    this.enterRoom(this.floor.rooms.get(d.roomKey) || this.floorStart(), null);
+    this.saveGame();          // 回写一次，确保存档与恢复后的实际状态一致
+    renderPickPanel();
+    updateOverlay();
+    SFX.levelup();
+    this.itemPopup = { def: { name: '续 前 缘', desc: '回到第 ' + d.depth + ' 层 · 存档时间 ' + new Date(d.at).toLocaleString() }, t: 200 };
+    return true;
   }
 
   enterRoom(r, fromDir) {
@@ -296,6 +423,8 @@ class GameCore {
       for (let d = 0; d < 4; d++) if (r.doors[d] && !r.doorHidden[d]) r.doorOpen[d] = true;
     }
     r.visited = true;
+    // 进房即存档：此刻状态最干净（敌人刚按 waves 排队、交互物都是未开状态）
+    this.saveGame();
   }
 
   /* 合成瞄准输入：鼠标优先，其次方向键 */
@@ -393,13 +522,14 @@ class GameCore {
   }
   onPlayerDead() {
     this.state = 'dead';
+    this.clearSave();          // 死了就销档，否则下次打开还能从死亡前的进度续上
     this.burst(this.player.x, this.player.y, 50, PAL.red);
     SFX.bossDie();
     updateOverlay();
   }
   nextFloor() {
     this.depth++;
-    if (this.depth > 5) { this.state = 'win'; this.msg = '历经五重劫难，道心通明 —— 飞升成仙！'; updateOverlay(); return; }
+    if (this.depth > 5) { this.state = 'win'; this.msg = '历经五重劫难，道心通明 —— 飞升成仙！'; this.clearSave(); updateOverlay(); return; }
     this.player.hp = Math.min(this.player.maxHP, this.player.hp + 2);
     this.newFloor(this.depth);
   }
@@ -916,6 +1046,8 @@ class GameCore {
 
   /* ---------------- 更新 ---------------- */
   update() {
+    // 主动暂停：比选择界面还优先，连 tick 都不走（暂停时不希望任何计时在跑）
+    if (this.paused) { input.interact = false; this.restartHold = 0; return; }
     // 选择界面：先于 tick 拦截，整个世界（含动画计时）完全静止
     if (this.pick) { input.interact = false; this.restartHold = 0; return; }
     // 斩精英后稍缓一拍再弹三选一，先让死亡特效演完
@@ -1273,6 +1405,31 @@ class GameCore {
     if (this.bossRef && !this.bossRef.dead) this.drawBossBar(g);
     if (this.state === 'dead') this.drawDead(g);
     if (this.state === 'win') this.drawWin(g);
+    if (this.paused) this.drawPaused(g);
+  }
+
+  /* 暂停 / 继续。只在局内（play）有效 —— 标题与选择界本来就不推进世界。 */
+  togglePause() {
+    if (this.state !== 'play') return;
+    this.paused = !this.paused;
+    // 暂停要把鼠标状态清掉：否则恢复时还按着上一帧的射击，手感很怪
+    if (this.paused) { input.mouseDown = false; input.restart = false; SFX.tone(392, 0.09, 'square', 0.09); }
+    else SFX.tone(660, 0.09, 'square', 0.09);
+  }
+
+  /* 暂停遮罩。中文画不出来（FONT5 只有英文点阵，drawPixelText 遇缺字静默跳过），
+     所以这里的文案全用英文；层数 / 流派等中文信息仍由 HUD 的 DOM 浮层展示。 */
+  drawPaused(g) {
+    g.save();
+    g.fillStyle = 'rgba(4,3,10,0.66)';
+    g.fillRect(0, 0, 480, 320);
+    g.fillStyle = PAL.gold; g.globalAlpha = 0.6;
+    g.fillRect(240 - 62, 124, 124, 1);
+    g.fillRect(240 - 62, 192, 124, 1);
+    g.globalAlpha = 1;
+    drawPixelText(g, 'PAUSED', 240 - 3 * 12, 138, 2, PAL.goldL);
+    drawPixelText(g, 'P RESUME', 240 - 4 * 6, 172, 1, PAL.jadeL);
+    g.restore();
   }
 
   drawDoors(g) {
@@ -1821,12 +1978,17 @@ class GameCore {
     if (!this.last) this.last = ts;
     let dt = ts - this.last; this.last = ts;
     if (dt > 100) dt = 100;
-    this.acc += dt;
-    const step = 1000 / 60;
-    let n = 0;
-    while (this.acc >= step && n < 5) {
-      try { this.update(); } catch (e) { console.error('[update]', e); }
-      this.acc -= step; n++;
+    if (this.paused) {
+      // 暂停：一步都不推进，也不让 acc 攒起来（否则恢复那一瞬会连跑好几帧）
+      this.acc = 0;
+    } else {
+      this.acc += dt;
+      const step = 1000 / 60;
+      let n = 0;
+      while (this.acc >= step && n < 5) {
+        try { this.update(); } catch (e) { console.error('[update]', e); }
+        this.acc -= step; n++;
+      }
     }
     try { this.draw(); } catch (e) { console.error('[draw]', e); }
     try { this.updateItemTip(); } catch (e) { console.error('[tip]', e); }
@@ -1900,7 +2062,10 @@ function bindInput(canvas, game) {
       else if (k === 'enter' || k === ' ' || k === 'q') game.pickConfirm();
       return;
     }
+    if (game.state === 'play' && (k === 'p' || k === 'escape')) { game.togglePause(); return; }
     if (game.state === 'title') {
+      // 有存档时按 C 直接续档；其余任意键仍是开新局（进流派选择）
+      if (k === 'c' && game.hasSave()) { game.continueGame(); return; }
       game.styleIdx = 0;
       game.state = 'choose';
       SFX.ensure();
@@ -2018,6 +2183,9 @@ function updateOverlay() {
   if (Game.state === 'title') {
     title.style.display = 'flex';
     if (choose) choose.style.display = 'none';
+    // 有存档才挂出「续前缘」的入口
+    const saveTip = document.getElementById('saveTip');
+    if (saveTip) saveTip.style.display = Game.hasSave() ? 'block' : 'none';
     floorName.textContent = ''; hint.textContent = ''; card.style.display = 'none';
     st.textContent = '';
     return;
@@ -2032,7 +2200,10 @@ function updateOverlay() {
         const c = document.getElementById('pickCard' + i);
         if (!c) continue;
         if (i >= PLAYABLE_STYLES.length) { c.style.display = 'none'; continue; }
-        c.style.display = 'block';
+        /* 用 '' 而不是 'block' 交回 CSS —— .pickCard 是 flex 列，
+           内联 block 会让描述区的 flex:1 + overflow-y:auto 全部失效，
+           舞剑流那种长说明就会撑破卡片（2026-09-17 的界面问题）。 */
+        c.style.display = '';
         c.className = 'pickCard' + (Game.styleIdx === i ? ' ' + (PICK_SEL[i] || 'selA') : '');
       }
     }
