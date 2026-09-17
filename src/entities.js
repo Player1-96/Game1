@@ -2609,7 +2609,7 @@ const STYLES = {
       range: '剑锋触及范围',
       pierce: '同一次挥砍可多命中的妖物数（基础 3 个）',
       knockback: '击退',
-      homing: '突进时自动偏转追向最近的妖物',
+      homing: '突进的剑锋自行缠向近旁妖物（触及范围外扩，不改变突进方向）',
       burn: '灼烧', frost: '冰封', chain: '引雷连锁',
       crit: '暴击几率',
       deflect: null,   // 玄元镜在本流派下改走 reflect，不再叠加斩落半径
@@ -2741,13 +2741,17 @@ const STYLES = {
     },
     /* 每帧推进：连段窗口 / 蓄势 / 突进 / 五连斩 */
     tick(pl, g, input) {
+      /* 蓄势中冻结连段窗口。按住空格本身就是「我要接这一招」的表态，窗口的使命
+         （催玩家接招）在这一刻已经完成；若让它继续倒数，第三段蓄满后多按一会儿
+         就会撞上窗口到期 —— 段位被打回一段、冷却回满，而玩家什么都没做错。
+         代价依然很贵：蓄势期间不能出剑，挨一下照样溃散。 */
+      if (pl.wjCharging) { STYLES.wujian.tickCharge(pl, g); return; }
       if (pl.wjChainT > 0 && --pl.wjChainT === 0 && pl.wjStage > 0) {
         // 命中却不接招：连招作废，冷却回满 —— 「用进废退」是这套连招的赌注
         pl.wjStage = 0;
         if (pl.ult) pl.ultCd = ultCdOf(pl.ult, 'wujian');
         if (g) g.floaters.push(new Floater(pl.x, pl.y - 26, '连招中断', PAL.grey));
       }
-      if (pl.wjCharging) { STYLES.wujian.tickCharge(pl, g); return; }
       if (pl.dashing) { STYLES.wujian.tickDash(pl, g); return; }
       if (pl.dashFlurry > 0) STYLES.wujian.tickFlurry(pl, g);
     },
@@ -2773,17 +2777,12 @@ const STYLES = {
     },
     tickDash(pl, g) {
       pl.invuln = Math.max(pl.invuln, 2);            // 突进全程无敌
-      // 「混元珠」这类追踪法宝在舞剑流下改为让突进偏向最近的妖物
-      if (pl.stats.homing > 0) {
-        const t = g.nearestEnemy(pl.x, pl.y, pl.stats.homingRange || 220, null);
-        if (t) {
-          const want = Math.atan2(t.y - pl.y, t.x - pl.x);
-          let d = want - pl.dashA;
-          while (d > Math.PI) d -= Math.PI * 2;
-          while (d < -Math.PI) d += Math.PI * 2;
-          pl.dashA += clamp(d, -pl.stats.homing, pl.stats.homing);
-        }
-      }
+      /* 追踪法宝在舞剑流下只加宽剑锋、不掰方向。
+         旧写法让 dashA 每帧朝最近的妖物拐 homing 弧度（满阶 0.34 rad/帧 × 24 帧
+         ≈ 8 弧度），等于把落点整个交给妖物决定：玩家松手前瞄哪儿都不算数，
+         而且十有八九是贴着怪停下 —— 无敌一结束就吃接触伤害，操作预期也跟着崩。
+         改成「剑自己缠上去」：人照指针走，剑锋的触及范围随追踪阶数外扩。 */
+      const reach = WJ.reach + (pl.stats.homing > 0 ? 6 + Math.round(pl.stats.homing * 45) : 0);
       const px0 = pl.x, py0 = pl.y;
       pl.x += Math.cos(pl.dashA) * pl.dashSpeed;
       pl.y += Math.sin(pl.dashA) * pl.dashSpeed;
@@ -2804,7 +2803,7 @@ const STYLES = {
         const res = wjDamage(pl, pl.dashStage);
         for (const e of g.enemies) {
           if (e.dead || pl.dashHit.has(e)) continue;
-          if (!circleHit(pl.x, pl.y + 2, WJ.reach, e.x, e.y, e.r)) continue;
+          if (!circleHit(pl.x, pl.y + 2, reach, e.x, e.y, e.r)) continue;
           pl.dashHit.add(e);
           e.hurt(res.dmg, g, null, res.crit);
           const a = Math.atan2(e.y - pl.y, e.x - pl.x);
@@ -2817,7 +2816,7 @@ const STYLES = {
           SFX.hit();
         }
       }
-      g.slashes.push(new Slash(pl.x, pl.y, pl.dashA, 1.0, WJ.reach + 4,
+      g.slashes.push(new Slash(pl.x, pl.y, pl.dashA, 1.0, reach + 4,
         { col: pl.dashStage >= 1 ? PAL.goldL : PAL.jadeL, life: 7,
           crit: pl.dashStage >= 2, wide: 3 }));
       if (--pl.dashT > 0) return;

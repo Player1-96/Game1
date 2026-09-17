@@ -946,6 +946,57 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
       };
       out.comboNoKill = comboNoKill();
 
+      // ---- 蓄势中冻结连段窗口：第三段蓄满后继续按住，段位不该被打回一段 ----
+      // 旧写法里 wjChainT 排在蓄势判断之前递减，按久了窗口照样到期 → wjStage 归零、
+      // 冷却回满，松手发出的其实是第一段。玩家什么都没做错，却掉了段。
+      G.newRun('wujian');
+      const f = G.player; f.giveUlt('wujian'); f.ultCd = 0; f.invuln = 9999;
+      G.enemies.length = 0;
+      f.x = 200; f.y = 160;
+      f.wjStage = 2; f.wjChainT = 20;                // 第三段待发，窗口只剩 20 帧
+      inp.mouseSeen = true; inp.mx = 460; inp.my = 160;
+      G.useUlt();
+      for (let i = 0; i < 90; i++) G.update();       // 24 帧蓄满，之后再多按 66 帧
+      out.holdCharging = f.wjCharging;
+      out.holdStage = f.wjStage;
+      out.holdChainT = f.wjChainT;
+      out.holdCdLeaked = f.ultCd > 60;               // 窗口到期就会把冷却打满
+      // 按住不放不等于免死：挨一下照样溃散
+      f.invuln = 0;
+      f.takeDamage(1, G);
+      out.holdInterrupt = !f.wjCharging && f.wjStage === 0;
+
+      // ---- 追踪法宝在舞剑流下只加宽剑锋、不掰方向 ----
+      // 旧写法让 dashA 每帧朝最近的妖物拐 homing 弧度（满阶 0.34 × 24 帧 ≈ 8 弧度），
+      // 落点整个交给妖物决定 —— 玩家松手前瞄哪儿都不算数，而且十有八九贴着怪停，
+      // 无敌一结束就吃接触伤害。现在方向归指针，追踪只外扩剑锋触及范围。
+      const seekDash = (homing) => {
+        G.newRun('wujian');
+        const a = G.player; a.giveUlt('wujian'); a.ultCd = 0; a.invuln = 9999;
+        a.stats.homing = homing; a.stats.homingRange = 220;
+        a.x = 200; a.y = 160;
+        G.enemies.length = 0;
+        const e = new Enemy('xiesui', 280, 204, 1);   // 路径侧下方 42 px：只擦得到剑风边缘
+        e.spawnT = 0; e.maxHp = 99999; e.hp = 99999;
+        e.speed = 0; e.cd = 99999; e.touch = 0;
+        G.enemies.push(e);
+        inp.mouseSeen = true; inp.mx = 460; inp.my = 160;    // 一律朝正右，妖在侧下方
+        G.useUlt();
+        for (let i = 0; i < 40 && a.wjCharging && a.wjChargeT < WJ.charge; i++) G.update();
+        G.ultUp();
+        const y0 = a.y, hp0 = e.hp;
+        for (let i = 0; i < 40; i++) {
+          G.update();
+          e.x = 280; e.y = 204;                        // 钉住，只测剑锋够不够得着
+          if (!a.dashing) break;
+        }
+        return { drift: Math.round(Math.abs(a.y - y0) * 10) / 10,
+                 dmg: +(hp0 - e.hp).toFixed(2),
+                 dashA: Math.round(a.dashA * 1000) / 1000 };
+      };
+      out.seekOff = seekDash(0);
+      out.seekOn = seekDash(0.34);
+
       // ---- 极短点击（低于 chargeMin）：算误触，收势且不消耗冷却 ----
       G.newRun('wujian');
       const s = G.player; s.giveUlt('wujian'); s.ultCd = 0; s.invuln = 9999;
@@ -1029,6 +1080,18 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
        `${r.combo.s1.after} → ${r.combo.s2.after} → ${r.combo.s3.after} 帧`);
     ok('全程零击杀时收招仍剩大半冷却（返还没凭空变多）',
        r.comboNoKill > 700, r.comboNoKill + ' 帧 ≈ ' + (r.comboNoKill / 60).toFixed(1) + ' 秒');
+    ok('蓄势中冻结连段窗口：第三段蓄满后继续按住，段位不被打回一段',
+       r.holdCharging === true && r.holdStage === 2 && r.holdChainT === 20,
+       `蓄势中=${r.holdCharging} 段位=${r.holdStage}（旧行为 0）窗口=${r.holdChainT} 帧`);
+    ok('窗口冻结不等于白拿：期间冷却不被打满、挨打照样溃散',
+       r.holdCdLeaked === false && r.holdInterrupt === true,
+       `冷却被打满=${r.holdCdLeaked} 溃散=${r.holdInterrupt}`);
+    ok('追踪法宝只外扩剑锋、不掰突进方向',
+       r.seekOn.dashA === 0 && r.seekOn.drift < 3 && r.seekOff.drift < 3,
+       `带追踪角=${r.seekOn.dashA} 偏移=${r.seekOn.drift}px / 不带=${r.seekOff.drift}px`);
+    ok('追踪法宝确实加宽了剑锋（擦边的那只被斩中，不带追踪则够不着）',
+       r.seekOff.dmg === 0 && r.seekOn.dmg > 0,
+       `不带追踪 ${r.seekOff.dmg} 点 → 带追踪 ${r.seekOn.dmg} 点`);
     ok('极短点击（< chargeMin）算误触：收势、不动、不收冷却',
        r.tapCd === 0 && r.tapCharging === false && r.tapDashing === false,
        `cd=${r.tapCd} charging=${r.tapCharging} dashing=${r.tapDashing}（chargeMin=${r.chargeMin}）`);

@@ -41,7 +41,11 @@ const ITEM_DEFS = [
     byStyle: {
       feijian: { name: '混元珠', desc: '飞剑自动追敌' },
       jujian: { name: '引路珠', desc: '巨剑自动追敌（转向较迟钝，宜配合预判）' },
-      wujian: { name: '缠丝珠', desc: '突进自动偏向最近的妖物（转向 0.14 rad/帧，突进时会拐弯追人）' }
+      wujian: { name: '缠丝珠', desc: '突进的剑锋自行缠向近旁妖物（触及范围 +12，突进方向仍由指针决定）' }
+    },
+    upByStyle: {
+      wujian: ['缠丝更紧：突进剑锋的触及范围累计 +17',
+               '缠丝如网：触及范围累计 +21，擦着剑风也能斩中']
     } },
   { id: 'taixu', name: '太虚护盾', type: 'fabao', icon: 'shield2', c1: PAL.jade, c2: PAL.jadeL,
     desc: '获得 2 点常驻灵力护盾（不设时限，受击才扣）', apply: p => { p.addShield(2); } },
