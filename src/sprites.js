@@ -976,6 +976,14 @@ function makeItemIcon(kind, c1, c2) {
       p.disc(6, 6, 3, c1); p.disc(11, 10, 3.4, c1);
       p.rect(6, 4, 4, 4, c1); p.disc(11, 10, 2, c2);
       p.rect(5, 2, 3, 2, c2); break;
+    /* 丹丸：丹药专属形状 —— 一颗主丹 + 一颗小丹。
+       原先丹药用的就是上面的 gourd，而法宝「琉璃盏」也用了 gourd + 同配色，
+       两者画出来是同一个位图，玩家会以为「丹药跑进法宝格里了」（2026-09-21 反馈）。
+       改成丸状后就与法宝（葫芦 / 剑 / 镜 / 符…）在形状上直接分开。 */
+    case 'pill':
+      p.disc(8, 8, 5, c1); p.disc(7, 6.5, 2.6, c2);
+      p.set(6, 5, PAL.white);
+      p.disc(13, 3, 1.6, c1); break;
     case 'jade':    // 玉佩
       p.ring(8, 8, 5, c1); p.ring(8, 8, 3, c2); p.disc(8, 8, 1.6, c1); break;
     case 'talisman':// 符箓

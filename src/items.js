@@ -147,15 +147,18 @@ const ITEM_DEFS = [
     desc: '灵力自然回复 +1/秒（开局为 0，全靠此符）', apply: p => { p.stats.mpRegen += 1; } },
 
   /* ---------- 丹药（即时生效） ---------- */
-  { id: 'huichun', name: '回春丹', type: 'dan', icon: 'gourd', c1: PAL.red, c2: PAL.gold,
+  { id: 'huichun', name: '回春丹', type: 'dan', icon: 'pill', c1: PAL.red, c2: PAL.gold,
     desc: '立即回复 2 点气血', apply: p => { p.heal(4); } },
-  { id: 'lingdan', name: '灵力丹', type: 'dan', icon: 'gourd', c1: PAL.jade, c2: PAL.white,
+  /* 灵力丹原本是 gourd + jade/white —— 与法宝「琉璃盏」的图标和配色**完全一致**，
+     画出来是同一个位图，玩家会以为「丹药跑进法宝格里了」（2026-09-21 反馈）。
+     现改用丹药专属的 pill 形状，并取灵力珠同款的青色调，双重区分。 */
+  { id: 'lingdan', name: '灵力丹', type: 'dan', icon: 'pill', c1: PAL.cyan, c2: PAL.jadeL,
     desc: '立即获得 2 点常驻护盾', apply: p => { p.addShield(2); } },
-  { id: 'xisui', name: '洗髓丹', type: 'dan', icon: 'gourd', c1: PAL.gold, c2: PAL.goldL,
+  { id: 'xisui', name: '洗髓丹', type: 'dan', icon: 'pill', c1: PAL.gold, c2: PAL.goldL,
     desc: '气血上限 +2，并回满', apply: p => { p.maxHP += 4; p.hp = p.maxHP; } },
-  { id: 'jinchuang', name: '金疮药', type: 'dan', icon: 'gourd', c1: PAL.orange, c2: PAL.white,
+  { id: 'jinchuang', name: '金疮药', type: 'dan', icon: 'pill', c1: PAL.orange, c2: PAL.white,
     desc: '回复 1 点气血', apply: p => { p.heal(2); } },
-  { id: 'jingyuan', name: '精元散', type: 'dan', icon: 'coin', c1: PAL.gold, c2: PAL.goldL,
+  { id: 'jingyuan', name: '精元散', type: 'dan', icon: 'pill', c1: PAL.gold, c2: PAL.goldL,
     desc: '获得 15 枚灵石', apply: p => { Game.addCoins(15); } },
 
   /* ---------- 小技能（原功法，Q 释放、消耗灵力） ----------
