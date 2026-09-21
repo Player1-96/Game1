@@ -371,9 +371,21 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
       const G = window.Game;
       const out = {};
       /* 北墙开一道隐藏门（裂缝墙），并按规矩把邻房那侧同步成同一条密道 */
+      /* 起始房的邻房是随机的 —— 原先无条件取 neighbors[0]，北边没门时 nb 就是
+         undefined，断言「劈开后邻房那侧同步打开」会随机失败（这条偶挂过多次，
+         一直被当成并行抖动）。这里改成先挑一间「北边确实有邻房」的房间，让场景可复现。 */
+      const pickNorth = () => {
+        if (G.room.neighbors[0]) return G.room;
+        for (const r of G.floor.rooms.values()) {
+          if (r.type !== RT.BOSS && r.neighbors[0]) return r;
+        }
+        return null;
+      };
       const setup = (style) => {
         G.newRun(style);
         G.state = 'play';
+        const target = pickNorth();
+        if (target && target !== G.room) G.enterRoom(target, null);
         G.room.cleared = true;
         G.enemies.length = 0; G.bullets.length = 0; G.hazards.length = 0;
         const p = G.player;
