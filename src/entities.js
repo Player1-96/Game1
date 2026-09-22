@@ -57,6 +57,38 @@ const STEALTH = {
   burst: 4.6,      // 现形瞬间的扑击速度
   hiddenMul: 0.72  // 隐身时的移速倍率
 };
+/* 头目冲刺：站定蓄势 → 一头撞过来。
+   小怪的冲刺有 34 帧的前摇（邪祟的 state 1），头目却是在 cd2 归零那一帧
+   直接把速度设成 8 就冲出去了 —— 玩家看到的就是「毫无征兆地冲过来」，
+   而且零反应窗口（2026-09-22 反馈）。头目体型大了一倍、冲程约 174px，
+   本来就该给更长的预警，而不是照抄小怪那套。
+   读法分三段：前 wind-lock 帧方向还跟着你转（光带跟着甩），
+   最后 lock 帧钉死并响一声（这一声就是「该闪了」），留 26 帧横移窗口。
+   26 帧 × 玩家 2.35px/帧 ≈ 61px，判定宽度 (22+6)×2 = 56px —— 够躲，但得当场动。 */
+const DASH = {
+  wind: 40,        // 蓄力总帧数
+  lock: 26,        // 末尾这段方向钉死
+  spd: 8,          // 起冲速度
+  time: 40,        // 冲刺持续帧数
+  dec: 0.965,      // 每帧衰减
+  len: 174,        // 预计冲程 = spd×(1-dec^time)/(1-dec)，给地面光带做长度
+  turn: 0.055      // 蓄力期的转向速度（弧度/帧，约 0.9 秒转半圈）
+};
+/* 玄甲卫：持盾冲撞。
+   它原先只有接触伤害，而移速只有 0.55 —— 玩家绕开走它就一点威胁都没有，
+   「重甲卫兵」这件事只做了一半（2026-09-22 反馈「完全没有还手能力」）。
+   补一记有前摇的盾冲，但代价要付在明处：起手时两片旋盾并成一片、收拢到正面，
+   于是「绕到侧后打」从「可以」变成「应该」—— 攻防一体，而不是单纯多加一段伤害。 */
+const BASH = {
+  range: 138,      // 进入这个距离才会起手
+  wind: 40,        // 蓄力帧数（盾收拢 + 地面画出冲程带）
+  lock: 22,        // 末尾这段方向钉死
+  spd: 5.6,        // 冲撞速度
+  time: 24,        // 冲撞帧数
+  recover: 30,     // 撞完的硬直（护盾仍收在正面，这是玩家的反击窗口）
+  cd: 180,         // 冷却
+  turn: 0.07       // 蓄力期的转向速度
+};
 /* 凝形法阵：出生保护期内在脚下旋转的召唤阵 */
 /* 精英光环：脚下常驻的旋转符阵，颜色随精英种类 */
 function drawEliteAura(g, x, y, r, col, t) {
@@ -602,24 +634,46 @@ class Beam {
       if (this.swing !== 0) {
         /* 横扫：蓄力期就把**整个扇面**点亮。
            单线的预告对横扫没有意义 —— 玩家要读的是「哪一片会挨打」，
-           所以这里画的是走廊：两条边界 + 一条中轴 + 一段折算过的弧。 */
+           所以这里画的是走廊：两条边界 + 一条中轴 + 一段折算过的弧。
+           2026-09-22 补：光画出「范围」不够，还得读出「还剩多久」——
+           原先扇面 alpha 只有 0.10→0.26，几乎是一条静态的线，
+           玩家看到的是「它就那么亮着，然后突然扫出来」。
+           现在三件事一起给：亮度随进度递增、脉动随进度加快（心跳感）、
+           外缘压一段随进度推进的亮弧（明确的倒计时读数）。 */
         const a1 = this.a + this.swing;
-        g2.globalAlpha = 0.10 + 0.16 * k;
+        const lo = Math.min(this.a, a1), hi = Math.max(this.a, a1);
+        // 两个半径分开：扇面填充要盖满整个危险区（哪怕伸出屏幕），
+        // 而倒计时读数必须落在看得见的地方 —— 300 半径的弧在 480×320 的画布上根本看不到。
+        const Rf = Math.min(this.len, 300), Rr = Math.min(this.len, 118);
+        const pulse = 0.5 + 0.5 * Math.sin(this.t * (0.22 + k * 0.75));
+        g2.globalAlpha = 0.07 + 0.30 * k + 0.10 * pulse * k;
         g2.fillStyle = this.col;
         g2.beginPath();
         g2.moveTo(ox, oy);
-        g2.arc(ox, oy, Math.min(this.len, 300), Math.min(this.a, a1), Math.max(this.a, a1));
+        g2.arc(ox, oy, Rf, lo, hi);
         g2.closePath(); g2.fill();
-        g2.globalAlpha = 0.30 + 0.45 * k;
-        g2.strokeStyle = this.col; g2.lineWidth = 1 + k;
+        g2.globalAlpha = 0.30 + 0.60 * k;
+        g2.strokeStyle = this.col; g2.lineWidth = 1 + k * 2;
         for (const aa of [this.a, this.a + this.swing / 2, a1]) {
           g2.beginPath(); g2.moveTo(ox, oy);
           g2.lineTo(ox + Math.cos(aa) * this.len, oy + Math.sin(aa) * this.len); g2.stroke();
         }
-        g2.globalAlpha = 0.40 + 0.4 * k;
-        g2.beginPath();
-        g2.arc(ox, oy, Math.min(this.len, 300), Math.min(this.a, a1), Math.max(this.a, a1));
-        g2.stroke();
+        // 倒计时读数：一条可见半径上的进度弧 —— 暗底弧是全程，亮的那段是已充能的
+        g2.globalAlpha = 0.22;
+        g2.lineWidth = 3;
+        g2.beginPath(); g2.arc(ox, oy, Rr, lo, hi); g2.stroke();
+        const tip = this.a + this.swing * k;
+        g2.globalAlpha = 0.55 + 0.45 * k;
+        g2.strokeStyle = '#fff';
+        g2.lineWidth = 4;
+        g2.beginPath(); g2.arc(ox, oy, Rr, Math.min(this.a, tip), Math.max(this.a, tip)); g2.stroke();
+        // 最后两成时间整片闪白：临界感必须刺眼
+        if (k > 0.8) {
+          g2.globalAlpha = 0.18 * (0.5 + 0.5 * Math.sin(this.t * 1.1));
+          g2.fillStyle = '#fff';
+          g2.beginPath(); g2.moveTo(ox, oy); g2.arc(ox, oy, Rf, lo, hi);
+          g2.closePath(); g2.fill();
+        }
       } else {
         // 单发：轨迹提示线，越接近发射越亮越粗
         g2.globalAlpha = 0.22 + 0.5 * k;
@@ -717,7 +771,7 @@ const ENEMY_DEF = {
   bengyao: { hp: 20, speed: 0.9, r: 8, touch: 1, coins: 2, spr: 'bengyao', ai: 'leap', size: 18, score: 20 },
   yingmo: { hp: 14, speed: 1.05, r: 7, touch: 1, coins: 2, spr: 'yingmo', ai: 'stealth', size: 16, score: 20 },
   tiehun: { hp: 30, speed: 0.5, r: 8, touch: 1, coins: 3, spr: 'tiehun', ai: 'hardcast', size: 18, score: 26 },
-  xuanjia: { hp: 26, speed: 0.55, r: 9, touch: 1, coins: 3, spr: 'xuanjia', ai: 'chase', size: 20, score: 28, shield: true }
+  xuanjia: { hp: 26, speed: 0.55, r: 9, touch: 1, coins: 3, spr: 'xuanjia', ai: 'shieldbash', size: 20, score: 28, shield: true }
 };
 
 /* ------------------------------------------------------------
@@ -790,6 +844,25 @@ class Enemy {
     this.air = 0;                               // 腾空剩余帧（>0 时不造成接触伤害）
     this.hidden = d.ai === 'stealth';           // 影魅：是否处于隐身
     this.revealT = 0;                           // 现形剩余帧
+    this.bashA = 0;                             // 玄甲卫：冲撞方向（蓄力期一路跟着玩家转）
+    this.bashLock = false;                      // 方向钉死了没有
+  }
+  /* 旋盾当前占着哪几片弧 —— 判定（hurt）与绘制（draw）共用一处，
+     免得「画出来的盾」和「算数的盾」各说各话。
+     玄甲卫起手盾冲时（state 1~3）两片并成一片、收拢到正面，
+     绕后打它反而更容易：代价摆在明处，玩家的正解是动起来。 */
+  shieldArcs() {
+    if (this.shieldR <= 0) return null;
+    if (this.def.ai === 'shieldbash' && this.state >= 1 && this.state <= 3) {
+      const w = this.shieldR * 1.6;
+      return [{ a0: this.bashA - w / 2, a1: this.bashA + w / 2 }];
+    }
+    const out = [], step = Math.PI * 2 / SHIELD.arcs;
+    for (let i = 0; i < SHIELD.arcs; i++) {
+      const a0 = this.shieldA + i * step - this.shieldR / 2;
+      out.push({ a0: a0, a1: a0 + this.shieldR });
+    }
+    return out;
   }
   hurt(dmg, g, src, crit) {
     if (this.dead) return;
@@ -799,17 +872,16 @@ class Enemy {
        攻击来向取伤害源的位置（子弹带 x/y，近战由调用方补一个落点对象）；
        没有来源位置的伤害（燃烧 / 毒雾这类 DoT、以及天雷引等全屏技）绕过护盾 ——
        既让「技能破盾」成为一条正解，也避免玩家看着火花搞不清自己打没打中。 */
-    if (this.shieldR > 0 && src && typeof src === 'object' && src.x != null) {
+    const arcs = (src && typeof src === 'object' && src.x != null) ? this.shieldArcs() : null;
+    if (arcs) {
       const a = Math.atan2(src.y - this.y, src.x - this.x);
-      /* 两片护盾以 shieldA 为基准、每隔 π 一片。把来向折进「最近那片的中心」
-         再比张角，就能一眼看出这一下是砍在盾上还是砍在缺口上。 */
-      const step = Math.PI * 2 / SHIELD.arcs;
-      let rel = a - this.shieldA;
-      rel = ((rel % step) + step) % step;             // 折进 [0, step)：0 = 盾心，step/2 = 缺口
-      const off = Math.min(rel, step - rel);          // 距最近盾心的角差
-      if (off <= this.shieldR / 2) {
-        dmg *= SHIELD.mul;
-        this.blockFlash = 8;
+      // 来向落在任意一片弧的张角内 → 这一下砍在盾上（两片慢转的、或收拢到正面的那一片）
+      for (const arc of arcs) {
+        const half = (arc.a1 - arc.a0) / 2, c = (arc.a0 + arc.a1) / 2;
+        let d = a - c;
+        while (d > Math.PI) d -= Math.PI * 2;
+        while (d < -Math.PI) d += Math.PI * 2;
+        if (Math.abs(d) <= half) { dmg *= SHIELD.mul; this.blockFlash = 8; break; }
       }
     }
     this.hp -= dmg;
@@ -1203,6 +1275,50 @@ class Enemy {
         }
         break;
       }
+      case 'shieldbash': {
+        /* 玄甲卫：慢追 → 进圈起手 → 盾收拢到正面 → 撞过去 → 硬直。
+           蓄力期方向前 wind-lock 帧还跟着玩家转（但转得慢，跑起来能甩掉），
+           最后 lock 帧钉死 —— 钉死那一声就是「该闪了」。
+           代价付在明处：起手到硬直结束，两片旋盾并成一片收在正面，
+           所以最优解是绕到侧后再打，而不是站着跟它对砍。 */
+        if (this.state === 0) {
+          ax = dx / d * spd; ay = dy / d * spd;
+          for (const o of g.enemies) {          // 简单避让同类，免得挤成一坨
+            if (o === this || o.dead) continue;
+            const ox = this.x - o.x, oy = this.y - o.y, od = Math.hypot(ox, oy);
+            if (od < 22 && od > 0) { ax += ox / od * 0.5; ay += oy / od * 0.5; }
+          }
+          if (d < BASH.range && this.spawnT <= 0 && --this.cd <= 0) {
+            this.state = 1; this.stateT = BASH.wind;
+            this.bashA = Math.atan2(dy, dx);
+            this.bashLock = false;
+            SFX.cast();
+          }
+        } else if (this.state === 1) {
+          this.stateT--; ax = 0; ay = 0;      // 蓄力期站定，冲程才读得出来
+          if (this.stateT > BASH.lock) {
+            const want = Math.atan2(dy, dx);
+            let da = want - this.bashA;
+            while (da > Math.PI) da -= Math.PI * 2;
+            while (da < -Math.PI) da += Math.PI * 2;
+            this.bashA += clamp(da, -BASH.turn, BASH.turn);
+          } else if (!this.bashLock) {
+            this.bashLock = true;
+            SFX.dash();
+          }
+          if (this.stateT % 8 === 0) g.burst(this.x, this.y - 6, 2, PAL.cyan);
+          if (this.stateT <= 0) { this.state = 2; this.stateT = BASH.time; SFX.dash(); }
+        } else if (this.state === 2) {
+          this.stateT--;
+          ax = Math.cos(this.bashA) * BASH.spd; ay = Math.sin(this.bashA) * BASH.spd;
+          if (this.t % 3 === 0) g.burst(this.x, this.y, 2, PAL.greyL);
+          if (this.stateT <= 0) { this.state = 3; this.stateT = BASH.recover; this.cd = BASH.cd; }
+        } else {
+          this.stateT--; ax = 0; ay = 0;      // 硬直：盾仍收在正面，这是玩家的反击窗口
+          if (this.stateT <= 0) this.state = 0;
+        }
+        break;
+      }
     }
 
     // 精英神通：凝形结束后按各自冷却释放；环形技（血箭环 / 环形剑气）先走前摇
@@ -1271,6 +1387,34 @@ class Enemy {
       g2.beginPath(); g2.arc(this.leapX, this.leapY, LEAP.r, 0, Math.PI * 2); g2.fill();
       g2.globalAlpha = 0.7;
       g2.beginPath(); g2.arc(this.leapX, this.leapY, LEAP.r * kk, 0, Math.PI * 2); g2.stroke();
+      g2.restore();
+    }
+    /* 玄甲卫盾冲：地面画出冲程带 —— 方向还跟着你转时是虚线并整体压暗，
+       钉死之后转实线、亮度拉满。这样「该往哪边闪」和「还剩多久」一起给到。
+       画在精灵之前（地面层），免得盖住角色。 */
+    if (this.def.ai === 'shieldbash' && this.state === 1) {
+      const kk = 1 - this.stateT / BASH.wind;
+      const len = BASH.spd * BASH.time * 0.72;
+      const w = this.r * 2.1;
+      g2.save();
+      g2.translate(this.x, this.y);
+      g2.rotate(this.bashA);
+      g2.globalAlpha = (this.bashLock ? 0.30 : 0.14) + 0.22 * kk;
+      g2.fillStyle = this.bashLock ? PAL.red : PAL.orange;
+      g2.fillRect(0, -w / 2, len, w);
+      g2.globalAlpha = (this.bashLock ? 0.75 : 0.45) + 0.25 * kk;
+      g2.strokeStyle = this.bashLock ? PAL.goldL : PAL.orange;
+      g2.lineWidth = this.bashLock ? 2 : 1;
+      g2.beginPath(); g2.moveTo(0, -w / 2); g2.lineTo(len, -w / 2);
+      g2.moveTo(0, w / 2); g2.lineTo(len, w / 2); g2.stroke();
+      // 冲程的推进光点：钉死之后开始朝外爬，读得出「就快了」
+      if (this.bashLock) {
+        g2.globalAlpha = 0.85; g2.fillStyle = '#fff';
+        for (let i = 0; i < 3; i++) {
+          const kx = len * (0.25 + 0.25 * i) * (0.4 + kk);
+          g2.fillRect(kx, -1.5, 3, 3);
+        }
+      }
       g2.restore();
     }
     // 环形技前摇：扩圈预警（此时尚未出弹，玩家还有时间拉开距离）
@@ -1354,26 +1498,30 @@ class Enemy {
         drawPixelText(g2, this.elite.en, tx, ty, 1, this.elite.aura);
       }
     }
-    /* 旋盾：两片护盾绕身慢转。画在血条之后、单独一层 ——
-       它是「该从哪边打」的唯一读数，绝不能被别的特效盖掉。 */
+    /* 旋盾：绕身慢转的护盾片。画在血条之后、单独一层 ——
+       它是「该从哪边打」的唯一读数，绝不能被别的特效盖掉。
+       弧列表走 shieldArcs()：玄甲卫起手盾冲时会并成一片收拢到正面，
+       画出来的和 hurt() 判定的必须是同一份。 */
     if (this.shieldR > 0 && !shaping) {
       const sr = this.r + 7;
+      const arcs = this.shieldArcs();
       g2.save();
       if (this.air <= 0) {   // 腾空时护盾仍随行，但落在身后的影子不画盾
-        for (let i = 0; i < SHIELD.arcs; i++) {
-          const a0 = this.shieldA + i * (Math.PI * 2 / SHIELD.arcs) - this.shieldR / 2;
-          const a1 = a0 + this.shieldR;
+        for (const arc of arcs) {
+          const bash = this.def.ai === 'shieldbash' && this.state >= 1 && this.state <= 3;
           g2.globalAlpha = 0.5;
-          g2.strokeStyle = '#1b2740'; g2.lineWidth = 5;
-          g2.beginPath(); g2.arc(this.x, this.y, sr, a0, a1); g2.stroke();
+          g2.strokeStyle = '#1b2740'; g2.lineWidth = bash ? 7 : 5;
+          g2.beginPath(); g2.arc(this.x, this.y, sr, arc.a0, arc.a1); g2.stroke();
           // 挡下伤害的那几帧整片转白，一眼看出「这一下被吃了」
-          g2.globalAlpha = this.blockFlash > 0 ? 0.95 : 0.7;
+          /* 盾恒为青色 —— 它是「该从哪边打」的读数，不能因为起手就换色。
+             收拢到正面靠的是线宽与亮度，而不是变色（变色会和地面冲程带糊成一团）。 */
+          g2.globalAlpha = this.blockFlash > 0 ? 0.95 : (bash ? 0.95 : 0.7);
           g2.strokeStyle = this.blockFlash > 0 ? '#ffffff' : PAL.cyan;
-          g2.lineWidth = this.blockFlash > 0 ? 3 : 2;
-          g2.beginPath(); g2.arc(this.x, this.y, sr, a0, a1); g2.stroke();
+          g2.lineWidth = this.blockFlash > 0 ? 3 : (bash ? 4 : 2);
+          g2.beginPath(); g2.arc(this.x, this.y, sr, arc.a0, arc.a1); g2.stroke();
           // 盾缘的两点铆钉，让旋转看得见
           g2.globalAlpha = 0.8; g2.fillStyle = PAL.greyL;
-          for (const aa of [a0, a1]) g2.fillRect((this.x + Math.cos(aa) * sr) | 0, (this.y + Math.sin(aa) * sr) | 0, 2, 2);
+          for (const aa of [arc.a0, arc.a1]) g2.fillRect((this.x + Math.cos(aa) * sr) | 0, (this.y + Math.sin(aa) * sr) | 0, 2, 2);
         }
       }
       g2.restore();
@@ -1422,6 +1570,8 @@ class Boss {
     this.invuln = 0;                 // 转阶段的短暂无敌
     this.guard = 0;                  // 烛龙鳞罩：>0 时免疫伤害，同时正是它横扫的时候
     this.guardCd = 300;
+    this.dashA = 0;                  // 冲刺方向（蓄力期一路跟着玩家转，lock 帧钉死）
+    this.dashLock = false;
     this.name = this.bd.name;
     this.spiral = 0;
   }
@@ -1512,7 +1662,7 @@ class Boss {
             g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * 2.9, Math.sin(a) * 2.9, this.bd.bolt);
           }
         }
-      } else if (this.state !== 'roar' && this.state !== 'dash' && --this.guardCd <= 0) {
+      } else if (this.state !== 'roar' && this.state !== 'dash' && this.state !== 'dashWind' && --this.guardCd <= 0) {
         this.guard = this.phase === 3 ? 240 : 210;
         this.state = 'sweep'; this.stateT = 200;
         g.shake(5);
@@ -1531,9 +1681,32 @@ class Boss {
       if (this.stateT <= 0) this.state = 'idle';
     } else if (this.state === 'dash') {
       this.stateT--;
-      this.vx *= 0.965; this.vy *= 0.965;
+      this.vx *= DASH.dec; this.vy *= DASH.dec;
       if (this.stateT % 4 === 0) g.burst(this.x, this.y, 3, this.bd.aura);
       if (this.stateT <= 0) { this.state = 'idle'; this.cd2 = 200; }
+    } else if (this.state === 'dashWind') {
+      /* 冲刺前摇：站定蓄势（地面画出冲程带），方向先跟着玩家转、
+         最后 DASH.lock 帧钉死并响一声。原先 cd2 归零那一帧就直接
+         vx = dx/d*8 冲出去 —— 零预警、零反应窗口（2026-09-22 反馈）。 */
+      this.stateT--;
+      this.vx *= 0.72; this.vy *= 0.72;
+      if (this.stateT > DASH.lock) {
+        const want = Math.atan2(dy, dx);
+        let da = want - this.dashA;
+        while (da > Math.PI) da -= Math.PI * 2;
+        while (da < -Math.PI) da += Math.PI * 2;
+        this.dashA += clamp(da, -DASH.turn, DASH.turn);
+      } else if (!this.dashLock) {
+        this.dashLock = true;
+        SFX.dash();                    // 方向钉死那一声 = 「该闪了」
+      }
+      if (this.stateT % 6 === 0) g.burst(this.x, this.y - 8, 2, this.bd.aura);
+      if (this.stateT <= 0) {
+        this.vx = Math.cos(this.dashA) * DASH.spd;
+        this.vy = Math.sin(this.dashA) * DASH.spd;
+        this.state = 'dash'; this.stateT = DASH.time;
+        g.shake(3);
+      }
     } else {
       // 游走接近
       this.vx = lerp(this.vx, dx / d * spd, 0.05);
@@ -1542,8 +1715,10 @@ class Boss {
       // 冲刺（轮回法王不冲刺，只有那一味前进的压迫）
       if (this.bd.dash && --this.cd2 <= 0) {
         this.cd2 = this.phase === 3 ? this.bd.dash * 0.62 : this.bd.dash;
-        this.vx = dx / d * 8; this.vy = dy / d * 8;
-        this.state = 'dash'; this.stateT = 40; SFX.dash();
+        this.state = 'dashWind'; this.stateT = DASH.wind;
+        this.dashA = Math.atan2(dy, dx);
+        this.dashLock = false;
+        SFX.cast();
       }
     }
 
@@ -1568,11 +1743,15 @@ class Boss {
   }
   /* 烛龙睁眼：从当前朝向起手，把半个扇面扫一遍。
      扇面在蓄力期就整片点亮（Beam 的 swing 分支会画出走廊），
-     所以「往哪边走」从第一帧起就有答案 —— 难的是执行，不是猜。 */
+     所以「往哪边走」从第一帧起就有答案 —— 难的是执行，不是猜。
+     蓄力 78 帧（对齐 BEAM.warn）：原先 54 帧时玩家从扇面中心跑到最近的边界
+     要跨约 0.55 弧度，150px 外就是 82px，而 54 帧只能走 127px —— 理论够、
+     实战容不下半点犹豫，于是观感就是「突然就射出来了」（2026-09-22 反馈）。
+     78 帧能走 183px，窗口才真正成立。 */
   startSweep(g, p) {
     const a0 = Math.atan2(p.y - this.y, p.x - this.x) - 0.75;
     const swing = this.phase === 3 ? 1.6 : 1.3;
-    g.beams.push(new Beam(this.x, this.y - 6, a0, 620, 10, 54, 100, {
+    g.beams.push(new Beam(this.x, this.y - 6, a0, 620, 10, 78, 100, {
       swing: swing, follow: this, col: PAL.fire, dmg: 1, hitGap: 34
     }));
     SFX.cast();
@@ -1758,6 +1937,37 @@ class Boss {
     const s = SPR.boss[this.kind][this.frame];
     const shaping = this.spawnT > 0;
     const k = shaping ? 1 - this.spawnT / SPAWN_GRACE_BOSS : 1;
+    /* 冲刺前摇：把冲程画在地上。
+       蓄力期方向还跟着你转（带子跟着甩、整体压暗），
+       DASH.lock 帧钉死之后转亮、并浮出朝外爬的推进光点 ——
+       「往哪躲」和「还剩多久」一起给到。
+       画在精灵之前（地面层），免得盖住尊者本体。 */
+    if (this.state === 'dashWind') {
+      const kk = 1 - this.stateT / DASH.wind;
+      const w = this.r * 2;
+      g2.save();
+      g2.translate(this.x, this.y + 8);
+      g2.rotate(this.dashA);
+      g2.globalAlpha = (this.dashLock ? 0.24 : 0.11) + 0.18 * kk;
+      g2.fillStyle = this.dashLock ? PAL.red : this.bd.aura;
+      g2.fillRect(0, -w / 2, DASH.len, w);
+      g2.globalAlpha = (this.dashLock ? 0.72 : 0.38) + 0.28 * kk;
+      g2.strokeStyle = this.dashLock ? PAL.goldL : this.bd.aura;
+      g2.lineWidth = 1.5;
+      g2.beginPath();
+      g2.moveTo(0, -w / 2); g2.lineTo(DASH.len, -w / 2);
+      g2.moveTo(0, w / 2); g2.lineTo(DASH.len, w / 2);
+      g2.stroke();
+      if (this.dashLock) {
+        g2.globalAlpha = 0.9; g2.fillStyle = '#fff';
+        for (let i = 0; i < 4; i++) {
+          const kx = DASH.len * (0.2 + 0.2 * i) * (0.35 + kk);
+          g2.fillRect(kx, -w / 2 - 1, 3, 3);
+          g2.fillRect(kx, w / 2 - 2, 3, 3);
+        }
+      }
+      g2.restore();
+    }
     g2.save();
     if (shaping) {
       g2.globalAlpha = clamp(0.15 + k * 0.85, 0, 1);

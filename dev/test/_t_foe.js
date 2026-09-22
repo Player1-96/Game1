@@ -503,8 +503,118 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('每种新妖物都能在正常开图里刷出来',
     Object.values(t10.seen).every(v => v > 0), JSON.stringify(t10.seen));
 
-  /* ================= T11  全局错误 ================= */
-  sec('T11  运行期无报错');
+  /* ================= T11  三处「预警不足」的修复 ================= */
+  sec('T11  预警：头目冲刺前摇 / 玄甲卫盾冲 / 横扫倒计时');
+  const t11 = await page.evaluate(() => {
+    const G = window.Game;
+    const out = {};
+
+    /* —— 头目冲刺：先站定蓄势，再一头撞过来 —— */
+    G.newRun('feijian'); G.state = 'play';
+    let p = G.player;
+    p.x = 430; p.y = 275; p.invuln = 99999; p.hp = p.maxHP;
+    G.enemies.length = 0; G.bullets.length = 0; G.beams.length = 0;
+    let b = new Boss('xuemo', 80, 80, 1);
+    b.spawnT = 0; b.cd = 99999; b.cd3 = 99999; b.spd = 0; b.cd2 = 2;
+    G.enemies.push(b);
+    let windFrames = 0, windStart = null, dashStart = null, lockAt = -1;
+    for (let i = 0; i < 200; i++) {
+      G.update();
+      if (b.state === 'dashWind') {
+        if (!windStart) windStart = { x: b.x, y: b.y };
+        windFrames++;
+        if (b.dashLock && lockAt < 0) lockAt = windFrames;
+      } else if (b.state === 'dash' && !dashStart) {
+        dashStart = { x: b.x, y: b.y };
+      }
+    }
+    out.dashWind = windFrames;
+    out.dashLockLead = lockAt > 0 ? windFrames - lockAt + 1 : 0;
+    out.windDrift = windStart && dashStart
+      ? Math.round(Math.hypot(dashStart.x - windStart.x, dashStart.y - windStart.y)) : 999;
+    out.dashConst = { wind: DASH.wind, lock: DASH.lock };
+
+    /* —— 玄甲卫：会主动盾冲，且盾收拢到正面 —— */
+    G.newRun('feijian'); G.state = 'play';
+    p = G.player; p.x = 200; p.y = 250; p.invuln = 99999; p.hp = p.maxHP;
+    G.enemies.length = 0; G.bullets.length = 0; G.beams.length = 0;
+    const e = new Enemy('xuanjia', 200, 120, 1);
+    e.spawnT = 0; e.cd = 1; e.speed = 0;
+    G.enemies.push(e);
+    let wF = 0, bF = 0, rF = 0, bStart = null, bEnd = null, arcsAtWind = -1, centerAtWind = null;
+    for (let i = 0; i < 220; i++) {
+      G.update();
+      if (e.state === 1) {
+        wF++;
+        if (arcsAtWind < 0) {
+          const aa = e.shieldArcs();
+          arcsAtWind = aa.length;
+          centerAtWind = (aa[0].a0 + aa[0].a1) / 2;
+        }
+      } else if (e.state === 2) {
+        if (!bStart) bStart = { x: e.x, y: e.y };
+        bF++; bEnd = { x: e.x, y: e.y };
+      } else if (e.state === 3) rF++;
+    }
+    out.bashWind = wF; out.bashRun = bF; out.bashRecover = rF;
+    out.bashDist = bStart && bEnd ? Math.round(Math.hypot(bEnd.x - bStart.x, bEnd.y - bStart.y)) : 0;
+    out.arcsWhenBashing = arcsAtWind;
+    out.arcsIdle = new Enemy('xuanjia', 0, 0, 1).shieldArcs().length;
+    // 收拢后的弧心是否落在冲撞方向上（两角最小差）
+    out.centerVsBashA = centerAtWind == null ? null
+      : +Math.abs(((centerAtWind - e.bashA + Math.PI * 3) % (Math.PI * 2)) - Math.PI).toFixed(3);
+
+    /* —— 烛龙横扫：蓄力给足、且真的躲得掉 —— */
+    const sweepRun = (escape) => {
+      G.newRun('feijian'); G.state = 'play';
+      const q = G.player; q.x = 240; q.y = 200; q.invuln = 0; q.hp = q.maxHP;
+      G.enemies.length = 0; G.bullets.length = 0; G.beams.length = 0;
+      const z = new Boss('zhulong', 240, 80, 1);
+      z.spawnT = 0; z.cd = 99999; z.cd3 = 99999; z.spd = 0; z.guardCd = 1;
+      G.enemies.push(z);
+      G.update();
+      const bm = G.beams[0];
+      const hp0 = q.hp;
+      let n = 0;
+      while (bm && !bm.firing && n < 400) { if (escape) q.x = Math.min(430, q.x + 2.35); G.update(); n++; }
+      const r = { warn: bm ? bm.warn : 0, frames: n, hpAfterWarn: hp0 - q.hp };
+      let t = 0;
+      while (bm && !bm.dead && t < 260 && q.hp >= hp0) {
+        if (escape) q.x = Math.min(430, q.x + 2.35);
+        G.update(); t++;
+      }
+      r.hit = q.hp < hp0;
+      r.posAtFire = Math.round(q.x);
+      return r;
+    };
+    const stand = sweepRun(false), flee = sweepRun(true);
+    out.sweepWarn = stand.warn;
+    out.sweepWarnFrames = stand.frames;
+    out.sweepNoDmgDuringWarn = stand.hpAfterWarn;
+    out.sweepHitsIdle = stand.hit;
+    out.sweepEscapable = !flee.hit;
+    out.sweepEscapeX = flee.posAtFire;
+    return out;
+  });
+  ok('头目冲刺有前摇（不再零预警）',
+    t11.dashWind === t11.dashConst.wind && t11.dashWind >= 36,
+    `${t11.dashWind} 帧（设计 ${t11.dashConst.wind}）`);
+  ok('前摇期站定蓄势（几乎不位移）', t11.windDrift <= 15, `位移 ${t11.windDrift}px`);
+  ok('方向提前钉死，留出闪身窗口',
+    t11.dashLockLead === t11.dashConst.lock && t11.dashLockLead >= 20, `提前 ${t11.dashLockLead} 帧`);
+  ok('玄甲卫会主动冲撞（不再只是站着挨打）',
+    t11.bashWind >= 30 && t11.bashRun >= 12 && t11.bashRecover >= 20,
+    `蓄力 ${t11.bashWind} / 冲撞 ${t11.bashRun} / 硬直 ${t11.bashRecover} 帧，冲程 ${t11.bashDist}px`);
+  ok('盾冲起手时旋盾并成一片、收拢到冲撞方向',
+    t11.arcsIdle === 2 && t11.arcsWhenBashing === 1 && t11.centerVsBashA < 0.01,
+    `常态 ${t11.arcsIdle} 片 → 起手 ${t11.arcsWhenBashing} 片，角差 ${t11.centerVsBashA}`);
+  ok('烛龙横扫的蓄力窗口给足（≥1.2 秒）', t11.sweepWarn >= 72, `${t11.sweepWarn} 帧`);
+  ok('横扫的预告期零伤害', t11.sweepNoDmgDuringWarn === 0, `掉血 ${t11.sweepNoDmgDuringWarn}`);
+  ok('站着不动会被扫中（横扫不是摆设）', t11.sweepHitsIdle === true);
+  ok('蓄力期起就横移 → 全程无伤', t11.sweepEscapable === true, `跑到 x=${t11.sweepEscapeX}`);
+
+  /* ================= T12  全局错误 ================= */
+  sec('T12  运行期无报错');
   ok('没有页面错误', errs.length === 0, errs.join(' | '));
 
   console.log('\n通过 ' + pass + ' / 失败 ' + fail);
