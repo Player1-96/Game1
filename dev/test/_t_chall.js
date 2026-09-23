@@ -59,7 +59,7 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   });
 
   /* ================= T1  菜单 ================= */
-  sec('T1  两级菜单：择魔头 → 择难度');
+  sec('T1  三级菜单：择流派 → 择魔头 → 择难度');
   const t1 = await page.evaluate(() => {
     const G = window.Game;
     G.challResult = null;
@@ -67,35 +67,74 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     const out = {
       state: G.state,
       step: G.challMenu.step,
+      playable: PLAYABLE_STYLES.length,
       bossKeys: BOSS_KEYS.length,
-      bossCards: document.querySelectorAll('#chall .pickCard').length,
-      bossNames: [...document.querySelectorAll('#chall .pickCard .nm')].map(e => e.textContent),
-      expectNames: BOSS_KEYS.map(k => BOSS_DEF[k].name)
+      diffCount: CHALLENGE_DIFF.length,
+      styleCards: document.querySelectorAll('#chall .pickCard').length,
+      styleNames: [...document.querySelectorAll('#chall .pickCard .nm')].map(e => e.textContent),
+      expectStyles: PLAYABLE_STYLES.map(k => STYLES[k].name)
     };
-    G.challPick(BOSS_KEYS.length - 1);
-    out.lastIdx = G.challMenu.idx;
+    // 选到末位流派（舞剑流）——「换个流派打 Boss」是本次修复的核心诉求
+    G.challPick(PLAYABLE_STYLES.length - 1);
+    out.lastStyleIdx = G.challMenu.idx;
     G.challConfirm();
     out.step2 = G.challMenu.step;
+    out.style = G.challMenu.style;
+    out.bossCards = document.querySelectorAll('#chall .pickCard').length;
+    out.bossNames = [...document.querySelectorAll('#chall .pickCard .nm')].map(e => e.textContent);
+    out.expectNames = BOSS_KEYS.map(k => BOSS_DEF[k].name);
+    G.challPick(BOSS_KEYS.length - 1);
+    out.lastBossIdx = G.challMenu.idx;
+    G.challConfirm();
+    out.step3 = G.challMenu.step;
     out.bossId = G.challMenu.bossId;
     out.diffCards = document.querySelectorAll('#chall .pickCard').length;
     out.diffNames = [...document.querySelectorAll('#chall .pickCard .nm')].map(e => e.textContent);
     G.challBack();
-    out.backStep = G.challMenu.step;
-    out.backIdx = G.challMenu.idx;
+    out.back1 = G.challMenu.step;
+    out.back1Idx = G.challMenu.idx;
+    G.challBack();
+    out.back2 = G.challMenu.step;
+    out.back2Idx = G.challMenu.idx;
     G.challBack();
     out.backToTitle = G.state;
     return out;
   });
-  ok('从标题能进挑战菜单', t1.state === 'chall' && t1.step === 'boss', t1.state + '/' + t1.step);
+  ok('从标题能进挑战菜单，首屏是择流派', t1.state === 'chall' && t1.step === 'style', t1.state + '/' + t1.step);
+  ok('流派卡与 PLAYABLE_STYLES 一一对应',
+    t1.styleCards === t1.playable && t1.styleNames.join() === t1.expectStyles.join(),
+    t1.styleNames.join(' / '));
+  ok('选到末位流派也能正确记下', t1.lastStyleIdx === t1.playable - 1 && t1.step2 === 'boss', 'style=' + t1.style);
   ok('头目卡与 BOSS_KEYS 一一对应',
     t1.bossCards === t1.bossKeys && t1.bossNames.join() === t1.expectNames.join(),
     t1.bossNames.join(' / '));
-  ok('选到末位也能正确确认', t1.lastIdx === t1.bossKeys - 1 && t1.step2 === 'diff', 'bossId=' + t1.bossId);
+  ok('选到末位头目也能正确确认', t1.lastBossIdx === t1.bossKeys - 1 && t1.step3 === 'diff', 'bossId=' + t1.bossId);
   ok('难度恰好三档：险 / 危 / 绝',
-    t1.diffCards === 3 && t1.diffNames.join('') === '险危绝', t1.diffNames.join(' / '));
+    t1.diffCards === t1.diffCount && t1.diffNames.join('') === '险危绝', t1.diffNames.join(' / '));
   ok('Esc 从难度退回头目、且光标停在原处',
-    t1.backStep === 'boss' && t1.backIdx === t1.bossKeys - 1, '停在第 ' + (t1.backIdx + 1) + ' 位');
-  ok('再按 Esc 回标题', t1.backToTitle === 'title');
+    t1.back1 === 'boss' && t1.back1Idx === t1.bossKeys - 1, '停在第 ' + (t1.back1Idx + 1) + ' 位');
+  ok('再按 Esc 退回流派、光标同样停原处',
+    t1.back2 === 'style' && t1.back2Idx === t1.playable - 1, '停在第 ' + (t1.back2Idx + 1) + ' 位');
+  ok('第三次 Esc 回标题', t1.backToTitle === 'title');
+  /* 核心回归：菜单里选的流派必须真的带进战斗（原先恒为构造器里的 feijian） */
+  const t1b = await page.evaluate(() => {
+    const G = window.Game;
+    const out = {};
+    G.openChallMenu();
+    out.defaultStyle = G.challMenu.style;              // 未选过时应落在当前 this.style
+    G.challPick(PLAYABLE_STYLES.indexOf('wujian'));    // 舞剑流（按名字取，别硬编码下标）
+    G.challConfirm();                                  // → 择魔头
+    G.challPick(0);
+    G.challConfirm();                                  // → 择难度
+    G.challConfirm();                                  // 开战（默认「危」）
+    out.style = G.style;
+    out.ultStyle = G.player.ult ? G.player.ult.style : null;
+    out.haveUlt = !!G.player.ult;
+    return out;
+  });
+  ok('挑战里能换成舞剑流（原先恒飞剑流）',
+    t1b.style === 'wujian' && t1b.ultStyle === 'wujian',
+    'style=' + t1b.style + ' 专属技=' + t1b.ultStyle + ' 有专属=' + t1b.haveUlt);
 
   /* ================= T2  配装 ================= */
   sec('T2  三档配装：法宝 3d / 功法 d / 专属技 Lv d');
@@ -288,7 +327,7 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     window.__advance(CHALL_RESULT_T + 12, 0);
     out.state = G.state;
     out.step = G.challMenu ? G.challMenu.step : null;
-    out.result = G.challResult ? { win: G.challResult.win, boss: G.challResult.bossId, diff: G.challResult.diffIdx } : null;
+    out.result = G.challResult ? { win: G.challResult.win, boss: G.challResult.bossId, diff: G.challResult.diffIdx, style: G.challResult.style } : null;
     out.saveIntact = localStorage.getItem(SAVE_KEY) === before;
     out.hp0 = hp0;
     return out;
@@ -297,10 +336,11 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('斩杀后房间清空', t6.bossDead === true && t6.cleared === true);
   ok('挑战模式不开传送阵', t6.noPortal === true);
   ok('挑战模式不发战利品', t6.noPedestal === true);
-  ok('斩杀后回到挑战菜单', t6.state === 'chall' && t6.step === 'boss', t6.state + '/' + t6.step);
+  ok('斩杀后回到挑战菜单（首屏择流派）', t6.state === 'chall' && t6.step === 'style', t6.state + '/' + t6.step);
   ok('战果被记住（胜）',
     !!t6.result && t6.result.win === true && t6.result.boss === 'liesha' && t6.result.diff === 2,
     JSON.stringify(t6.result));
+  ok('战果里也记下流派', !!t6.result && !!t6.result.style, 'style=' + (t6.result && t6.result.style));
   ok('斩杀也不碰存档', t6.saveIntact === true);
 
   /* ================= T7  收尾状态 ================= */

@@ -94,6 +94,9 @@ const SFX = {
   blink() { this.tone(1200, 0.16, 'sine', 0.16, 2400); },
   /* 太虚护盾补回一格：上行双音，与受击的下行音区分开 */
   shield() { this.tone(620, 0.10, 'triangle', 0.13); setTimeout(() => this.tone(930, 0.14, 'triangle', 0.11), 70); },
+  /* 烛龙结罩：清亮的上行三音 —— 与转阶段的 roar() 必须听起来是两回事。
+     两者原先共用 roar()，玩家会把每 9 秒一次的结罩当成「又转了一次阶段」（2026-09-23 反馈）。 */
+  shieldUp() { this.tone(392, 0.16, 'triangle', 0.16); setTimeout(() => this.tone(587, 0.18, 'triangle', 0.14), 90); setTimeout(() => this.tone(784, 0.22, 'sine', 0.12), 190); },
   levelup() { [523, 659, 784, 1046, 1318].forEach((f, i) => setTimeout(() => this.tone(f, 0.14, 'square', 0.14), i * 90)); },
   /* 巨剑流：蓄力跨段提示 */
   chargeUp(tier) {
@@ -385,6 +388,12 @@ const CHALL_BOSS_NOTE = {
   lunhui: '缺口环弹 · 不冲刺',
   zhulong: '鳞罩 · 横扫激光'
 };
+/* 挑战菜单「择流派」页的一句话（正文仍在 index.html 的流派卡片里，这里只取要点） */
+const CHALL_STYLE_NOTE = {
+  feijian: '远程连发 · 走位游击',
+  jujian: '蓄力劈砍 · 一击破军',
+  wujian: '近战贴脸 · 突进连斩'
+};
 
 /* ---------------- 存档 ----------------
  *  只存「种子 + 进度 + 玩家」，不存敌人实体。
@@ -426,6 +435,10 @@ class GameCore {
     this.pick = null;                // 选择界面：{ kind:'skill'|'ult', ... }，非 null 时暂停
     this.ultUpgradeT = 0;            // 斩精英后延迟弹出三选一的倒计时（帧）
     this.paused = false;             // 主动暂停（P / Esc）：逻辑全停，画面照画
+    /* 小地图高亮计时：进新房间后短暂提亮，其余时间压到半透明。
+       它压在房间右上角（世界区 x>393 / y<89 那块），不透明时会整个盖住
+       走到那里的妖物 —— 玩家会以为「怪被地图挡住了」（2026-09-23 反馈）。 */
+    this.minimapT = 0;
     /* 设置面板（配置表见 SET_ROWS）：独立于 state —— 从标题或局内都能开，
        关掉后回到原处，所以用标记位而不是新增一个 state。
        setIdx 是当前选中行；setClearArm 是「清空存档」的二次确认。 */
@@ -703,6 +716,7 @@ class GameCore {
       for (let d = 0; d < 4; d++) if (r.doors[d] && !r.doorHidden[d]) r.doorOpen[d] = true;
     }
     r.visited = true;
+    this.minimapT = 150;              // 换房时小地图提亮 2.5 秒（此时玩家最需要看全图）
     // 进房即存档：此刻状态最干净（敌人刚按 waves 排队、交互物都是未开状态）
     this.saveGame();
   }
@@ -844,8 +858,13 @@ class GameCore {
         「前期 / 中期 / 后期」那次典型对局，而不是单纯的血多血少。
   */
   openChallMenu() {
-    if (!this.challMenu) this.challMenu = { step: 'boss', idx: 0, bossId: null };
-    else this.challMenu.step = 'boss';
+    /* 三级菜单：择流派 → 择魔头 → 择难度。
+       流派必须能选 —— 挑战模式原先直接用 this.style，而构造器里它是 'feijian'，
+       页面刷新后第一次进挑战就只能是飞剑流（2026-09-23 反馈「只能用飞剑流」）。 */
+    if (!this.challMenu) this.challMenu = { step: 'style', idx: 0, style: null, bossId: null };
+    else this.challMenu.step = 'style';
+    this.challMenu.style = this.style || PLAYABLE_STYLES[0];
+    this.challMenu.idx = Math.max(0, PLAYABLE_STYLES.indexOf(this.challMenu.style));
     this.chall = null;
     this.player = null;
     this.pick = null;
@@ -861,7 +880,7 @@ class GameCore {
     const c = this.chall;
     if (c) {
       this.challResult = {
-        win: !!win, bossId: c.bossId, diffIdx: c.diffIdx,
+        win: !!win, bossId: c.bossId, diffIdx: c.diffIdx, style: c.style,
         secs: Math.round(c.frames / 60)
       };
     }
@@ -889,10 +908,10 @@ class GameCore {
     }
     this.itemPopup = null;             // 配装时 give 会叠一摞拾取卡片，清掉
   }
-  startChallenge(bossId, diffIdx) {
+  startChallenge(bossId, diffIdx, style) {
     const d = CHALLENGE_DIFF[diffIdx] || CHALLENGE_DIFF[0];
     const depth = Math.max(1, BOSS_KEYS.indexOf(bossId) + 1);   // 该头目原本镇守的层数
-    this.style = this.style || PLAYABLE_STYLES[0];
+    this.style = style || this.style || PLAYABLE_STYLES[0];
     this.depth = depth;
     this.coins = 0; this.keys = 0; this.bombs = 0; this.kills = 0; this.time = 0;
     this.player = new Player(ROOM_W / 2, ROOM_H / 2 + 20);
@@ -908,7 +927,7 @@ class GameCore {
     this.beams = []; this.slashes = []; this.dnums = []; this.timers = [];
     this.placedBombs = [];
     this.chall = {
-      bossId: bossId, diffIdx: diffIdx, d: d, depth: depth,
+      bossId: bossId, diffIdx: diffIdx, d: d, depth: depth, style: this.style,
       frames: 0, upgrades: CHALL_UPGRADES, upgradeT: 24, endT: 0, win: null
     };
     this.giveChallengeLoadout();
@@ -920,11 +939,12 @@ class GameCore {
     updateOverlay();
     SFX.levelup();
   }
-  /* 挑战菜单的两级导航（←→ / 数字切换，Enter 确认，Esc 退一层） */
+  /* 挑战菜单的三级导航（←→ / 数字切换，Enter 确认，Esc 退一层） */
   challPick(i) {
     const cm = this.challMenu;
     if (!cm) return;
-    const n = cm.step === 'boss' ? BOSS_KEYS.length : CHALLENGE_DIFF.length;
+    const n = cm.step === 'style' ? PLAYABLE_STYLES.length
+      : cm.step === 'boss' ? BOSS_KEYS.length : CHALLENGE_DIFF.length;
     const ni = Math.max(0, Math.min(n - 1, i));
     if (ni === cm.idx) return;
     cm.idx = ni;
@@ -934,7 +954,13 @@ class GameCore {
   challConfirm() {
     const cm = this.challMenu;
     if (!cm) return;
-    if (cm.step === 'boss') {
+    if (cm.step === 'style') {
+      cm.style = PLAYABLE_STYLES[cm.idx] || PLAYABLE_STYLES[0];
+      cm.step = 'boss';
+      cm.idx = 0;
+      renderChallMenu();
+      SFX.tone(880, 0.06, 'square', 0.1);
+    } else if (cm.step === 'boss') {
       cm.bossId = BOSS_KEYS[cm.idx];
       cm.step = 'diff';
       cm.idx = 1;                      // 默认停在中间那档「危」
@@ -942,7 +968,7 @@ class GameCore {
       SFX.tone(880, 0.06, 'square', 0.1);
     } else {
       SFX.levelup();
-      this.startChallenge(cm.bossId, cm.idx);
+      this.startChallenge(cm.bossId, cm.idx, cm.style);
     }
   }
   challBack() {
@@ -951,6 +977,10 @@ class GameCore {
     if (cm.step === 'diff') {
       cm.step = 'boss';
       cm.idx = Math.max(0, BOSS_KEYS.indexOf(cm.bossId));
+      renderChallMenu();
+    } else if (cm.step === 'boss') {
+      cm.step = 'style';
+      cm.idx = Math.max(0, PLAYABLE_STYLES.indexOf(cm.style));
       renderChallMenu();
     } else {
       this.state = 'title';
@@ -1506,6 +1536,7 @@ class GameCore {
         return;
       }
     } else this.restartHold = 0;
+    if (this.minimapT > 0) this.minimapT--;      // 小地图高亮渐隐
     this.time++;
     /* 挑战模式：累计战斗帧数（结算时报耗时），并排队弹出专属技的进境三选一。
        面板关掉之后隔 40 帧再问下一次 —— 连问三次会让玩家来不及看清路线。 */
@@ -2182,14 +2213,24 @@ class GameCore {
 
   drawMinimap(g) {
     const f = this.floor;
-    const cell = 9, gap = 2, size = f.size;
+    /* 格子 9→7、间隙 2→1、整体压到半透明。
+       原先是 79×83 的不透明块，正好压住房间右上角（世界区 x>393 / y<89）——
+       妖物走到那儿会被整个盖掉，玩家会以为「怪被地图挡住了」（2026-09-23 反馈）。
+       缩小 44% 面积 + 半透明后，底下的妖物始终看得见。 */
+    const cell = 7, gap = 1, size = f.size;
     const w = size * (cell + gap) - gap + 4;
-    const ox = 480 - w - 6, oy = 38;
+    const ox = 480 - w - 5, oy = 36;
+    /* 换房后 2.5 秒内提亮到接近不透明 —— 「该往哪走」的时刻（刚进门）地图要清晰，
+       其余时间让路给战斗。 */
+    const hot = Math.min(1, this.minimapT / 90);
+    const alpha = 0.42 + 0.5 * hot;
     g.save();
-    g.globalAlpha = 0.92;
+    /* 底衬单独压得更淡 —— 地图网格里大部分格子是空的，真正挡住妖物的
+       主要就是这层底衬，房间格本身只占少数位置。 */
+    g.globalAlpha = 0.16 + 0.34 * hot;
     g.fillStyle = '#0d0a18';
     g.fillRect(ox - 2, oy - 2, w + 4, size * (cell + gap) - gap + 8);
-    g.globalAlpha = 1;
+    g.globalAlpha = alpha;
     for (const r of f.rooms.values()) {
       if (!r.visited && !r.seen) continue;
       if (r.type === RT.SECRET && !r.secretFound && !r.visited) continue;
@@ -2216,17 +2257,34 @@ class GameCore {
         g.strokeRect(x - 1.5, y - 1.5, cell + 3, cell + 3);
       }
     }
+    // 外框：把「这是浮在最上层的 HUD、不是场景的一部分」这件事说清楚
+    g.globalAlpha = Math.min(1, alpha + 0.3);
+    g.strokeStyle = '#5a5478'; g.lineWidth = 1;
+    g.strokeRect(ox - 2.5, oy - 2.5, w + 5, size * (cell + gap) - gap + 9);
     g.restore();
   }
 
   drawBossBar(g) {
     const b = this.bossRef;
     const w = 260, x = (480 - w) / 2, y = 320 - 12;
+    const k = Math.max(0, Math.min(1, b.hp / b.maxHp));
+    /* 转阶段读数：invuln 只在 Boss.setPhase 里给，所以「invuln > 0」就是正在转阶段。
+       没有这个读数，玩家只能靠「它又无敌了」猜阶段 —— 而烛龙的结罩循环
+       看/听起来都跟转阶段一样（2026-09-23 反馈「无限切换二阶段」）。 */
+    const shifting = b.invuln > 0;
+    const blink = shifting && Math.floor(b.invuln / 3) % 2 === 0;
     g.fillStyle = '#0d0a18'; g.fillRect(x - 2, y - 2, w + 4, 10);
     g.fillStyle = '#3a1220'; g.fillRect(x, y, w, 6);
-    g.fillStyle = PAL.red; g.fillRect(x, y, w * (b.hp / b.maxHp), 6);
-    g.fillStyle = PAL.redL; g.fillRect(x, y, w * (b.hp / b.maxHp), 2);
+    g.fillStyle = blink ? '#ffffff' : PAL.red; g.fillRect(x, y, w * k, 6);
+    g.fillStyle = blink ? '#ffffff' : PAL.redL; g.fillRect(x, y, w * k, 2);
+    // 阶段刻度 66% / 33%：血条上标出两道线，「打到第几阶段」才有准确读数
+    g.fillStyle = '#0d0a18';
+    for (const t of [0.66, 0.33]) g.fillRect(x + Math.round(w * t), y - 1, 1, 8);
     g.strokeStyle = PAL.gold; g.lineWidth = 1; g.strokeRect(x - 0.5, y - 0.5, w + 1, 7);
+    if (shifting) {
+      const s = 'PHASE ' + b.phase;
+      drawPixelText(g, s, Math.round(x + w / 2 - s.length * 3), y - 14, 1, '#8fdcf5');
+    }
   }
 
   /* ---------------- 巨剑流 · 蓄力表现 ---------------- */
@@ -2635,11 +2693,12 @@ function bindInput(canvas, game) {
       game.state = 'choose';
       SFX.ensure();
     } else if (game.state === 'chall') {
-      /* 挑战菜单：两级，←→ / 数字切换、Enter 确认、Esc 退一层
+      /* 挑战菜单：三级（流派 → 魔头 → 难度），←→ / 数字切换、Enter 确认、Esc 退一层
          （键位习惯与 #pick 面板保持一致） */
       const cm = game.challMenu;
       if (!cm) return;
-      const n = cm.step === 'boss' ? BOSS_KEYS.length : CHALLENGE_DIFF.length;
+      const n = cm.step === 'style' ? PLAYABLE_STYLES.length
+        : cm.step === 'boss' ? BOSS_KEYS.length : CHALLENGE_DIFF.length;
       const cur = cm.idx || 0;
       if (k === 'escape') game.challBack();
       else if (k === 'arrowleft') game.challPick((cur + n - 1) % n);
@@ -2774,13 +2833,32 @@ function renderChallMenu() {
   // 上一场的战果：挂一行，免得「我上次到底赢了没有」只能靠猜
   const rr = Game.challResult;
   if (rr) {
-    const rb = BOSS_DEF[rr.bossId], rd = CHALLENGE_DIFF[rr.diffIdx];
+    const rb = BOSS_DEF[rr.bossId], rd = CHALLENGE_DIFF[rr.diffIdx], rs = STYLES[rr.style];
     h += '<div class="challResult' + (rr.win ? ' win' : ' lose') + '">'
       + (rr.win ? '◈ 斩 杀 成 功' : '◇ 道 消 身 殒')
-      + '　' + (rb ? rb.name : rr.bossId) + ' · ' + (rd ? rd.name : '?')
+      + '　' + (rs ? rs.name + ' · ' : '') + (rb ? rb.name : rr.bossId) + ' · ' + (rd ? rd.name : '?')
       + '　费时 ' + rr.secs + ' 秒</div>';
   }
-  if (cm.step === 'boss') {
+  if (cm.step === 'style') {
+    h += '<div class="pickTitle">择 一 流 派</div>'
+      + '<div class="pickSub">共 ' + PLAYABLE_STYLES.length + ' 派　—— 配装与专属技都按这一派给</div>'
+      + '<div class="pickRow">';
+    PLAYABLE_STYLES.forEach((k, i) => {
+      const st = STYLES[k] || { name: k, en: '', tag: '' };
+      const ud = (typeof ULT_DEF !== 'undefined' && ULT_DEF[k]) ? ULT_DEF[k] : null;
+      h += '<div class="pickCard' + (i === cm.idx ? ' selA' : '') + '" data-i="' + i + '">'
+        + '<div class="nm">' + st.name + '</div>'
+        + '<div class="tag">' + st.tag + '</div>'
+        + '<div class="lv">' + st.en + '</div>'
+        // 专属技名另起一行 —— 挤进 .lv 会在窄卡里折成两行（9.6em 宽的卡片放不下）
+        + '<div class="dsc">' + (CHALL_STYLE_NOTE[k] || '')
+        + (ud ? '<br>专属技「' + ud.name + '」' : '') + '</div>'
+        + '</div>';
+    });
+    h += '</div><div class="pickTip"><span class="kbd">←</span><span class="kbd">→</span> 或 '
+      + '<span class="kbd">1</span>~<span class="kbd">3</span> 择流派　<span class="kbd">Enter</span> 下一步　'
+      + '<span class="kbd">Esc</span> 回标题</div>';
+  } else if (cm.step === 'boss') {
     h += '<div class="pickTitle">择 一 魔 头</div>'
       + '<div class="pickSub">共 ' + BOSS_KEYS.length + ' 位　—— 越过前几层，直接开打</div>'
       + '<div class="pickRow">';
@@ -2795,11 +2873,13 @@ function renderChallMenu() {
     });
     h += '</div><div class="pickTip"><span class="kbd">←</span><span class="kbd">→</span> 或 '
       + '<span class="kbd">1</span>~<span class="kbd">5</span> 择魔头　<span class="kbd">Enter</span> 下一步　'
-      + '<span class="kbd">Esc</span> 回标题</div>';
+      + '<span class="kbd">Esc</span> 返回上一步</div>';
   } else {
     const b = BOSS_DEF[cm.bossId] || BOSS_DEF[BOSS_KEYS[0]];
+    const st = STYLES[cm.style] || null;
     h += '<div class="pickTitle">择 难 度</div>'
-      + '<div class="pickSub">魔头 <b>' + b.name + '</b>　—— 难度决定配装与血量　·　挑战全程不写存档</div>'
+      + '<div class="pickSub">' + (st ? '<b>' + st.name + '</b>　·　' : '') + '魔头 <b>' + b.name + '</b>'
+      + '　—— 难度决定配装与血量　·　挑战全程不写存档</div>'
       + '<div class="pickRow wide">';
     CHALLENGE_DIFF.forEach((x, i) => {
       h += '<div class="pickCard' + (i === cm.idx ? ' selC' : '') + '" data-i="' + i + '">'

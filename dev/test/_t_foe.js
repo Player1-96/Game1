@@ -613,8 +613,54 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('站着不动会被扫中（横扫不是摆设）', t11.sweepHitsIdle === true);
   ok('蓄力期起就横移 → 全程无伤', t11.sweepEscapable === true, `跑到 x=${t11.sweepEscapeX}`);
 
-  /* ================= T12  全局错误 ================= */
-  sec('T12  运行期无报错');
+  /* ================= T12  结罩与转阶段的读数分家 ================= */
+  sec('T12  烛龙：结罩与转阶段必须一眼分得开');
+  const t12 = await page.evaluate(() => {
+    const G = window.Game;
+    const out = { roar: 0, shieldUp: 0 };
+    /* 数音效调用。两者原先共用 SFX.roar()，玩家会把每 9 秒一次的结罩
+       当成「又转了一次阶段」—— 这正是「无限切换二阶段」那条反馈的来源。 */
+    const oR = SFX.roar.bind(SFX), oS = SFX.shieldUp.bind(SFX);
+    SFX.roar = function () { out.roar++; return oR(); };
+    SFX.shieldUp = function () { out.shieldUp++; return oS(); };
+
+    G.openChallMenu();
+    G.challMenu.step = 'diff'; G.challMenu.bossId = 'zhulong'; G.challMenu.idx = 1;
+    G.challMenu.style = 'feijian';
+    G.challConfirm();
+    G.chall.upgrades = 0; G.pick = null;
+    const b = G.bossRef;
+    b.spawnT = 0; b.invuln = 0;
+    G.player.invuln = 999999;
+
+    b.guardCd = 1;
+    G.update();                                  // 触发一次结罩
+    out.guardAfterSweep = b.guard;
+    out.roarAfterGuard = out.roar;
+    out.shieldUpAfterGuard = out.shieldUp;
+
+    b.guard = 0; b.guardCd = 99999;              // 别让结罩干扰下一步
+    b.hp = b.maxHp * 0.6; b.invuln = 0;
+    b.hurt(1, G, null, false);                   // 打到二阶段
+    out.phase = b.phase;
+    out.invulnAfterPhase = b.invuln;
+    out.phaseTexts = G.floaters.map(f => f.text).filter(t => /^PHASE/.test(t));
+    out.roarAfterPhase = out.roar;
+
+    SFX.roar = oR; SFX.shieldUp = oS;
+    return out;
+  });
+  ok('结罩走独立音效（不再复用转阶段的 roar）',
+    t12.shieldUpAfterGuard === 1 && t12.roarAfterGuard === 0,
+    'shieldUp=' + t12.shieldUpAfterGuard + ' roar=' + t12.roarAfterGuard + ' guard=' + t12.guardAfterSweep);
+  ok('只有转阶段才响 roar', t12.roarAfterPhase === 1, 'roar=' + t12.roarAfterPhase);
+  ok('转阶段给出可读的 PHASE N（原来那句中文飘字根本画不出来）',
+    t12.phase === 2 && t12.phaseTexts.indexOf('PHASE 2') >= 0, JSON.stringify(t12.phaseTexts));
+  ok('转阶段的无敌期非零（血条据此闪白并显示读数）',
+    t12.invulnAfterPhase > 0, t12.invulnAfterPhase + ' 帧');
+
+  /* ================= T13  全局错误 ================= */
+  sec('T13  运行期无报错');
   ok('没有页面错误', errs.length === 0, errs.join(' | '));
 
   console.log('\n通过 ' + pass + ' / 失败 ' + fail);

@@ -1592,7 +1592,10 @@ class Boss {
       const a = Math.PI * 2 * i / 3 + Math.random() * 0.6;
       g.dropPickup('mp', this.x + Math.cos(a) * 30, this.y + Math.sin(a) * 26, bossAmt);
     }
-    g.floaters.push(new Floater(this.x, this.y - 44, '灵力外溢', PAL.cyan));
+    /* 转阶段的读数必须是「可读的文字」：FONT5 只有英文点阵，原先那句
+       '灵力外溢' 一直静默画不出来，玩家因而分不清「转阶段」与烛龙的结罩
+       （两者都在震屏 + 无敌）。改用 PHASE N 之后，这件事有确定答案。 */
+    g.floaters.push(new Floater(this.x, this.y - 44, 'PHASE ' + np, PAL.cyan));
     SFX.roar();
   }
   hurt(dmg, g, src, crit) {
@@ -1665,10 +1668,15 @@ class Boss {
       } else if (this.state !== 'roar' && this.state !== 'dash' && this.state !== 'dashWind' && --this.guardCd <= 0) {
         this.guard = this.phase === 3 ? 240 : 210;
         this.state = 'sweep'; this.stateT = 200;
-        g.shake(5);
-        g.floaters.push(new Floater(this.x, this.y - 48, '鳞罩', PAL.goldL));
+        /* 结罩的演出必须与转阶段明显不同，否则玩家会把每 9 秒一次的结罩
+           当成「又转了一次阶段」（2026-09-23 反馈「无限切换二阶段」）。
+           三处区分：震屏 2（转阶段是 10）、独立音效 shieldUp（转阶段是 roar）、
+           飘 GUARD（转阶段飘 PHASE N）。顺带修掉中文飘字 —— FONT5 只有英文点阵，
+           '鳞罩' 两个字一直画不出来，等于什么都没提示。 */
+        g.shake(2);
+        g.floaters.push(new Floater(this.x, this.y - 48, 'GUARD', PAL.goldL));
         this.startSweep(g, p);
-        SFX.roar();
+        SFX.shieldUp();
       }
     }
 

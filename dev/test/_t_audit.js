@@ -461,8 +461,41 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
         : r.total + ' 项道具，' + r.shared + ' 组共用形状、配色互不相同');
   }
 
-  /* ---------------- ⑬ 全局错误 ---------------- */
-  sec('⑬  全局错误检查');
+  /* ---------------- ⑬ 小地图不再遮住右上角 ---------------- */
+  sec('⑬  小地图：缩小 + 半透明，不再盖住走到右上角的妖物');
+  const t13 = await page.evaluate(() => {
+    const G = window.Game;
+    G.newRun('feijian'); G.state = 'play';
+    const size = G.floor.size;
+    // 房间可行区（含一点半径余量）
+    const walk = { x0: WALL_L + 8, x1: WALL_R - 8, y0: WALL_T + 8, y1: WALL_B - 8 };
+    // 按参数算出小地图覆盖的世界区（画布 y 要减掉顶部 32px 的 HUD）
+    const coverArea = (cell, gap) => {
+      const w = size * (cell + gap) - gap + 4, h = size * (cell + gap) - gap + 8;
+      const ox = 480 - w - 5, oy = 36;
+      const x0 = ox - 2, x1 = ox + w + 2, y0 = oy - 2 - 32, y1 = oy + h - 32;
+      const ow = Math.max(0, Math.min(x1, walk.x1) - Math.max(x0, walk.x0));
+      const oh = Math.max(0, Math.min(y1, walk.y1) - Math.max(y0, walk.y0));
+      return ow * oh;
+    };
+    const now = coverArea(7, 1);          // 现值
+    const before = coverArea(9, 2);       // 改造前（2026-09-23 之前）
+    const walkArea = (walk.x1 - walk.x0) * (walk.y1 - walk.y0);
+    // 高亮计时：换房那一刻是满的，跑过之后要归零（否则等于一直不透明）
+    const t0 = G.minimapT;
+    for (let i = 0; i < 160; i++) G.update();
+    return { size, now, before, ratio: now / walkArea, t0, tAfter: G.minimapT };
+  });
+  ok('压住的可玩区比改造前小得多',
+    t13.now < t13.before * 0.55,
+    `${Math.round(t13.before)} → ${Math.round(t13.now)} px²（旧版的 ${(t13.now / t13.before * 100).toFixed(0)}%）`);
+  ok('残留遮挡不到可行区的 3%', t13.ratio < 0.03,
+    `${(t13.ratio * 100).toFixed(1)}%（层网格 ${t13.size}×${t13.size}）`);
+  ok('换房时短暂提亮、随后淡出',
+    t13.t0 === 150 && t13.tAfter === 0, `${t13.t0} → ${t13.tAfter} 帧`);
+
+  /* ---------------- ⑭ 全局错误 ---------------- */
+  sec('⑭  全局错误检查');
   ok('全程无 pageerror / console.error', errs.length === 0, errs.slice(0, 3).join(' | '));
 
   console.log('\n========================================');
