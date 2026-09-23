@@ -363,6 +363,110 @@ const CHALLENGE_DIFF = [
 const CHALL_UPGRADES = 3;      // 三档都给足 3 次手选（「三级都由玩家手选」）
 const CHALL_RESULT_T = 110;    // 胜负判定后停留的帧数，让爆炸演完再回菜单
 
+/* ---------------- 无尽试炼（无限模式） ----------------
+ *  目的：通关之后仍有「拿这套 build 到底能撑多久」的终局玩法。
+ *  玩法一句话：把通关 build 带进场，一批批刷越来越强的妖物，
+ *  直到被打死 —— 看杀了多少只、活了多久、撑到第几波。
+ *
+ *  三条设计硬约束（详见 docs/ROADMAP.md 「第一期」）：
+ *
+ *  1. 难度必须**另起一条无上限曲线**。普通楼层的 difficultyOf 被 DIFF_MAX = 3.0
+ *     封了顶，拿到这里几十波之后就完全不动了 —— 那是地板，不是曲线。
+ *  2. 递增要**三维度错开节奏**。只叠 hpScale 的后果是「血包墙」：
+ *     妖物越来越肉、玩家却还是那些伤害，最后变成无聊的耗时间。
+ *     所以数量每波涨、种类每 3~5 波换一档、词缀每 5 波加一条。
+ *  3. 不写档（saveGame 有守卫）—— 无尽是一场考试的分数，不是可以续的进度。
+ */
+const ENDLESS = {
+  /* 波次节奏（帧）。间隔只在**场面清空后**才开始计时（见 endlessTick），
+     所以这里给的是「清完这一波到下一波涌上来」的喘息时间。 */
+  waveGap0: 150,          // 第 1 波的等待（2.5 秒）
+  waveGapMin: 84,         // 最短间隔（1.4 秒）
+  waveGapDecay: 3,        // 每波减 3 帧，减到 waveGapMin 为止
+  clearCooldown: 30,      // 清场后的固定地板：秒清也不能秒刷（0.5 秒）
+
+  /* 数量：第 n 波刷多少只。开根号增长 —— 线性涨会在十几波后淹掉屏幕。 */
+  countBase: 3,
+  countGrow: 1.15,        // 3 + floor(1.15 * sqrt(wave))
+  countMax: 16,           // 同屏上限，超过就是纯卡顿，不代表更难
+
+  /* 血量：1.075^n。第 20 波 ≈ ×4.3、第 40 波 ≈ ×18.2、
+     第 60 波 ≈ ×77。配合玩家的 build 成长正好是「越走越窄」的收口。
+     上限 300 —— 再高就只是把「打不过」拖成「打不动」，那不是难度是折磨。 */
+  hpBase: 1.0,
+  hpGrow: 1.075,
+  hpMax: 300,
+
+  /* 种类：每 segWaves 波把「可出妖物」扩一档。
+     池子按 5 档解锁 —— 与 enemyPool 的分档一致，只是把条件换成波数。 */
+  segWaves: 4,
+
+  /* 词缀：每 modWaves 波给「本波妖物」加一条词缀。
+     词缀是纯逻辑（改速度 / 改接触伤害 / 死亡留毒…），零新美术 ——
+     这正是 ROADMAP 里「把风格地图 130 个新绘制压到 30~40」的同一条技巧。 */
+  modWaves: 5,
+  modMax: 3,              // 单波最多叠 3 条，再多会变成看不懂的一锅粥
+
+  /* 开场配装：通关 build 之外的兜底。挑战模式同款参数化先例（TAIXU.caps）。
+     玩家是从「通关 build」进来的话会被覆盖成他那一套，这里只管空手进场。 */
+  baseItems: 6,
+  baseSkills: 3,
+  baseUltLv: 3,
+
+  /* 奖励：无尽不产出法宝（它已经是终局），只按波次回血 ——
+     否则被打一下就再也回不来，长局会很难看。 */
+  healPerWave: 1,
+  healWaveEvery: 3,       // 每 3 波回 1 点
+
+  /* 结算演出停留的帧数（与挑战模式对齐，让爆炸演完再看分数） */
+  resultT: 120
+};
+
+/* 无尽词缀表。
+ * 施加对象是「一波」而不是单只妖物 —— 所以在刷怪时把 mods 传进 Enemy。
+ * 每条只改自己那一件事，别互相叠加出乘性爆炸（速度 + 接触 + 死亡毒三条同时来
+ * 已经够难受了，而这三条各占一个维度、互不放大）。
+ *
+ * id     存档 / 日志用的键
+ * name   HUD 飘字用的短名（FONT5 只有英文点阵，所以用大写英文）
+ * desc   面板里给玩家看的中文说明
+ * apply(e) 在 Enemy 造出来之后调一次
+ */
+const ENDLESS_MODS = [
+  {
+    id: 'swift', name: 'SWIFT', desc: '疾行：移动速度 ×1.35',
+    apply(e) { e.speed *= 1.35; }
+  },
+  {
+    id: 'brutal', name: 'BRUTAL', desc: '蛮触：接触伤害 ×1.5',
+    apply(e) { e.touchMul = (e.touchMul || 1) * 1.5; }
+  },
+  {
+    id: 'venom', name: 'VENOM', desc: '遗毒：死亡后原地留下一片毒雾',
+    apply(e) { e.deathHazard = 'poison'; }
+  },
+  {
+    id: 'tough', name: 'TOUGH', desc: '坚皮：气血 ×1.6',
+    apply(e) { e.hpMul = (e.hpMul || 1) * 1.6; e.hp = e.maxHp = Math.round(e.maxHp * 1.6); }
+  },
+  {
+    id: 'swarm', name: 'SWARM', desc: '成群：这一波额外多刷 50%',
+    apply(e) { e.swarmTag = true; }        // 由刷怪方读它决定补量，故只打标记
+  },
+  {
+    id: 'regen', name: 'REGEN', desc: '回春：每 90 帧回复 2% 气血',
+    apply(e) { e.modRegen = true; }
+  },
+  {
+    id: 'frostbite', name: 'FROST', desc: '霜附：命中时短暂迟滞身法',
+    apply(e) { e.touchSlow = true; }
+  },
+  {
+    id: 'volatile', name: 'BURST', desc: '爆散：死亡时炸出一圈弹幕',
+    apply(e) { e.deathBurst = 8; }
+  }
+];
+
 /* ---------------- 设置面板的行定义 ----------------
    kind 决定交互方式：range 用 ←→ 调（鼠标点进度条也行）、
    toggle 用 Enter 翻、button 用 Enter 触发。
@@ -406,6 +510,9 @@ const CHALL_STYLE_NOTE = {
  */
 const SAVE_KEY = 'xiuxian-isaac.save.v1';
 const SAVE_VER = 1;
+/* 无尽试炼的最好成绩。与主存档分开：它是一行分数，不是进度，
+   所以 clearSave()（销档）不该顺手把它抹掉 —— 玩家会想看到自己的纪录还在。 */
+const ENDLESS_BEST_KEY = 'xiuxian-isaac.endless.v1';
 /* 房间进度里需要落盘的字段（其余都能由种子重建） */
 const ROOM_SAVE_KEYS = ['cleared', 'visited', 'seen', 'secretFound', 'unlocked',
                         'waveIdx', 'coinPool', 'keyDrop', 'bombDrop', 'elite'];
@@ -452,13 +559,21 @@ class GameCore {
     this.chall = null;
     this.challMenu = null;
     this.challResult = null;
+    /* 无尽试炼（配置见 ENDLESS）：与挑战模式的形状一致，
+       但它是「会死、会结算分数」的正经玩法，而不是调试场。
+       endless  非 null = 正在无尽中（含波次 / 击杀 / 存活帧 / 词缀 / 结算倒计时）
+       endlessResult  上一局的成绩，回标题后挂一行摘要 */
+    this.endless = null;
+    this.endlessResult = null;
   }
 
   /* ---------------- 生命周期 ---------------- */
   newRun(style) {
     this.style = style || this.style || 'feijian';
-    /* 开新局即脱离挑战模式 —— 否则 saveGame 会被挑战守卫一直挡着（那次开局存档写不进去） */
+    /* 开新局即脱离挑战模式 / 无尽 —— 否则 saveGame 会被那两个守卫一直挡着
+       （挑战模式那次就是这么丢掉开局存档的）。 */
     this.chall = null;
+    this.endless = null;
     this.depth = 1;
     this.coins = 0; this.keys = 0; this.bombs = 0; this.kills = 0;
     this.time = 0;
@@ -531,9 +646,10 @@ class GameCore {
 
   /* ---------------- 存档 / 读档 ---------------- */
   saveGame() {
-    /* 挑战模式一概不落盘 —— 它是调试场，写进去会把真实进度覆盖掉。
-       同时这也是「存档点定在进房那一刻」的那次自动存档被跳过的原因。 */
-    if (this.chall) return false;
+    /* 挑战 / 无尽一概不落盘 —— 挑战是调试场、无尽是考试成绩，
+       写进去会把真实进度覆盖掉。同时这也是「存档点定在进房那一刻」
+       的那次自动存档被跳过的原因。 */
+    if (this.chall || this.endless) return false;
     if (!this.player || this.state !== 'play' || !this.floor) return false;
     try {
       const p = this.player;
@@ -782,6 +898,9 @@ class GameCore {
   clearRoom() {
     const r = this.room;
     if (r.cleared) return;
+    /* 无尽试炼：没有「过关」这回事 —— 波与波之间场面清空是常态，
+       不该弹 CLEAR、也不该补发灵石 / 钥匙 / 雷符。 */
+    if (this.endless) return;
     r.cleared = true;
     for (let d = 0; d < 4; d++) if (r.doors[d] && !r.doorHidden[d]) r.doorOpen[d] = true;
     SFX.door();
@@ -826,6 +945,14 @@ class GameCore {
     this.floaters.push(new Floater(ROOM_W / 2, ROOM_H / 2 - 56, '法器二选一 · 按 E', PAL.goldL));
   }
   onPlayerDead() {
+    /* 无尽试炼：打不过就到此为止 —— 停下来把成绩亮出来，
+       而不是切到「重入轮回」（那会让玩家以为进度丢了）。 */
+    if (this.endless) {
+      this.burst(this.player.x, this.player.y, 50, PAL.red);
+      SFX.bossDie();
+      this.exitEndless();
+      return;
+    }
     /* 挑战模式：不销档、也不切死亡界面（那是「重入轮回」的流程，会误导），
        原地留一段演出后回选择菜单。玩家已 dead，Player.update 会自停。 */
     if (this.chall) {
@@ -842,6 +969,9 @@ class GameCore {
     updateOverlay();
   }
   nextFloor() {
+    /* 无尽试炼没有层，这个入口根本不该到达 —— 但它会推进 depth 并可能触发 win，
+       所以显式拦住，免得将来某个改动意外走到这里。 */
+    if (this.endless) return;
     this.depth++;
     if (this.depth > 5) { this.state = 'win'; this.msg = '历经五重劫难，道心通明 —— 飞升成仙！'; this.clearSave(); updateOverlay(); return; }
     this.player.hp = Math.min(this.player.maxHP, this.player.hp + 2);
@@ -989,7 +1119,253 @@ class GameCore {
     SFX.tone(392, 0.06, 'square', 0.09);
   }
 
-  /* ---------------- 工具 ---------------- */
+  /* ---------------- 无尽试炼（无限模式） ----------------
+     与挑战模式共用同一套「独立模式」骨架：不做新的 state，
+     而是复用 'play' + 一个非 null 的标志位，于是房间绘制、HUD、
+     输入全部照旧 —— 这是让改动量可控的关键。
+
+     一条重要差别：无尽**会主动致死并结算**，所以 onPlayerDead 里
+     要给它一条独立的收场分支（不像挑战那样原地演完就回菜单）。
+  */
+
+  /* 进场。build 可为空（从标题直接进，用兜底配装）。 */
+  startEndless(style, build) {
+    const E = ENDLESS;
+    this.style = style || this.style || PLAYABLE_STYLES[0];
+    this.depth = 1;                     // 无尽没有层数，给 1 只为让别处的读表不炸
+    this.coins = 0; this.keys = 0; this.bombs = 0; this.kills = 0; this.time = 0;
+    this.player = new Player(ROOM_W / 2, ROOM_H / 2 + 20);
+    this.itemPopup = null;
+    this.pick = null; this.ultWarn = null; this.ultSword = null; this.ultUpgradeT = 0;
+    this.paused = false; this.restartHold = 0;
+    this.state = 'play';
+
+    /* 先清场再配装 —— 与挑战模式同因：give() 会往 floaters 里塞飘字，
+       而这些数组只在 newFloor / enterRoom 里初始化，从标题直接进来会是 undefined。 */
+    this.bullets = []; this.enemies = []; this.pickups = []; this.hazards = [];
+    this.particles = []; this.floaters = []; this.zaps = []; this.props = [];
+    this.beams = []; this.slashes = []; this.dnums = []; this.timers = [];
+    this.placedBombs = [];
+
+    this.endless = {
+      wave: 0,            // 已刷出的波数（0 = 还没开第一波）
+      kills: 0,           // 本局击杀数 —— 核心分数
+      frames: 0,          // 存活帧数（结算时换算成秒）
+      clearFrames: 0,     // 「场面清空」的连续帧数：清空后提前开下一波，节奏更紧凑
+      mods: [],           // 本波生效的词缀 id 列表
+      best: { wave: 0, kills: 0, secs: 0 },   // 历史最好成绩（localStorage）
+      endT: 0,
+      bestPending: false  // 结束后是否破了纪录（结算界面用）
+    };
+    this.endless.best = this.loadEndlessBest();
+
+    if (build) this.applyEndlessBuild(build);
+    else this.giveEndlessLoadout();
+
+    /* 竞技场：复用一间普通石室。用 seed 造一层再挑 start 房，
+       比手搓 Room 稳 —— 地板贴图、墙体、门框、障碍全是现成的。
+       门全部钉死，于是这就是一个封闭擂台。 */
+    this.newFloor(1);
+    const arena = this.floorStart();
+    arena.type = RT.NORMAL;             // 别显示成「静心阁」
+    arena.props = [];                   // 竞技场不放宝箱 / 灯笼，保持场地干净
+    for (let d = 0; d < 4; d++) { arena.doors[d] = false; arena.doorOpen[d] = false; arena.doorHidden[d] = false; }
+    for (const n of arena.neighbors) if (n) { const r = this.floor.rooms.get(n); if (r) r.seen = false; }
+    arena.neighbors = [null, null, null, null];
+    arena.cleared = false;
+    this.enterRoom(arena, null);
+    /* enterRoom 会照常刷一波房内妖物（Floor 按 dist 排的），
+       但它们不是无尽排的波 —— 清掉，让第 1 波从干净的场面开始。 */
+    this.enemies.length = 0;
+    this.bossRef = null;
+
+    /* 第一波立刻开：把 t 顶到 1，于是 endlessTick 首帧（场面空）就 --t → 0 并刷怪。
+       之后的间隔由 endlessTick 在每次清场时重算。 */
+    this.endless.t = 1;
+    renderPickPanel();
+    updateOverlay();
+    SFX.levelup();
+  }
+
+  /* 通关 build → 无尽。存的是「拿到过什么」而不是算完的属性，
+     于是重新 give 一遍就自动走完整的进阶 / 分流派文案逻辑。 */
+  applyEndlessBuild(b) {
+    const p = this.player;
+    for (const id of (b.items || [])) p.give(id, this);
+    for (const s of (b.slots || [])) if (s) p.addSkill(s.id);
+    // 专属技：先把路线等级还原，再按 style 补出专属技本身
+    p.giveUlt(this.style);
+    if (p.ult && b.ultPaths) for (const k in b.ultPaths) p.ult.paths[k] = b.ultPaths[k];
+    if (typeof b.hp === 'number' && b.hp > 0) p.hp = Math.min(p.maxHP, b.hp);
+    this.itemPopup = null;              // give 会叠一摞拾取卡片，清掉
+    this.floaters.push(new Floater(ROOM_W / 2, 96, 'BUILD LOADED', PAL.cyan));
+  }
+
+  /* 空手进场的兜底配装（从标题直接试玩无尽时走这条） */
+  giveEndlessLoadout() {
+    const E = ENDLESS, p = this.player;
+    for (let i = 0; i < E.baseItems; i++) p.give(this.rollFabao(), this);
+    for (let i = 0; i < E.baseSkills; i++) { const id = this.rollSkill(); if (id) p.addSkill(id); }
+    p.giveUlt(this.style);
+    if (p.ult) {
+      const pool = (ULT_PATH[this.style] || []).slice();
+      for (let i = 0; i < E.baseUltLv - 1 && pool.length; i++) {
+        const k = Math.floor(Math.random() * pool.length);
+        p.ult.paths[pool.splice(k, 1)[0].id] = 1;
+      }
+    }
+    this.itemPopup = null;
+  }
+
+  /* —— 排程：每帧调一次。
+     核心规则：**下一波只在场面清空后才排**。
+     若计时器在还有妖物活着时照样倒数，就变成「一边打一边不断刷新」——
+     第 60 秒场上会堆到 260+ 只（实测），那不是难度是幻灯片。
+     所以计时器只在清场后才开始走，而它的作用是「给玩家一口气」：
+       清场 → 立刻给 healPerWave 回血 → 等 gap 帧 → 刷下一波。
+     gap 再取一个「清空后至少等 cooldown 帧」的地板，防止秒清秒刷。 */
+  endlessTick() {
+    const S = this.endless;
+    if (!S || S.endT > 0) return;
+    S.frames++;
+    const alive = this.enemies.some(e => !e.dead);
+    if (alive) { S.clearFrames = 0; return; }        // 还有活口：不排下一波
+
+    S.clearFrames++;
+    /* 刚清空的那一帧：发回血 + 定下这一轮要等的间隔。
+       wave === 0 是特例 —— 进场第一波立刻开，不等喘息。 */
+    if (S.clearFrames === 1) {
+      const p = this.player;
+      if (p && !p.dead && S.wave > 0 && S.wave % ENDLESS.healWaveEvery === 0) p.heal(ENDLESS.healPerWave);
+      if (S.wave === 0) {
+        S.t = 1;                                        // 首波：这一帧就出
+      } else {
+        const gap = Math.max(ENDLESS.waveGapMin, ENDLESS.waveGap0 - S.wave * ENDLESS.waveGapDecay);
+        S.t = gap + ENDLESS.clearCooldown;
+      }
+    }
+    if (--S.t <= 0) this.spawnEndlessWave();
+  }
+  /* —— 曲线：三个 pure function，测试直接量它们就行 —— */
+
+  /* 第 n 波刷多少只（不含词缀带来的额外量） */
+  endlessCount(wave) {
+    return Math.min(ENDLESS.countMax, ENDLESS.countBase + Math.floor(ENDLESS.countGrow * Math.sqrt(Math.max(0, wave))));
+  }
+  /* 第 n 波的妖物血量倍率 */
+  endlessHpScale(wave) {
+    return Math.min(ENDLESS.hpMax, ENDLESS.hpBase * Math.pow(ENDLESS.hpGrow, Math.max(0, wave)));
+  }
+  /* 第 n 波可出的妖物池：按 segWaves 一档档解锁。
+     ⚠ 键名必须与 ENEMY_DEF 完全一致，且**不能混进 ELITE_DEF 的键**
+     （xiesha / youyan / jiying / wandu 是精英，duannian 是剑灵的精英变体）——
+     写错的后果是 new Enemy 直接抛异常把整局打断。ENEMY_DEF 实有 14 种。 */
+  endlessPool(wave) {
+    const seg = Math.floor(Math.max(0, wave - 1) / ENDLESS.segWaves);   // 0,0,0,0,1,1,1,1,2...
+    const pool = ['xiesui', 'chanchu', 'yinsha'];          // 第 1 档：开场三样
+    if (seg >= 1) pool.push('xuefu', 'guixiu', 'shikui', 'bengyao');
+    if (seg >= 2) pool.push('jianling', 'yingmo', 'xuanguang');
+    if (seg >= 3) pool.push('tiehun', 'xuanjia');
+    /* 第 4 档起把前期的小怪挤出去 —— 否则池子越来越大，
+       后期反而全是初始那三种软柿子，压力上不去。 */
+    if (seg >= 4) pool.splice(0, 3);
+    if (seg >= 6) pool.splice(0, 4);
+    return pool;
+  }
+  /* 第 n 波生效的词缀：每 modWaves 波加一条，从表里不重复地抽 */
+  endlessModsFor(wave) {
+    const n = Math.min(ENDLESS.modMax, Math.floor(Math.max(0, wave - 1) / ENDLESS.modWaves));
+    if (n <= 0) return [];
+    const bag = ENDLESS_MODS.map(m => m.id);
+    const out = [];
+    for (let i = 0; i < n && bag.length; i++) {
+      out.push(bag.splice(Math.floor(Math.random() * bag.length), 1)[0]);
+    }
+    return out;
+  }
+
+  /* 刷下一波。返回本波实际刷出的数量（供测试断言）。 */
+  spawnEndlessWave() {
+    const S = this.endless;
+    S.wave++;
+    const wave = S.wave;
+    const mods = this.endlessModsFor(wave);
+    S.mods = mods;
+    const defs = mods.map(id => ENDLESS_MODS.find(m => m.id === id)).filter(Boolean);
+
+    let n = this.endlessCount(wave);
+    if (mods.indexOf('swarm') >= 0) n = Math.round(n * 1.5);
+
+    const hpScale = this.endlessHpScale(wave);
+    const pool = this.endlessPool(wave);
+    for (let i = 0; i < n; i++) {
+      /* 出生点：沿房间内圈均匀铺开再抖动 —— 比纯随机更像「围上来」，
+         而且不会几只叠在同一个点上。 */
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.5;
+      const rad = 92 + Math.random() * 26;
+      const sx = ROOM_W / 2 + Math.cos(a) * rad * 1.35;
+      const sy = ROOM_H / 2 + Math.sin(a) * rad * 0.85;
+      const sp = this.safeSpawn(clamp(sx, WALL_L + 18, WALL_R - 18), clamp(sy, WALL_T + 18, WALL_B - 18), 12);
+      /* 池子理论上不会空，但一旦某个 splice 把池子清光，new Enemy(undefined)
+         会直接抛异常把整局打断 —— 退到阴煞兜底，别让一个数值笔误毁掉玩法。 */
+      const type = pool[Math.floor(Math.random() * pool.length)] || 'yinsha';
+      const e = new Enemy(type, sp.x, sp.y, hpScale);
+      e.endlessMods = mods.slice();
+      for (const d of defs) { try { d.apply(e); } catch (err) { console.error('[mod]', d.id, err); } }
+      this.enemies.push(e);
+    }
+    /* 飘字报波次 —— 纯英文点阵，中文会静默不画（FONT5 只有英文） */
+    this.floaters.push(new Floater(ROOM_W / 2, 108, 'WAVE ' + wave, PAL.gold));
+    if (defs.length) {
+      this.floaters.push(new Floater(ROOM_W / 2, 124, defs.map(d => d.name).join(' + '), PAL.purpleL));
+    }
+    S.clearFrames = 0;
+    SFX.door();
+    return n;
+  }
+
+  /* 无尽：挨打就掉血，掉光就收场 —— 但不走「重入轮回」那套销档流程，
+     而是停下来把成绩亮给玩家看。 */
+  exitEndless() {
+    const S = this.endless;
+    if (!S) return;
+    S.secs = Math.floor(S.frames / 60);
+    /* 先判定是否破纪录，再把最好成绩换成「含本局」的那一份 ——
+       否则结算界面会显示上一局的旧纪录，而这局明明刚破了它
+       （首局会显示成「历史最好 击杀 0」，看起来像 bug）。 */
+    S.bestPending = this.saveEndlessBest(S.wave, S.kills, S.secs);
+    S.best = this.loadEndlessBest();
+    S.endT = 0;                       // 已收场，别再重复触发
+    this.state = 'endlessEnd';
+    /* 不销档、也不写档 —— 与挑战模式同一条纪律：无尽是拿「已通关的档」
+       去考试，考砸了不该把那份档一起烧掉。所以这里既不能 saveGame，
+       也不能 clearSave（曾误删过玩家的真实进度）。 */
+    updateOverlay();
+  }
+  /* 成绩留一行在标题上（不回标题也能看到上次打到哪） */
+  loadEndlessBest() {
+    try {
+      const d = JSON.parse(localStorage.getItem(ENDLESS_BEST_KEY) || 'null');
+      if (!d) return { wave: 0, kills: 0, secs: 0 };
+      return { wave: d.wave | 0, kills: d.kills | 0, secs: d.secs | 0 };
+    } catch (e) { return { wave: 0, kills: 0, secs: 0 }; }
+  }
+  /* 破纪录才写回，返回是否破了 */
+  saveEndlessBest(wave, kills, secs) {
+    const b = this.loadEndlessBest();
+    const beat = kills > b.kills || (kills === b.kills && secs > b.secs);
+    if (!beat) return false;
+    try {
+      localStorage.setItem(ENDLESS_BEST_KEY, JSON.stringify({ wave: wave, kills: kills, secs: secs }));
+    } catch (e) { }
+    return true;
+  }
+  /* 回标题（结算界面按任意键走这里） */
+  leaveEndless() {
+    this.endless = null;
+    this.state = 'title';
+    updateOverlay();
+  }
   addCoins(n) { this.coins += n; }
   burst(x, y, n, col) {
     for (let i = 0; i < n; i++) {
@@ -1551,6 +1927,8 @@ class GameCore {
         }
       }
     }
+    /* 无尽试炼：累计存活帧数 + 排程下一波（节奏交给 endlessTick，见下） */
+    if (this.endless) this.endlessTick();
     this.computeAim();
 
     // 延时效果（精英死亡余祸等）：只在同一房间内生效，换房即作废
@@ -1747,7 +2125,8 @@ class GameCore {
     const g = this.g;
     g.clearRect(0, 0, 480, 320);
     g.fillStyle = '#0a0812'; g.fillRect(0, 0, 480, 320);
-    if (this.state === 'title' || this.state === 'choose' || this.state === 'chall') { this.drawTitle(g); return; }
+    if (this.state === 'title' || this.state === 'choose' || this.state === 'chall'
+      || this.state === 'endlessEnd') { this.drawTitle(g); return; }
 
     const sx = (Math.random() - 0.5) * this.shakeAmt, sy = (Math.random() - 0.5) * this.shakeAmt;
     g.save();
@@ -1881,8 +2260,13 @@ class GameCore {
       g.fillStyle = PAL.gold; g.fillRect(x, y, w * k, 6);
       drawPixelText(g, 'RESTART', 240 - 7 * 6, y - 14, 1, PAL.goldL);
     }
-    this.drawMinimap(g);
+    /* 无尽试炼：没有其它房间，小地图只会糊住右上角视线，直接不画。
+       （挑战模式留着它无害，那边至少还生成了整层。） */
+    if (!this.endless) this.drawMinimap(g);
     if (this.bossRef && !this.bossRef.dead) this.drawBossBar(g);
+    /* 无尽试炼：成绩板 —— 波次 / 击杀 / 存活，挂在左上血条区下方。
+       放这里是因为左下被法宝图标行占着（画在那儿会糊成一团）。 */
+    if (this.endless) this.drawEndlessHUD(g);
     if (this.state === 'dead') this.drawDead(g);
     if (this.state === 'win') this.drawWin(g);
     if (this.paused) this.drawPaused(g);
@@ -2118,7 +2502,37 @@ class GameCore {
     }
   }
 
-  /* 鼠标悬停道具 → HTML 说明浮层（画布像素字体画不了中文） */
+  /* 无尽试炼的成绩板。
+     位置：左上，紧贴灵力条下方。
+     不选左下 —— 那里是法宝图标行（bx 每 19px 一列、最多两行、从 y=298 往上长），
+     垫在一起会互相糊住。左上往下延伸的这片区域是空的。 */
+  drawEndlessHUD(g) {
+    const S = this.endless;
+    if (!S) return;
+    const bx = 8, by = 36, w = 104, h = 40;
+    g.fillStyle = 'rgba(10,8,20,0.68)'; g.fillRect(bx, by, w, h);
+    g.strokeStyle = PAL.gold; g.globalAlpha = 0.5; g.lineWidth = 1;
+    g.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1); g.globalAlpha = 1;
+
+    const sec = Math.floor(S.frames / 60);
+    const mm = String(Math.floor(sec / 60)).padStart(2, '0');
+    const ss = String(sec % 60).padStart(2, '0');
+    /* 三行压到 10 字符内 —— FONT5 是 6px 等宽点阵，x 间距按 6px 算才不重叠 */
+    drawPixelText(g, 'WAVE ' + S.wave, bx + 6, by + 4, 1, PAL.gold);
+    drawPixelText(g, 'KILL ' + S.kills, bx + 6, by + 15, 1, PAL.redL);
+    drawPixelText(g, mm + ':' + ss, bx + 6, by + 26, 1, PAL.jadeL);
+
+    /* 本波词缀：贴在面板右侧，让玩家立刻知道「这批怪有什么毛病」 */
+    if (S.mods && S.mods.length) {
+      for (let i = 0; i < S.mods.length; i++) {
+        const m = ENDLESS_MODS.find(x => x.id === S.mods[i]);
+        if (!m) continue;
+        g.fillStyle = PAL.purpleD; g.globalAlpha = 0.88;
+        g.fillRect(bx + w + 4, by + i * 12 + 2, 48, 11); g.globalAlpha = 1;
+        drawPixelText(g, m.name, bx + w + 7, by + i * 12 + 4, 1, PAL.purpleL);
+      }
+    }
+  }
   updateItemTip() {
     const el = document.getElementById('tip');
     if (!el) return;
@@ -2685,10 +3099,18 @@ function bindInput(canvas, game) {
       return;
     }
     if (game.state === 'play' && (k === 'p' || k === 'escape')) { game.togglePause(); return; }
+    if (game.state === 'endlessEnd') {
+      /* 结算界面：任意键（除 C/O）回标题。C 在这里不该「续前缘」——
+         无尽刚把手上的进度考完，续的是另一局，会让人莫名其妙。 */
+      if (k === 'o') { SFX.ensure(); game.openSettings(); return; }
+      game.leaveEndless();
+      return;
+    }
     if (game.state === 'title') {
-      // 有存档时按 C 直接续档；B 进 Boss 挑战模式；其余任意键仍是开新局（进流派选择）
+      // 有存档时按 C 直接续档；B 进 Boss 挑战；K 进无尽试炼；其余任意键仍是开新局
       if (k === 'c' && game.hasSave()) { game.continueGame(); return; }
       if (k === 'b') { SFX.ensure(); game.openChallMenu(); return; }
+      if (k === 'k') { SFX.ensure(); game.startEndless(game.style); return; }
       game.styleIdx = 0;
       game.state = 'choose';
       SFX.ensure();
@@ -2959,6 +3381,35 @@ function renderSettings() {
   });
 }
 
+/* 无尽试炼的结算面板：击杀 / 存活 / 最高波次 三个大数字 + 历史最好成绩。
+   无尽是「看分数」的玩法，所以这一屏就是它的全部产出，值得单独渲染。 */
+function renderEndlessResult() {
+  const el = document.getElementById('endless');
+  if (!el) return;
+  const S = Game && Game.endless;
+  if (!S || Game.state !== 'endlessEnd') { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+
+  const mm = String(Math.floor(S.secs / 60)).padStart(2, '0');
+  const ss = String(S.secs % 60).padStart(2, '0');
+  let h = '<div class="pickTitle">无 尽 试 炼</div>'
+    + '<div class="bigScore">'
+    + '<div class="cell"><div class="num">' + S.kills + '</div><div class="lab">击 杀</div></div>'
+    + '<div class="cell"><div class="num">' + mm + ':' + ss + '</div><div class="lab">存 活</div></div>'
+    + '<div class="cell"><div class="num">' + S.wave + '</div><div class="lab">波 次</div></div>'
+    + '</div>';
+  if (S.bestPending) {
+    h += '<div class="bestNew">◆ 新 纪 录 ◆</div>';
+  }
+  const b = S.best || { wave: 0, kills: 0, secs: 0 };
+  const bmm = String(Math.floor(b.secs / 60)).padStart(2, '0');
+  const bss = String(b.secs % 60).padStart(2, '0');
+  h += '<div class="bestRow">历史最好　击杀 <b>' + b.kills + '</b>　存活 <b>' + bmm + ':' + bss
+    + '</b>　第 <b>' + b.wave + '</b> 波</div>'
+    + '<div class="pickTip">按任意键回标题　<span class="kbd">K</span> 再来一局</div>';
+  if (el._html !== h) { el.innerHTML = h; el._html = h; }
+}
+
 function updateOverlay() {
   if (!Game) return;
   renderSettings();     // 独立于 state（可能盖在三选一或暂停之上），先渲染
@@ -2968,7 +3419,20 @@ function updateOverlay() {
   const title = document.getElementById('title');
   const choose = document.getElementById('choose');
   const chall = document.getElementById('chall');
+  const endless = document.getElementById('endless');
   const st = document.getElementById('stats');
+  /* 无尽结算：底下垫的是标题背景，所以要把标题也藏掉，
+     否则「九劫录」三个大字会和分数叠在一起。 */
+  if (Game.state === 'endlessEnd') {
+    title.style.display = 'none';
+    if (choose) choose.style.display = 'none';
+    if (chall) chall.style.display = 'none';
+    renderEndlessResult();
+    floorName.textContent = ''; hint.textContent = ''; card.style.display = 'none';
+    st.textContent = '';
+    return;
+  }
+  if (endless) endless.style.display = 'none';
   /* 挑战菜单：不画 HUD、也不显示楼层名 —— 底下垫的是标题画面的背景 */
   if (Game.state === 'chall') {
     title.style.display = 'none';
@@ -3013,11 +3477,18 @@ function updateOverlay() {
   }
   title.style.display = 'none';
   if (choose) choose.style.display = 'none';
-  const depthCN = ['一', '二', '三', '四', '五', '六', '七'][Game.depth - 1] || Game.depth;
-  const elKey = Game.room && Game.room.elite;
-  floorName.textContent = '第' + depthCN + '层 · ' + (ROOM_LABEL[Game.room.type] || '石室')
-    + (elKey ? ' · 精英' : '');
-  floorName.style.color = elKey ? '#ff9d8a' : '';
+  /* 无尽试炼：没有楼层这回事，顶栏改报波次 —— 否则会显示「第一层 · 石室」，
+     而玩家明明是在一个封闭擂台里。 */
+  if (Game.endless) {
+    floorName.textContent = '无尽试炼 · 第 ' + Game.endless.wave + ' 波';
+    floorName.style.color = '#c9a6ff';
+  } else {
+    const depthCN = ['一', '二', '三', '四', '五', '六', '七'][Game.depth - 1] || Game.depth;
+    const elKey = Game.room && Game.room.elite;
+    floorName.textContent = '第' + depthCN + '层 · ' + (ROOM_LABEL[Game.room.type] || '石室')
+      + (elKey ? ' · 精英' : '');
+    floorName.style.color = elKey ? '#ff9d8a' : '';
+  }
 
   let h = '';
   if (Game.shopHint) h = Game.coins >= Game.shopHint.price

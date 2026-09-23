@@ -556,6 +556,67 @@ def tab_challenge():
     return rows, [12, 20, 10, 12, 12, 13, 15, 56]
 
 
+# ---------------------------------------------------------------- 无尽试炼
+def tab_endless():
+    """无尽试炼（无限模式）：三条曲线的参数、实测形状、8 条词缀。
+
+    这张表既是玩法说明、也是调参入口 —— 每一格都在
+    src/game.js 的 ENDLESS / ENDLESS_MODS 里改，改完重跑导出即可。"""
+    E = D.get("endless") or {}
+    P = E.get("params") or {}
+
+    rows = [["参数", "值", "单位", "说明"]]
+    def p(k, unit, note):
+        return [k, str(P.get(k, "")), unit, note]
+
+    rows.append(p("waveGap0", "帧", "清场后到下一波的基础等待（150 帧 = 2.5 秒）"))
+    rows.append(p("waveGapMin", "帧", "最短等待（1.4 秒）"))
+    rows.append(p("waveGapDecay", "帧/波", "每波减多少，减到 waveGapMin 为止"))
+    rows.append(p("clearCooldown", "帧", "清场后的固定地板 —— 防止「秒清秒刷」"))
+    rows.append(p("countBase", "只", "数量曲线的基数"))
+    rows.append(p("countGrow", "系数", "数量 = base + ⌊grow × √波次⌋"))
+    rows.append(p("countMax", "只", "同屏上限，再多只是卡顿不代表更难"))
+    rows.append(p("hpBase", "倍", "血量曲线基数"))
+    rows.append(p("hpGrow", "倍/波", "血量 = base × grow^波次（1.075^n）"))
+    rows.append(p("hpMax", "倍", "血量上限（×300 之后只是把「打不过」拖成「打不动」）"))
+    rows.append(p("segWaves", "波", "每几波把妖物池换一档"))
+    rows.append(p("modWaves", "波", "每几波给本波加一条词缀"))
+    rows.append(p("modMax", "条", "单波词缀上限，再多会变成看不懂的一锅粥"))
+    rows.append(p("baseItems", "件", "空手进场的兜底法宝数"))
+    rows.append(p("baseSkills", "个", "空手进场的兜底功法数"))
+    rows.append(p("baseUltLv", "级", "空手进场的兜底专属技等级"))
+    rows.append(p("healPerWave", "点半心", "每 healWaveEvery 波回多少血"))
+    rows.append(p("healWaveEvery", "波", "每几波回一次血"))
+    rows.append(p("resultT", "帧", "结算演出停留帧数"))
+
+    rows.append([])
+    rows.append(["实测曲线", "数量", "血量倍率", "种类池", "词缀数"])
+    for c in (E.get("curve") or []):
+        rows.append(["第 %d 波" % c["wave"], "%d 只" % c["count"],
+                     "×%.2f" % c["hp"], "%d 种" % c["pool"], "%d 条" % c["mods"]])
+
+    rows.append([])
+    rows.append(["词缀", "英文标识", "效果"])
+    for m in (E.get("mods") or []):
+        rows.append([m["desc"], m["name"], m["effect"]])
+
+    rows.append([])
+    rows.append(["说明", "三条曲线各走各的节奏：数量与血量每波都在涨，"
+                        "种类每 %d 波换一档，词缀每 %d 波加一条 —— 只叠血量会变成「血包墙」"
+                        % (P.get("segWaves", 4), P.get("modWaves", 5))])
+    rows.append(["说明", "血量必须另起一条曲线：普通楼层的 difficultyOf() 有 DIFF_MAX = 3.0 封顶，"
+                        "拿到无尽里几十波之后完全不动了 —— 那是地板，不是曲线"])
+    rows.append(["说明", "下一波只在场面清空后才排 —— 若计时器一边打一边倒数，"
+                        "第 60 秒场上会堆到 260+ 只，那不是难度是幻灯片"])
+    rows.append(["说明", "词缀是纯逻辑（改速度 / 接触伤害 / 死亡遗毒…），零新美术；"
+                        "施加对象是「一波」而不是单只，效果落在 Enemy.update 与 Enemy.die 两处出口"])
+    rows.append(["说明", "与真实进度完全隔离：无尽中不写存档、被打死也不销档，"
+                        "而是进结算屏；只有破纪录的那一局写进 xiuxian-isaac.endless.v1（与主存档分开的键）"])
+    rows.append(["说明", "标题界面按 K 进入；也可带通关 build 进场（startEndless(style, build)）。"
+                        "无尽是拿「已通关的档」去考试，考砸了不该把那份档一起烧掉"])
+    return rows, [26, 12, 12, 20, 12, 60]
+
+
 # ---------------------------------------------------------------- 房间
 def tab_room():
     f1 = D["floors"][0]; f3 = D["floors"][2]; f5 = D["floors"][4]
@@ -815,6 +876,25 @@ def tab_player():
 def tab_log():
     head = ["日期", "版本/改动", "涉及", "同步内容", "操作人"]
     rows = [head,
+            ["2026-09-23", "新增「无尽试炼」（无限模式）—— 通关之后的终局玩法",
+             "把通关 build 带进场，在一间封闭擂台里无限刷怪，直到被打死；"
+             "结算看杀了多少只、活了多久、撑到第几波。标题界面按 K 进入。"
+             "① 四条曲线各走各的节奏（只叠血量会变成「血包墙」）：数量 3+⌊1.15√波⌋ 封顶 16、"
+             "血量 1.075^波 封顶 ×300、种类每 4 波换一档、词缀每 5 波加一条（最多 3 条）。"
+             "血量必须另起曲线 —— 普通楼层的 difficultyOf() 有 DIFF_MAX=3.0 封顶，"
+             "拿到无尽里几十波之后完全不动。② 新增 8 条词缀（疾行/蛮触/遗毒/坚皮/成群/回春/"
+             "霜附/爆散），纯逻辑零新美术，效果落在 Enemy.update 与 Enemy.die 两处出口。"
+             "③ 下一波只在场面清空后才排：原先计时器一边打一边倒数，第 60 秒场上会堆到 "
+             "260+ 只 —— 那不是难度是幻灯片；另加 30 帧地板防「秒清秒刷」。"
+             "④ 与真实进度完全隔离：不写档、被打死也不销档（进 endlessEnd 结算屏），"
+             "只有破纪录的那一局写进 xiuxian-isaac.endless.v1（与主存档分开的键）。"
+             "⚠ 落地时发现原计划的一个隐患：收场时顺手写的 clearSave() 会删掉玩家的真实进度 ——"
+             "挑战模式能那么写是因为它是调试场，无尽用的是玩家自己的档，已去掉。",
+             "新增 src/game.js 的 ENDLESS / ENDLESS_MODS / startEndless / endlessTick / "
+             "endlessCount / endlessHpScale / endlessPool / endlessModsFor / spawnEndlessWave / "
+             "exitEndless / drawEndlessHUD / renderEndlessResult；entities.js 的词缀效果出口；"
+             "index.html 的 #endless 结算面板与 K 键提示",
+             "崔亮"],
             ["2026-09-23", "三条试玩反馈：烛龙「无限切换二阶段」/ 挑战模式不能选流派 / 小地图挡住右上角的妖物",
              "①烛龙：逐帧实测确认 phase 是单调的（1→2→3，全程只切两次），"
              "玩家看到的是鳞罩循环（每 9~13 秒结一次、罩内 210 帧完全免疫）——"
@@ -1123,6 +1203,7 @@ TABS = [
     ("法宝", tab_fabao), ("功法", tab_gongfa), ("专属技能", tab_ult), ("升级路线", tab_ultpath),
     ("丹药", tab_dan), ("敌人", tab_enemy),
     ("精英妖物", tab_elite), ("BOSS", tab_boss), ("Boss 挑战", tab_challenge),
+    ("无尽试炼", tab_endless),
     ("房间", tab_room), ("交互物", tab_props),
     ("经济掉落", tab_econ), ("动态难度", tab_diff), ("各层速览", tab_floors),
     ("流派玩家", tab_player), ("变更日志", tab_log),

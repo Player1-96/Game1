@@ -165,6 +165,36 @@ const PERK_CN = {
       bosses: BOSS_KEYS.map(k => ({ id: k, cn: BOSS_DEF[k].name, note: CHALL_BOSS_NOTE[k] || '' }))
     };
 
+    /* ---------- 6b. 无尽试炼 ----------
+       与挑战模式一样，这张表既是玩法说明、也是调参入口：
+       每条曲线与每个词缀都在 ENDLESS / ENDLESS_MODS 里改。
+       曲线形状一并算出「第 1/10/20/40/60 波的实测值」，避免只给公式看不出手感。 */
+    const endlessCurve = [1, 10, 20, 40, 60].map(w => ({
+      wave: w,
+      count: G.endlessCount(w),
+      hp: +G.endlessHpScale(w).toFixed(2),
+      pool: G.endlessPool(w).length,
+      mods: G.endlessModsFor(w).length
+    }));
+    const endless = {
+      params: {
+        waveGap0: ENDLESS.waveGap0, waveGapMin: ENDLESS.waveGapMin,
+        waveGapDecay: ENDLESS.waveGapDecay, clearCooldown: ENDLESS.clearCooldown,
+        countBase: ENDLESS.countBase, countGrow: ENDLESS.countGrow, countMax: ENDLESS.countMax,
+        hpBase: ENDLESS.hpBase, hpGrow: ENDLESS.hpGrow, hpMax: ENDLESS.hpMax,
+        segWaves: ENDLESS.segWaves, modWaves: ENDLESS.modWaves, modMax: ENDLESS.modMax,
+        baseItems: ENDLESS.baseItems, baseSkills: ENDLESS.baseSkills, baseUltLv: ENDLESS.baseUltLv,
+        healPerWave: ENDLESS.healPerWave, healWaveEvery: ENDLESS.healWaveEvery,
+        resultT: ENDLESS.resultT
+      },
+      curve: endlessCurve,
+      mods: ENDLESS_MODS.map(m => ({
+        id: m.id, name: m.name, desc: m.desc,
+        // 效果取 apply 的函数体，便于在表里看到「到底改了什么」
+        effect: cleanApply(m.apply)
+      }))
+    };
+
     /* ---------- 7. 流派与蓄力段位 ---------- */
     const styles = Object.keys(STYLES).map(k => ({
       id: k, name: STYLES[k].name, en: STYLES[k].en, tag: STYLES[k].tag, ready: !!STYLES[k].ready,
@@ -339,7 +369,7 @@ const PERK_CN = {
       SHIELD_DUR: SKILL_DEF.huti.dur             // 限时护盾（仅护体金光）的持续帧数
     };
 
-    return { player, items, enemies, elites, bosses, challenge, styles, charge, shopPrices, pools, floors,
+    return { player, items, enemies, elites, bosses, challenge, endless, styles, charge, shopPrices, pools, floors,
              diffParams, curve, lootCurve, skills, ults, ultPaths, skillConst };
   }, { ENEMY_CN, AI_CN, PERK_CN, ENEMY_NOTE, BOLT_CN, BOSS_GIMMICK });
 

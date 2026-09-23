@@ -962,6 +962,23 @@ class Enemy {
       g.hazards.push(new Hazard(this.x, this.y, 26 + k * 8, 0, 150 + k * 40, 1.2 + k * 0.5, PAL.green, true));
     }
     if (p.stats.soul) { p.soulBuff = 300 + (p.stats.soul - 1) * 60; }
+
+    /* —— 无尽试炼的词缀：死亡时遗留 ——
+       放在掉落之后，因为这些是「死亡本身的效果」，与掉什么无关。
+       Hazard 末位 friendly=false 表示「伤玩家」——尸毒珠那条是 true（伤敌人），
+       别照抄错方向。 */
+    if (this.deathHazard === 'poison') {
+      g.hazards.push(new Hazard(this.x, this.y, 24, 12, 110, 1.0, PAL.green, false));
+    }
+    if (this.deathBurst) {
+      const n = this.deathBurst;
+      const base = Math.random() * Math.PI * 2;
+      for (let i = 0; i < n; i++) {
+        const a = base + i / n * Math.PI * 2;
+        g.spawnEnemyBullet(this.x, this.y, Math.cos(a) * 1.7, Math.sin(a) * 1.7, 'blood',
+          { r: 4, life: 130 });
+      }
+    }
   }
   /* 精英神通：独立于常规 AI 的专属技，凝形结束后才启用 */
   castPerk(g, p) {
@@ -1343,7 +1360,17 @@ class Enemy {
 
     // 接触伤害（凝形期不伤人；腾空中也够不着人 —— 蹦山魈的落点判定另算）
     if (this.spawnT <= 0 && this.air <= 0 && !p.dead && circleHit(this.x, this.y, this.r, p.x, p.y, p.r)) {
-      p.takeDamage(this.def.touch, g, this.x, this.y);
+      p.takeDamage(this.def.touch * (this.touchMul || 1), g, this.x, this.y);
+      // 无尽词缀「霜附」：蹭一下就把身法拖慢一拍（不改移动上限，只抹一次瞬时速度）
+      if (this.touchSlow && p.vx !== undefined) {
+        p.vx *= 0.4; p.vy *= 0.4;
+        p.frostSlow = 18;                 // 供 HUD/绘制读取的短标记；Player 不认也不影响伤害
+      }
+    }
+    /* 无尽词缀「回春」：每 90 帧回 2% 气血。放在这里而不是 hook 进 hurt()，
+       是因为回血该跟着「时间」走，而不是等着玩家来打才结算。 */
+    if (this.modRegen && this.t % 90 === 0 && this.hp > 0 && this.hp < this.maxHp) {
+      this.hp = Math.min(this.maxHp, this.hp + Math.max(1, Math.round(this.maxHp * 0.02)));
     }
     if (this.t % 16 === 0) this.frame = this.frame ? 0 : 1;
   }

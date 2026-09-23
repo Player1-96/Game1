@@ -73,22 +73,36 @@
 
 ### 交付物清单
 
-- [ ] 标题界面新增「无尽试炼」入口
-- [ ] 竞技场（复用一间房，或生成一个无门房间）
-- [ ] 刷怪循环：每 N 秒一批，三个维度递增
-- [ ] 词缀表（先做 6~8 条）
-- [ ] HUD：波次 / 击杀数 / 存活时长
-- [ ] 结算界面：击杀数 + 存活时长 + 最高波次
-- [ ] 探针 `_probe_endless.js`（逐波实测 hpScale 与击杀耗时）
-- [ ] 回归 `_t_endless.js`（断言：刷怪、递增、结算、不写档）
+- [x] 标题界面新增「无尽试炼」入口（`K` 键）
+- [x] 竞技场（复用一间房，门全部钉死、邻房断开）
+- [x] 刷怪循环：三个维度（数量 / 种类 / 词缀）错开节奏递增
+- [x] 词缀表（做了 8 条：swift / brutal / venom / tough / swarm / regen / frostbite / volatile）
+- [x] HUD：波次 / 击杀数 / 存活时长（左上成绩板 + 词缀标签）
+- [x] 结算界面：击杀数 + 存活时长 + 最高波次（+ 历史最好成绩）
+- [x] 探针 `_probe_endless.js`（曲线形状、竞技场、刷怪循环、结算、存档隔离、导航）
+- [x] 回归 `_t_endless.js`（44 条断言，全绿）
+- [x] 截图 `_shot_endless.js`（3 张）
+
+**落地时新增的两条硬约束（原计划没写，是实测撞出来的）**
+
+1. **下一波只在场面清空后才排。** 原先计时器一边打一边倒数，60 秒后场上堆到 260+ 只 ——
+   不是难度是幻灯片。`endlessTick` 改成「有活口就 return」，间隔只在清场后才开始走，
+   并加 `clearCooldown = 30` 帧地板防秒清秒刷。
+2. **`exitEndless()` 里不能 `clearSave()`。** 原计划抄挑战模式的「不销档」，
+   但收场时顺手写了 `clearSave()`（想的是「反正无尽不写档」），
+   实际会把玩家的**真实通关进度删掉**。挑战模式能那么写是因为它是调试场；
+   无尽要用玩家自己的档，动了就是数据事故。
 
 ### 边界条件
 
-- **不写档、不动已有存档** —— 抄挑战模式的守卫写法：`saveGame()` 开头 `if (this.chall) return false;`
-  无限模式要加同款守卫（`if (this.endless) return false;`）。
+- **不写档、不动已有存档** —— 抄挑战模式的守卫写法：`saveGame()` 开头
+  `if (this.chall || this.endless) return false;`。
   ⚠️ 挑战模式曾因为没在 `newRun()` 里清标志，导致开局存档被守卫挡掉，别重蹈。
 - `newRun()` 里要清 `this.endless`。
 - 复用 `state` 机制时注意：`clearSave()` 在 `dead`/`win` 里被调用，无限模式**不能销真实存档**。
+- **妖物池的键必须来自 `ENEMY_DEF`**，不能混进 `ELITE_DEF` 的键
+  （`xiesha`/`youyan`/`jiying`/`wandu` 是精英，`duannian` 是剑灵的精英变体）——
+  写错的后果是 `new Enemy` 直接抛异常把整局打断。已加兜底 `|| 'yinsha'` 与断言。
 
 ---
 
@@ -335,6 +349,7 @@ Boss 5 个共 250 行（约 50 行/个）。
 | 日期 | 期 | 做了什么 | 提交 |
 | --- | --- | --- | --- |
 | 2026-09-23 | — | 建档，梳理三个方向的结论与顺序 | （本文档） |
+| 2026-09-23 | **一 · 无限模式** | 无尽试炼全部交付：`ENDLESS` 常量块 + 8 条词缀、竞技场、清场后排波的刷怪循环、左上成绩板、`endlessEnd` 结算屏、`K` 键入口；新增探针 / 回归（44 条）/ 截图；全套 14 个测试文件 722 条断言全绿 | （本次提交） |
 | | | | |
 | | | | |
 
@@ -342,16 +357,31 @@ Boss 5 个共 250 行（约 50 行/个）。
 
 ## 附：本文档引用的代码位置（方便回来直接跳）
 
+> 行号会随改动漂移，改完请顺手更新。带 **★** 的是第一期新加的。
+
 | 位置 | 作用 |
 | --- | --- |
-| `game.js:763` `spawnWave(i)` | 刷怪核心，无限模式直接复用 |
-| `game.js:742` `safeSpawn(x,y,r)` | 防贴脸生成 |
-| `dungeon.js:486` `enemyPool(depth)` | 妖物按层解锁，改「按波次」 |
-| `dungeon.js:40` `difficultyOf()` | 难度曲线（`DIFF_MAX=3.0` 封顶，无限模式要另起） |
-| `dungeon.js:471` `RT.BOSS` 分支 | Boss 目前按 `BOSS_KEYS[depth-1]`，要改 `[style][segment]` |
+| **★** `game.js:380` `ENDLESS` | 无尽模式的全部可调参数（波次节奏 / 三条曲线 / 配装） |
+| **★** `game.js:435` `ENDLESS_MODS` | 8 条词缀表，每条一个 `apply(e)` |
+| **★** `game.js:515` `ENDLESS_BEST_KEY` | 最好成绩的 localStorage 键（与主存档分开） |
+| **★** `game.js:1132` `startEndless(style, build)` | 进场：配装 → 造竞技场 → 清掉自带波 |
+| **★** `game.js:1227` `endlessTick()` | 排波核心：**有活口就 return**，清场后才计时 |
+| **★** `game.js:1252/1256` `endlessCount/HpScale` | 数量 / 血量曲线（pure function，测试直接量） |
+| **★** `game.js:1263` `endlessPool(wave)` | 妖物按波次解锁；⛔ 键必须在 `ENEMY_DEF` 里 |
+| **★** `game.js:1276` `endlessModsFor(wave)` | 词缀按波次不重复抽取 |
+| **★** `game.js:1288` `spawnEndlessWave()` | 环形铺点刷怪 + 逐只 `apply(e)` |
+| **★** `game.js:1329` `exitEndless()` | 结算；⚠️ **不能 `clearSave()`**（会删真实进度） |
+| **★** `game.js:2509` `drawEndlessHUD(g)` | 左上成绩板（波次 / 击杀 / 存活 + 词缀标签） |
+| **★** `game.js:3386` `renderEndlessResult()` | `#endless` 结算面板 |
+| **★** `entities.js` `Enemy.update` / `Enemy.die` | 词缀的两个效果出口（接触 / 回血、毒雾 / 爆散） |
+| `game.js:763` `spawnWave(i)` | 普通刷怪核心（无尽另写了一份，因为铺点与词缀不同） |
+| `game.js:742` `safeSpawn(x,y,r)` | 防贴脸生成 —— 无尽直接复用 |
+| `dungeon.js:486` `enemyPool(depth)` | 妖物按层解锁（无尽改成按波次，见 `endlessPool`） |
+| `dungeon.js:40` `difficultyOf()` | 难度曲线（`DIFF_MAX=3.0` 封顶 → 无尽必须另起） |
+| `dungeon.js:471` `RT.BOSS` 分支 | Boss 目前按 `BOSS_KEYS[depth-1]`，风格制要改 `[style][segment]` |
 | `dungeon.js:523` `renderBG(r)` | 房间背景，色板分支入口 |
-| `game.js:533` `saveGame()` | 存档，加 `endless` 守卫 |
-| `game.js:838/846` `state='dead'/'win'` | 结算状态机，无限模式复用 |
+| `game.js:533` `saveGame()` | 存档，`if (this.chall \|\| this.endless) return false;` |
+| `game.js:844/846` `state='dead'/'win'` | 结算状态机；无尽走 `endlessEnd` 而非 `dead` |
 | `items.js:31` `ITEM_DEFS` | 法宝定义，融合配方挂这里 |
 | `items.js:29` `TAIXU` | 参数化法宝的先例（照它写融合） |
 | `sprites.js:1104` `buildSprites()` | 素材烘焙，换风格要重建 |
