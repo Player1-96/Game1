@@ -82,8 +82,12 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   const dist = await page.evaluate(() => {
     const G = window.Game;
     const rows = [];
-    for (let i = 0; i < 120; i++) {
-      const depth = (i % 5) + 1;
+    /* 采样层必须**跨段**：精英率现在是按段给的（[0.46, 0.65, 0.82]），
+       只在第 1~5 层里采样的话整批都落在段一，各层出现率必然相同 ——
+       「越深越常见」会假失败（老版本正好只扫了 5 层）。 */
+    const probeDepths = [1, SEG_FLOORS + 1, SEG_FLOORS * 2 + 1];   // 段一/段二/段三 各取首层
+    for (let i = 0; i < 150; i++) {
+      const depth = probeDepths[i % probeDepths.length];
       G.newRun('feijian');
       G.newFloor(depth);
       const f = G.floor;
@@ -104,13 +108,21 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('每层至多一间精英窟', dist.every(r => r.n <= 1), 'n=' + [...new Set(dist.map(r => r.n))].join(','));
   ok('精英窟按概率出现：既非每层必有，也非从不出现',
     hasEl.length > 0 && hasEl.length < dist.length, `${hasEl.length}/${dist.length} 层有精英窟`);
-  const rateByDepth = [1, 2, 3, 4, 5].map(d => {
+  // 按【段】统计出现率（采样层就是各段首层，每个深度一档）
+  const probeDepths = [...new Set(dist.map(r => r.depth))].sort((a, b) => a - b);
+  const rateByDepth = probeDepths.map(d => {
     const rows = dist.filter(r => r.depth === d);
     return rows.filter(r => r.n === 1).length / rows.length;
   });
-  console.log('    各层出现率 ' + rateByDepth.map(r => (r * 100).toFixed(0) + '%').join(' / '));
-  ok('层数越深精英窟越常见', rateByDepth[4] > rateByDepth[0],
-    '一层 ' + rateByDepth[0].toFixed(2) + ' → 五层 ' + rateByDepth[4].toFixed(2));
+  console.log('    各段首层出现率 ' + probeDepths.map((d, i) =>
+    `第${d}层 ${(rateByDepth[i] * 100).toFixed(0)}%`).join(' / '));
+  ok('层数越深精英窟越常见（按段递增）',
+    rateByDepth[rateByDepth.length - 1] > rateByDepth[0],
+    '第' + probeDepths[0] + '层 ' + rateByDepth[0].toFixed(2)
+      + ' → 第' + probeDepths[probeDepths.length - 1] + '层 ' + rateByDepth[rateByDepth.length - 1].toFixed(2));
+  ok('出现率按段单调不降',
+    rateByDepth.every((v, i) => i === 0 || v >= rateByDepth[i - 1]),
+    JSON.stringify(rateByDepth.map(v => +v.toFixed(2))));
   ok('精英窟落在普通石室', hasEl.every(r => r.type === 'normal'), [...new Set(hasEl.map(r => r.type))].join(','));
   ok('精英窟波次中确有精英', hasEl.every(r => r.hasEliteInWave));
   ok('精英窟 = 1 精英 + 少量随从（3~7 只）',

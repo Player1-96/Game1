@@ -341,13 +341,14 @@ def tab_gongfa():
     rows.append(["自然回复", "开局 0 点/秒", "全靠法宝「回灵符」提供，每份 +1 点/秒、可叠加"
                  "（每份每 %d 帧回 1 点）。用整数计数而非浮点累加，否则会拖成每 16 帧 1 点"
                  % (c["mpTickFrames"] or 60)])
-    rows.append(["灵力珠掉落", "斩普通妖物 %d%% 概率掉 1 颗（再 × 层数衰减）" % round(c["MP_DROP_RATE"] * 100),
-                 "数量 = clamp(round(妖物最大气血 / 6 × 层数衰减), 1, 8)；掉率与数量都随层数递减"])
-    rows.append(["精英必掉", "每次 +%d 点（掉 1 颗大灵力珠，量 × 层数衰减）" % c["MP_ELITE_DROP"], ""])
-    rows.append(["Boss 转阶段", "散落 3 颗 × %d 点（单颗量 × 层数衰减）" % c["MP_BOSS_PHASE"],
+    rows.append(["灵力珠掉落", "斩普通妖物 %d%% 概率掉 1 颗（再 × 段衰减）" % round(c["MP_DROP_RATE"] * 100),
+                 "数量 = clamp(round(妖物最大气血 / 6 × 段衰减), 1, 8)；掉率与数量都随【段】递减"])
+    rows.append(["精英必掉", "每次 +%d 点（掉 1 颗大灵力珠，量 × 段衰减）" % c["MP_ELITE_DROP"], ""])
+    rows.append(["Boss 转阶段", "散落 3 颗 × %d 点（单颗量 × 段衰减）" % c["MP_BOSS_PHASE"],
                  "逼玩家在 Boss 变强的当口跑位去捡"])
-    rows.append(["层数衰减", "scale = %s^(层−1)" % D["diffParams"]["LOOT_DECAY"],
-                 "后期 build 成型 + 怪变多 + 气运上升会把难度拉平，故心血与灵力珠的基础期望逐层下压；"
+    rows.append(["产出衰减", "scale = %s^(段号)" % D.get("styleMap", {}).get("lootDecay", 0.82),
+                 "⚠️ 单位是【段】不是层：15 层制下按层算会剩 6%（死局）。"
+                 "后期 build 成型 + 怪变多 + 气运上升会把难度拉平，故心血与灵力珠的基础期望逐段下压；"
                  "详见「经济掉落」页的产出衰减块"])
     rows.append(["说明", "灵力不再自动到账，必须跑过去捡：这不是「站桩回蓝」，而是一份要主动去拿的资源"])
     rows.append(["说明", "灵力珠 = 靛蓝菱形宝珠（带脉动青晕）；灵石 = 碧绿方孔钱。形状、颜色、拾取音效都不同"])
@@ -622,26 +623,48 @@ def tab_stylemap():
     """风格地图（27 条路径）：三个世界、每个世界的三段、每段的代表色。
 
     ⚠️ 与「流派」（飞剑/巨剑/舞剑）不是一回事：这里是「一局要走过哪些天地」。
-    这张表既是玩法说明、也是调参入口 —— 段数 / 每段层数在 src/game.js 的
-    STYLE_SEG_FLOORS 里改，色板与风格表在 src/px.js 的 STYLE_PAL / STYLE_DEF 里改。"""
+    这张表既是玩法说明、也是调参入口 —— 段数 / 每段层数在 src/dungeon.js 的
+    SEG_FLOORS / SEG_COUNT 里改（层段系统的唯一真相），
+    色板与风格表在 src/px.js 的 STYLE_PAL / STYLE_DEF 里改。"""
     S = D.get("styleMap") or {}
-    segFloors = S.get("segFloors", 3)
-    total = S.get("totalFloors", 9)
+    segFloors = S.get("segFloors", 5)
+    segCount = S.get("segCount", 3)
+    total = S.get("totalFloors", 15)
     paths = S.get("paths", 27)
+    bossBySeg = S.get("bossBySeg") or []
+    maxBySeg = S.get("diagMaxBySeg") or []
 
     rows = [["项", "值", "说明"]]
     rows.append(["每段层数", "%d 层" % segFloors,
-                 "src/game.js 的 STYLE_SEG_FLOORS —— 改这一个常量即可改一局时长（5 → 15 层）"])
-    rows.append(["段数", "%d 段" % S.get("segCount", 3), "每段开头择一次风格"])
+                 "src/dungeon.js 的 SEG_FLOORS —— 改这一个常量即可改一局时长（层段系统的唯一真相）"])
+    rows.append(["段数", "%d 段" % segCount, "每段开头择一次风格"])
     rows.append(["一局总层数", "%d 层" % total, "= 每段层数 × 段数"])
+    rows.append(["层段划分", "段首弹面板（第 %s 层），段末出 Boss（第 %s 层）"
+                 % (" / ".join(str(i * segFloors + 1) for i in range(segCount)),
+                    " / ".join(str((i + 1) * segFloors) for i in range(segCount))),
+                 "「按段」是本期所有跨层节奏的统一单位（难度封顶 / 产出衰减 / 妖物解锁 / 精英率）"])
+    rows.append(["每段 Boss", " / ".join(bossBySeg),
+                 "按段取人 BOSS_KEYS[min(4, segOf(depth))]，只在段末登场 —— "
+                 "一局 3 个 Boss，不再是「5 位尊者撑 15 层、后 10 层连打烛龙」"])
+    rows.append(["每段血量封顶", " / ".join(str(v) for v in maxBySeg),
+                 "DIFF_MAX_BY_SEG —— 每段各自封顶。若仍固定 3.0，战力到 12 就撞顶、后 5 层难度完全不动"])
+    rows.append(["段末 Boss 倍数", " / ".join(str(v) for v in (S.get("bossSegMul") or [])),
+                 "BOSS_SEG_MUL —— 段末是唯一硬门槛，故逐段加厚"])
+    rows.append(["产出衰减", "×%s / 段（各段 %s）"
+                 % (S.get("lootDecay", 0.82),
+                    " / ".join(str(v) for v in (S.get("lootPerSeg") or []))),
+                 "⚠️ 单位是段不是层：按层算到 15 层只剩 6%（死局）；按段 0.82²≈0.67，对齐原 5~6 层手感"])
     rows.append(["可选风格数", "%d 个（当前可用 %d 个）"
                  % (len(S.get("worlds") or []), len(S.get("pool") or [])),
                  "只有 ready:true 的进选择池；可用数为 1 时直接采用、不弹面板"])
     rows.append(["路径总数", "%d 条" % paths,
                  "每个节点都是完整 N 选 1 且允许重复 → N³；单一风格 3 条 / 两风格 18 条 / 三风格 6 条"])
     rows.append(["开局", "三选一", "只有中式可用时跳过面板直接开局（不给玩家制造空选择）"])
-    rows.append(["段间", "每 %d 层再选一次" % segFloors, "第 1 层开局算第一次，之后在第 4 / 7 层弹面板"])
-    rows.append(["通关闭幕", "带出走过的路径", "如「历尽 9 重劫难　历遍『中式·中式·北欧』—— 道心通明，飞升成仙！」"])
+    rows.append(["段间", "每 %d 层再选一次" % segFloors,
+                 "第 1 层开局算第一次，之后在第 %s 层弹面板"
+                 % " / ".join(str(i * segFloors + 1) for i in range(1, segCount))])
+    rows.append(["通关闭幕", "带出走过的路径",
+                 "如「历尽 %d 重劫难　历遍『中式·中式·北欧』—— 道心通明，飞升成仙！」" % total])
     rows.append([])
 
     rows.append(["世界", "代号", "状态", "段", "段名", "意境", "代表色（墙 / 墙亮 / 苔 / 符）"])
@@ -676,7 +699,7 @@ def tab_stylemap():
                         "顺序反了会用旧配色开新层，且不报错（nextFloor 与 continueGame 两处都按此写）"])
     rows.append(["说明", "存档落盘 stylePath（走过哪些风格）与 seg（第几段）；"
                         "老存档缺字段时回落 stylePath=['cn']、seg=segOfFloor(depth)，按层数推导，观感正常"])
-    return rows, [20, 12, 12, 8, 14, 30, 30]
+    return rows, [20, 26, 12, 8, 14, 30, 30]
 
 
 # ---------------------------------------------------------------- 房间
@@ -688,8 +711,12 @@ def tab_room():
         ["normal", "石室", "%.1f ~ %.1f 间" % (f1["normalRooms"], f5["normalRooms"]),
          "随机扩展生成；总数 = min(20， 11 + 随机0~3 + min(3，层))",
          "约 预算×62% / 普通房数（一层约 3~4 枚）",
-         "妖物 1~2 波；石柱 0~2 根；灯 30%", "进房锁门、清空开启", "未进不显示", "波次：2 波概率 = 35% + 5%×层"],
-        ["boss", "魔窟", "1", "距起点最远的死胡同", "预算×18%（最少 3）", "Boss ×1", "进房锁门", "已探明", "通关后开传送阵"],
+         "妖物 1~2 波；石柱 0~2 根；灯 30%", "进房锁门、清空开启", "未进不显示",
+         "波次：2 波概率 = 35% + 25%×段内进度"],
+        ["boss", "魔窟", "段末 1 间（第 %s 层）"
+         % " / ".join(str((i + 1) * (D.get("styleMap", {}).get("segFloors") or 5))
+                      for i in range(D.get("styleMap", {}).get("segCount") or 3)),
+         "仅段末生成", "预算×18%（最少 3）", "Boss ×1", "进房锁门", "已探明", "通关后开传送阵"],
         ["treasure", "藏珍阁", "0~1", "死胡同中距离 ≥2 者", "—", "木箱（免费）+ 金匣（1 钥匙）", "入口封印门需钥匙/雷符", "未进不显示", "金匣给 1 件珍稀法宝"],
         ["shop", "坊市", "0~1", "死胡同优先", "—（此处是灵石去处）", "4 件货：法宝/丹药/法宝/功法或法宝", "否", "未进不显示", "价格见「经济掉落」页"],
         ["secret", "密室", "0~1", "有精英窟时 60%~80%；无精英窟时 20%", "预算×12%（最少 2）",
@@ -741,8 +768,15 @@ def tab_props():
 def tab_econ():
     sp = {s["depth"]: s for s in D["shopPrices"]}
     fl = {f["depth"]: f for f in D["floors"]}
-    depths = [1, 2, 3, 4, 5, 6]
-    head = ["项目", "公式", "1层", "2层", "3层", "4层", "5层", "6层", "说明"]
+    # 采样层不再写死 1..6：主玩法 15 层制，取【各段代表层】（段首 + 段末）最有信息量。
+    # 段边界：5 层 → 1/5 | 6/10 | 11/15。
+    segF = D.get("styleMap", {}).get("segFloors", 5)
+    segN = D.get("styleMap", {}).get("segCount", 3)
+    depths = []
+    for s in range(segN):
+        depths.append(s * segF + 1)          # 段首
+        depths.append((s + 1) * segF)        # 段末
+    head = ["项目", "公式"] + ["%d层" % d for d in depths] + ["说明"]
     rows = [head]
     def slot(idx, name, formula):
         row = [name, formula]
@@ -781,15 +815,17 @@ def tab_econ():
     rows.append(["心血目的", "让血量危机真的会咬人", "", "", "", "", "", "",
                  "濒死 600 只妖约掉 138 颗心，满血同样条件下只掉 12 颗（一层口径，见下表逐层衰减）"])
     rows.append([])
-    rows.append(["产出衰减（心血 / 灵力）", "scale = LOOT_DECAY^(层−1)", "", "", "", "", "", "", ""])
+    rows.append(["产出衰减（心血 / 灵力）", "scale = LOOT_DECAY^(段号)", "", "", "", "", "", "", ""])
+    # lootCurve 是「一串采样点」，不是按 depth 索引的字典 —— 用 depth 建索引再取。
     lc = {r["depth"]: r for r in D["lootCurve"]}
     dp = D["diffParams"]
-    rows.append(["衰减系数", "LOOT_DECAY = %s" % dp["LOOT_DECAY"]] + ["%.2f" % lc[d]["scale"] for d in depths]
-                + ["每深一层补给期望 ×%s。后期 build 成型 + 怪变多 + 气运上升，"
-                   "三者叠加会把难度拉平，所以基础期望必须逐层下压" % dp["LOOT_DECAY"]])
+    decay = dp.get("LOOT_DECAY", D.get("styleMap", {}).get("lootDecay", 0.82))
+    rows.append(["衰减系数", "LOOT_DECAY = %s，每【段】降一档" % decay] + ["%.2f" % lc[d]["scale"] for d in depths]
+                + ["⚠️ 单位是段不是层。15 层制下若按层算，0.82^14 ≈ 0.06 —— 掉率只剩 6%，是死局不是难度。"
+                   "按段只降 2 次：0.82^2 ≈ 0.67，与原来 5~6 层的手感对齐"])
     rows.append(["心血掉率（满血）", "(2% + 气运×0.4%) × 衰减"]
                 + ["%.1f%%" % (lc[d]["heartFull"] * 100) for d in depths]
-                + ["气运在衰减后的基线上加成，不抵消衰减本身"])
+                + ["气运在衰减后的基线上加成，不抵消衰减本身；同段内各层掉率相同"])
     rows.append(["心血掉率（濒死）", "(24% + 气运×2.5%) × 衰减"]
                 + ["%.1f%%" % (lc[d]["heartCritical"] * 100) for d in depths] + [""])
     rows.append(["灵力珠掉率", "62% × 衰减"] + ["%.0f%%" % (lc[d]["mpRate"] * 100) for d in depths]
@@ -808,38 +844,50 @@ def tab_econ():
 # ---------------------------------------------------------------- 动态难度
 def tab_diff():
     p = D["diffParams"]
+    sm = D.get("styleMap", {})
     head = ["参数", "值", "说明"]
+    # DIFF_MAX 已废（改成按段封顶 DIFF_MAX_BY_SEG）—— 回落链要考虑到它可能整个不存在。
+    maxBySeg = p.get("DIFF_MAX_BY_SEG") or sm.get("diagMaxBySeg") or [p.get("DIFF_MAX", 3.0)]
+    bossMul = sm.get("bossSegMul", [1.0])
     rows = [head,
         ["POWER_BASE", p["POWER_BASE"], "裸装实力分基准（powerScore 裸装 ≈ 1.0）"],
         ["DIFF_POW", p["DIFF_POW"], "血量校正指数：越大越硬。想更硬改这个"],
         ["DIFF_CNT_POW", p["DIFF_CNT_POW"], "数量校正指数：刻意远小于血量，免得糊屏"],
-        ["DIFF_MAX", p["DIFF_MAX"], "血量系数上限"],
+        ["DIFF_MAX_BY_SEG", " / ".join(str(v) for v in maxBySeg), "血量系数上限，**每段各自封顶**"],
         ["DIFF_MIN", p["DIFF_MIN"], "血量系数下限（弱于期望时放宽，不做惩罚性设计）"],
         ["数量系数区间", "%s ~ %s" % (p["countMin"], p["countMax"]), "count = clamp(threat^DIFF_CNT_POW， 0.85， 1.5)"],
         ["公式", p["formula"], "threat = 实力分 / POWER_BASE"],
         ["实力分公式", p["powerFormula"], "dps = damage × fireRate × (1+spread×0.8) × (1+暴击×0.8)"],
         ["劫数档位", p["tags"], "界面右下角显示"],
-        ["妖物血量", "基础血 × (1 + 0.18×(层-1)) × 血量系数", ""],
-        ["精英血量", "基底血 × 血量倍率 × (1 + 0.18×(层-1)) × 血量系数", ""],
-        ["Boss 血量", "基础血 × (1 + 0.45×(层-1)) × (1 + (血量系数-1) × 0.6)", "Boss 只吃 60% 的校正，避免后期变血墙"],
-        ["妖物数量", "budget = (4 + min(9， floor(距离×0.9 + 层×1.6))) × 数量系数", ""],
+        ["妖物血量", "基础血 × (1 + 0.24×段内进度 + 0.35×段号) × 血量系数", "段内爬升 + 段间台阶；保证后期是「更凶」而不是「更肉」"],
+        ["精英血量", "基底血 × 血量倍率 × (1 + 0.24×段内进度 + 0.35×段号) × 血量系数", ""],
+        ["Boss 血量", "基础血 × (1 + (段内进度 + 段号×1) × 0.45 × 段层比) × (1 + (血量系数-1) × 0.6) × 段末倍数",
+         "Boss 只吃 60% 的校正；段末倍数 = " + " / ".join(str(v) for v in bossMul)],
+        ["妖物数量", "budget = (4 + min(9， floor(距离×0.9 + 段内进度×8 + 段号×1.6))) × 数量系数", ""],
         ["每房敌数", "max(3， floor(budget / 2.2) + 随机0~2)", ""],
-        ["波次数", "2 波概率 = 35% + 5%×层", ""],
+        ["波次数", "2 波概率 = 35% + 25%×段内进度", ""],
         ["精英随从", "2 + floor(层/2) + (血量系数 > 1.2 ? 1 : 0)", ""],
-        ["产出衰减 LOOT_DECAY", p["LOOT_DECAY"], "心血 / 灵力珠的基础产出期望每深一层 ×%s（详见「经济掉落」页）"
-         % p["LOOT_DECAY"]],
-        ["产出衰减公式", p["lootFormula"], "难度不只会被「敌人变强」拉平，也会被「补给变多」拉平"],
+        ["产出衰减 LOOT_DECAY", sm.get("lootDecay", 0.82),
+         "心血 / 灵力珠的基础产出期望每深【一段】×%s（⚠️ 不是每层，详见「经济掉落」页）"
+         % sm.get("lootDecay", 0.82)],
+        ["产出衰减公式", p.get("lootFormula", "scale = LOOT_DECAY^(段号)"),
+         "难度不只会被「敌人变强」拉平，也会被「补给变多」拉平"],
+        ["段末 Boss 强度倍数", " / ".join(str(v) for v in bossMul),
+         "「段末」是唯一硬门槛，故逐段加厚（血魔 → 白骨 → 裂煞）"],
     ]
     rows.append([])
-    rows.append(["实力分 → 难度系数对照", "", ""])
-    rows.append(["实力分", "threat", "血量系数", "数量系数", "劫数"])
+    rows.append(["实力分 → 难度系数对照", "", "", "", ""])
+    rows.append(["实力分", "threat", "血量系数（段一）", "数量系数", "劫数", "血量系数（段三）"])
     for c in D["curve"]:
-        rows.append([c["power"], c["threat"], c["mult"], c["count"], c["tag"]])
+        rows.append([c["power"], c["threat"], c["mult"], c["count"], c["tag"],
+                     c.get("multSeg3", "")])
     rows.append([])
     rows.append(["说明", "实力分是「相对裸装的倍数」：裸装 = 1.0，拿满法宝常见 4~8",
                  "校正走凹曲线 threat^0.45：二层之后明显吃紧，后期又不会变成纯加血墙"])
     rows.append(["说明", "一层裸装 → 系数恰好 1.0，保持原难度；实测平均血量系数见「各层速览」页"])
-    return rows, [24, 60, 14, 14, 12]
+    rows.append(["说明", "「段三」列是同一实力分在第三段的上限 —— 战力 12 之后段一已撞顶（3.0），"
+                 "段三仍能涨到 4.6。15 层制下若不分段放宽，后 5 层难度会完全不动"])
+    return rows, [26, 58, 20, 12, 10, 16]
 
 
 # ---------------------------------------------------------------- 各层速览
@@ -938,8 +986,39 @@ def tab_player():
 def tab_log():
     head = ["日期", "版本/改动", "涉及", "同步内容", "操作人"]
     rows = [head,
+            ["2026-09-23", "层数定案 15 层 + 全部跨层节奏改「按段」（第二期收尾）",
+             "用户拍板：主玩法改 **15 层**（理由「层数和后面融合玩法有联动，层数不够养法器的空间就小」）。"
+             "数据核实：一局法宝期望 ≈ 层数 × 1.6 —— 9 层约 14 件、15 层约 24 件；"
+             "融合要「先试一条路、再定型一条路」，14 件不够。**快速模式（9 层）本期不做**。"
+             "⚠ 单纯把 5 层拉到 15 层会「名义改了、实际不好玩」，先探出三个硬卡点，统一用「按段」解决："
+             "① Boss 原按 BOSS_KEYS[depth-1]（只有 5 位）→ 第 6~15 层**连着打 10 次烛龙**；"
+             "改成只在段末（第 5/10/15 层）出现、按段取人，一局 3 个 Boss。"
+             "② DIFF_MAX=3.0 在战力 12 就撞顶 → 后 5 层难度**完全不动**；"
+             "改成 DIFF_MAX_BY_SEG=[3.0, 3.8, 4.6] 每段各自封顶。"
+             "③ LOOT_DECAY 按层衰减 → 15 层 = 0.82^14 ≈ 0.060，掉率只剩 6%，是死局不是难度；"
+             "改成**每段降一档** 0.82^2 ≈ 0.67，对齐原 5~6 层手感。"
+             "另：妖物解锁（enemyPool）、精英窟率（[0.46,0.65,0.82]）、密室率、血量基数"
+             "（段内爬升 + 段间台阶 1+0.24×段内进度+0.35×段号）、波次率，全部按段铺开。"
+             "段末是唯一硬门槛，故 Boss 额外加厚 BOSS_SEG_MUL=[1.00,1.18,1.36]。"
+             "⚠ 踩到的最隐蔽 bug：挑战模式选烛龙实际打血魔 —— startChallenge 用 "
+             "BOSS_KEYS.indexOf(id)+1 推层数（索引 0 算出第 1 层，而第 1 层没有魔窟 → 白图且不报错）；"
+             "改用 bossFloorOf(id)（该尊者所属段的段末）+ Floor.bossOverride 显式钉住。"
+             "⚠ 段系统判定放在 dungeon.js（new Floor 生成房间时就要按段分 Boss，"
+             "放 game.js 会形成「下层依赖上层」的倒挂），game.js 的 segOfFloor/isSegPickFloor 是**转发别名**。",
+             "dungeon.js 新增 SEG_COUNT / SEG_FLOORS / SEG_TOTAL_FLOORS / segOf / isSegFirstFloor / "
+             "isSegLastFloor / segProgress / runProgress / DIFF_MAX_BY_SEG / diffMaxOfSeg / "
+             "BOSS_SEG_MUL / bossFloorOf / Floor.bossOverride，并把 lootScale / difficultyOf / "
+             "planElite / planSecret / hpBase / enemyPool / RT.BOSS 全部改为按段；"
+             "game.js 的 STYLE_SYS 改为转发段常量、newFloor 增 opts.boss、startChallenge 用 bossFloorOf、"
+             "挑战菜单卡片标签改「段末层」；README / docs/ROADMAP.md / index.html 全量同步；"
+             "15 套回归 773 条断言全绿",
+             "「风格地图」页新增层段划分 / 每段 Boss / 每段血量封顶 / 段末倍数 / 产出衰减几行；"
+             "「动态难度」页 DIFF_MAX → DIFF_MAX_BY_SEG 并补「段三」对照列；"
+             "「经济掉落」页采样层改各段首末层、衰减口径改按段；「房间」页魔窟改「段末 1 间」；"
+             "「变更日志」新增本条", "崔亮"],
             ["2026-09-23", "新增「风格地图」（27 条路径）—— 一局走过哪些天地由玩家自己选",
-             "一局 9 层、每 3 层为一段、共 3 段；开局三选一，之后每段开头再择一次，"
+             "一局 15 层、每 5 层为一段、共 3 段（初版按 9 层落地，同日改 15 层，见上条）；"
+             "开局三选一，之后每段开头再择一次，"
              "且允许重复选同一风格（所以「中式→中式→中式」是合法路径）→ 3³ = 27 条路径"
              "（单一风格 3 条 / 两风格 18 条 / 三风格 6 条）。"
              "本期为第二期：只做架构与中式 3 段（纯配色变体，零新美术），"
@@ -959,10 +1038,10 @@ def tab_log():
              "「机制先立起来」的正确形态是机制在、但不给玩家制造空选择。",
              "新增 src/px.js 的 PAL_KEYS / STYLE_PAL / STYLE_DEF / palOf / curPal / setStyle / pal "
              "与 Proxy 化的 PAL；sprites.js 的 SPR_CACHE / buildSprites(style,seg) / switchStyle；"
-             "game.js 的 STYLE_SEG_FLOORS / STYLE_SYS / segOfFloor / isSegPickFloor / "
+             "game.js 的 STYLE_SYS / segOfFloor / isSegPickFloor / "
              "applySegmentPalette / openStyleMenu / styleMenuMove|Confirm|Back / renderStyleMenu "
              "与 nextFloor / saveGame / continueGame 的风格接点；index.html 的 #stylePick 面板与色块样式",
-             "崔亮"],
+             "「变更日志」新增本条", "崔亮"],
             ["2026-09-23", "新增「无尽试炼」（无限模式）—— 通关之后的终局玩法",
              "把通关 build 带进场，在一间封闭擂台里无限刷怪，直到被打死；"
              "结算看杀了多少只、活了多久、撑到第几波。标题界面按 K 进入。"

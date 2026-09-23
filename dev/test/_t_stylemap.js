@@ -82,19 +82,31 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   sec('T3  层段推进规则');
   const seg = await page.evaluate(() => {
     const rows = [];
-    for (let d = 1; d <= 9; d++) rows.push({ d, seg: segOfFloor(d), pick: isSegPickFloor(d) });
-    return { rows, segFloors: STYLE_SYS.segFloors, total: STYLE_SYS.totalFloors };
+    // 扫满整局，段边界由 SEG_FLOORS 决定，不写死层号
+    for (let d = 1; d <= STYLE_SYS.totalFloors; d++) rows.push({ d, seg: segOfFloor(d), pick: isSegPickFloor(d) });
+    const F = STYLE_SYS.segFloors;
+    // 「第 N 段的全部层」用段号筛，而不是按 3 层一组切 —— 每段 5 层
+    const segRows = (s) => rows.filter(r => r.seg === s).map(r => r.d);
+    return {
+      rows, segFloors: F, segCount: STYLE_SYS.segCount, total: STYLE_SYS.totalFloors,
+      perSeg: [0, 1, 2].map(segRows),
+      pickFloors: rows.filter(r => r.pick).map(r => r.d)
+    };
   });
   console.log('     层 → 段：' + seg.rows.map(r => r.d + '→' + r.seg).join('  '));
-  console.log('     弹面板的层：' + seg.rows.filter(r => r.pick).map(r => r.d).join(' / '));
-  ok('每段层数与总层数自洽', seg.total === seg.segFloors * 3, `每段 ${seg.segFloors} 层 / 共 ${seg.total} 层`);
-  ok('第 1~3 层属第 0 段', seg.rows.slice(0, 3).every(r => r.seg === 0));
-  ok('第 4~6 层属第 1 段', seg.rows.slice(3, 6).every(r => r.seg === 1));
-  ok('第 7~9 层属第 2 段', seg.rows.slice(6, 9).every(r => r.seg === 2));
+  console.log('     弹面板的层：' + seg.pickFloors.join(' / '));
+  ok('每段层数与总层数自洽', seg.total === seg.segFloors * seg.segCount, `每段 ${seg.segFloors} 层 / 共 ${seg.total} 层`);
+  ok('第 0 段的层 = 1~段层数', seg.perSeg[0].join(',') === Array.from({ length: seg.segFloors }, (_, i) => i + 1).join(','));
+  ok('第 1 段的层从段层数+1 起（连排）',
+     seg.perSeg[1].join(',') === Array.from({ length: seg.segFloors }, (_, i) => seg.segFloors + i + 1).join(','));
+  ok('第 2 段的层一路排到最后一层',
+     seg.perSeg[2].join(',') === Array.from({ length: seg.segFloors }, (_, i) => seg.segFloors * 2 + i + 1).join(','));
+  ok('三段刚好把整局切完（无缝无重叠）',
+     seg.perSeg[0].length + seg.perSeg[1].length + seg.perSeg[2].length === seg.total);
   ok('只在段首弹面板（第 1 层除外）',
-     seg.rows.filter(r => r.pick).map(r => r.d).join(',') ===
+     seg.pickFloors.join(',') ===
      [seg.segFloors + 1, seg.segFloors * 2 + 1].join(','),
-     seg.rows.filter(r => r.pick).map(r => r.d).join(','));
+     seg.pickFloors.join(','));
 
   sec('T4  27 条路径：允许重复 + 三段记录');
   const paths = await page.evaluate(() => {
@@ -197,7 +209,10 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
        所以「先 newRun 再 continueGame」必然读到刚写的新档，seg 一定是 0。
        正确做法：直接摆好一个「磁盘上的档」，再 continueGame —— 不要先 newRun。 */
     G.newRun('feijian');
-    G.depth = 7;                       // 摆在第三段
+    /* 摆在第三段的**中间层**（每段 5 层 → 第 11 层）——
+       不要用段边界层（第 5 / 10 层），否则「按层数回落」的边界条件会被掩盖。 */
+    const D3 = STYLE_SYS.segFloors * 2 + 1;
+    G.depth = D3;                      // 摆在第三段
     G.stylePath = ['cn', 'cn', 'cn'];
     G.seg = 2;
     G.applySegmentPalette();
@@ -214,9 +229,9 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     delete legacy.stylePath; delete legacy.seg;
     localStorage.setItem(KEY, JSON.stringify(legacy));
     const legacyOk = G.continueGame();
-    const legacyRes = { seg: G.seg, path: (G.stylePath || []).slice(), state: G.state };
+    const legacyRes = { seg: G.seg, path: (G.stylePath || []).slice(), state: G.state, depth: G.depth };
     return { rawPath: raw.stylePath, rawSeg: raw.seg, rawDepth: raw.depth,
-             okLoad, after, floorSaved, legacyOk, legacyRes };
+             okLoad, after, floorSaved, legacyOk, legacyRes, D3 };
   });
   ok('存档写入 stylePath（三段全落盘）',
      Array.isArray(save.rawPath) && save.rawPath.length === 3 && save.rawPath.every(k => k === 'cn'),
@@ -227,7 +242,8 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('读档还原色板（不跳回一段）', save.after.floor === save.floorSaved,
      save.floorSaved + ' vs ' + save.after.floor);
   ok('老存档（无新字段）也能读', save.legacyOk === true);
-  ok('老存档 seg 按层数回落（第 7 层 → 第 2 段）', save.legacyRes.seg === 2, 'seg=' + save.legacyRes.seg);
+  ok('老存档 seg 按层数回落（第 ' + save.D3 + ' 层 → 第 2 段）', save.legacyRes.seg === 2,
+     'seg=' + save.legacyRes.seg + ' / depth=' + save.legacyRes.depth);
   await page.evaluate(() => localStorage.removeItem('xiuxian-isaac.save.v1'));
 
   sec('T7  面板交互：导航 / 确认 / Esc');

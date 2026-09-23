@@ -1389,12 +1389,33 @@
   }
  ],
  "styleMap": {
-  "segFloors": 3,
+  "segFloors": 5,
   "segCount": 3,
-  "totalFloors": 9,
+  "totalFloors": 15,
   "paths": 27,
   "pool": [
    "cn"
+  ],
+  "bossBySeg": [
+   "xuemo",
+   "baigu",
+   "liesha"
+  ],
+  "diagMaxBySeg": [
+   3,
+   3.8,
+   4.6
+  ],
+  "bossSegMul": [
+   1,
+   1.18,
+   1.36
+  ],
+  "lootDecay": 0.82,
+  "lootPerSeg": [
+   1,
+   0.82,
+   0.672
   ],
   "worlds": [
    {
@@ -1644,6 +1665,240 @@
     }
    ],
    "sink": 99
+  },
+  {
+   "depth": 7,
+   "slots": [
+    {
+     "idx": 1,
+     "type": "fabao",
+     "price": 27
+    },
+    {
+     "idx": 2,
+     "type": "dan",
+     "price": 17
+    },
+    {
+     "idx": 3,
+     "type": "fabao",
+     "price": 29
+    },
+    {
+     "idx": 4,
+     "type": "gongfa",
+     "price": 35
+    }
+   ],
+   "sink": 108
+  },
+  {
+   "depth": 8,
+   "slots": [
+    {
+     "idx": 1,
+     "type": "fabao",
+     "price": 29
+    },
+    {
+     "idx": 2,
+     "type": "dan",
+     "price": 18
+    },
+    {
+     "idx": 3,
+     "type": "fabao",
+     "price": 31
+    },
+    {
+     "idx": 4,
+     "type": "gongfa",
+     "price": 37
+    }
+   ],
+   "sink": 115
+  },
+  {
+   "depth": 9,
+   "slots": [
+    {
+     "idx": 1,
+     "type": "fabao",
+     "price": 31
+    },
+    {
+     "idx": 2,
+     "type": "dan",
+     "price": 20
+    },
+    {
+     "idx": 3,
+     "type": "fabao",
+     "price": 33
+    },
+    {
+     "idx": 4,
+     "type": "gongfa",
+     "price": 40
+    }
+   ],
+   "sink": 124
+  },
+  {
+   "depth": 10,
+   "slots": [
+    {
+     "idx": 1,
+     "type": "fabao",
+     "price": 33
+    },
+    {
+     "idx": 2,
+     "type": "dan",
+     "price": 21
+    },
+    {
+     "idx": 3,
+     "type": "fabao",
+     "price": 35
+    },
+    {
+     "idx": 4,
+     "type": "gongfa",
+     "price": 42
+    }
+   ],
+   "sink": 131
+  },
+  {
+   "depth": 11,
+   "slots": [
+    {
+     "idx": 1,
+     "type": "fabao",
+     "price": 35
+    },
+    {
+     "idx": 2,
+     "type": "dan",
+     "price": 23
+    },
+    {
+     "idx": 3,
+     "type": "fabao",
+     "price": 37
+    },
+    {
+     "idx": 4,
+     "type": "fabao",
+     "price": 45
+    }
+   ],
+   "sink": 140
+  },
+  {
+   "depth": 12,
+   "slots": [
+    {
+     "idx": 1,
+     "type": "fabao",
+     "price": 37
+    },
+    {
+     "idx": 2,
+     "type": "dan",
+     "price": 24
+    },
+    {
+     "idx": 3,
+     "type": "fabao",
+     "price": 39
+    },
+    {
+     "idx": 4,
+     "type": "fabao",
+     "price": 47
+    }
+   ],
+   "sink": 147
+  },
+  {
+   "depth": 13,
+   "slots": [
+    {
+     "idx": 1,
+     "type": "fabao",
+     "price": 39
+    },
+    {
+     "idx": 2,
+     "type": "dan",
+     "price": 26
+    },
+    {
+     "idx": 3,
+     "type": "fabao",
+     "price": 41
+    },
+    {
+     "idx": 4,
+     "type": "gongfa",
+     "price": 50
+    }
+   ],
+   "sink": 156
+  },
+  {
+   "depth": 14,
+   "slots": [
+    {
+     "idx": 1,
+     "type": "fabao",
+     "price": 41
+    },
+    {
+     "idx": 2,
+     "type": "dan",
+     "price": 27
+    },
+    {
+     "idx": 3,
+     "type": "fabao",
+     "price": 43
+    },
+    {
+     "idx": 4,
+     "type": "gongfa",
+     "price": 52
+    }
+   ],
+   "sink": 163
+  },
+  {
+   "depth": 15,
+   "slots": [
+    {
+     "idx": 1,
+     "type": "fabao",
+     "price": 43
+    },
+    {
+     "idx": 2,
+     "type": "dan",
+     "price": 29
+    },
+    {
+     "idx": 3,
+     "type": "fabao",
+     "price": 45
+    },
+    {
+     "idx": 4,
+     "type": "gongfa",
+     "price": 55
+    }
+   ],
+   "sink": 172
   }
  ],
  "pools": [
@@ -1678,37 +1933,22 @@
     {
      "id": "xiesui",
      "cn": "邪祟",
-     "p": 14.3
+     "p": 25
     },
     {
      "id": "chanchu",
      "cn": "蟾蜍妖",
-     "p": 14.3
+     "p": 25
     },
     {
      "id": "yinsha",
      "cn": "阴煞",
-     "p": 14.3
+     "p": 25
     },
     {
      "id": "xuefu",
      "cn": "血蝠",
-     "p": 14.3
-    },
-    {
-     "id": "guixiu",
-     "cn": "鬼修",
-     "p": 14.3
-    },
-    {
-     "id": "shikui",
-     "cn": "尸傀",
-     "p": 14.3
-    },
-    {
-     "id": "bengyao",
-     "cn": "蹦山魈",
-     "p": 14.3
+     "p": 25
     }
    ]
   },
@@ -1718,52 +1958,22 @@
     {
      "id": "xiesui",
      "cn": "邪祟",
-     "p": 10
+     "p": 25
     },
     {
      "id": "chanchu",
      "cn": "蟾蜍妖",
-     "p": 10
+     "p": 25
     },
     {
      "id": "yinsha",
      "cn": "阴煞",
-     "p": 10
+     "p": 25
     },
     {
      "id": "xuefu",
      "cn": "血蝠",
-     "p": 10
-    },
-    {
-     "id": "guixiu",
-     "cn": "鬼修",
-     "p": 10
-    },
-    {
-     "id": "shikui",
-     "cn": "尸傀",
-     "p": 10
-    },
-    {
-     "id": "bengyao",
-     "cn": "蹦山魈",
-     "p": 10
-    },
-    {
-     "id": "jianling",
-     "cn": "剑灵",
-     "p": 10
-    },
-    {
-     "id": "yingmo",
-     "cn": "影魅",
-     "p": 10
-    },
-    {
-     "id": "xuanguang",
-     "cn": "玄光瞳",
-     "p": 10
+     "p": 25
     }
    ]
   },
@@ -1773,67 +1983,252 @@
     {
      "id": "xiesui",
      "cn": "邪祟",
-     "p": 8.3
+     "p": 25
     },
     {
      "id": "chanchu",
      "cn": "蟾蜍妖",
-     "p": 8.3
+     "p": 25
     },
     {
      "id": "yinsha",
      "cn": "阴煞",
-     "p": 8.3
+     "p": 25
     },
     {
      "id": "xuefu",
      "cn": "血蝠",
-     "p": 8.3
-    },
-    {
-     "id": "guixiu",
-     "cn": "鬼修",
-     "p": 8.3
-    },
-    {
-     "id": "shikui",
-     "cn": "尸傀",
-     "p": 8.3
-    },
-    {
-     "id": "bengyao",
-     "cn": "蹦山魈",
-     "p": 8.3
-    },
-    {
-     "id": "jianling",
-     "cn": "剑灵",
-     "p": 8.3
-    },
-    {
-     "id": "yingmo",
-     "cn": "影魅",
-     "p": 8.3
-    },
-    {
-     "id": "xuanguang",
-     "cn": "玄光瞳",
-     "p": 8.3
-    },
-    {
-     "id": "tiehun",
-     "cn": "铁魄妖",
-     "p": 8.3
-    },
-    {
-     "id": "xuanjia",
-     "cn": "玄甲卫",
-     "p": 8.3
+     "p": 25
     }
    ]
   },
   {
    "depth": 5,
+   "pool": [
+    {
+     "id": "xiesui",
+     "cn": "邪祟",
+     "p": 25
+    },
+    {
+     "id": "chanchu",
+     "cn": "蟾蜍妖",
+     "p": 25
+    },
+    {
+     "id": "yinsha",
+     "cn": "阴煞",
+     "p": 25
+    },
+    {
+     "id": "xuefu",
+     "cn": "血蝠",
+     "p": 25
+    }
+   ]
+  },
+  {
+   "depth": 6,
+   "pool": [
+    {
+     "id": "xiesui",
+     "cn": "邪祟",
+     "p": 14.3
+    },
+    {
+     "id": "chanchu",
+     "cn": "蟾蜍妖",
+     "p": 14.3
+    },
+    {
+     "id": "yinsha",
+     "cn": "阴煞",
+     "p": 14.3
+    },
+    {
+     "id": "xuefu",
+     "cn": "血蝠",
+     "p": 14.3
+    },
+    {
+     "id": "guixiu",
+     "cn": "鬼修",
+     "p": 14.3
+    },
+    {
+     "id": "shikui",
+     "cn": "尸傀",
+     "p": 14.3
+    },
+    {
+     "id": "bengyao",
+     "cn": "蹦山魈",
+     "p": 14.3
+    }
+   ]
+  },
+  {
+   "depth": 7,
+   "pool": [
+    {
+     "id": "xiesui",
+     "cn": "邪祟",
+     "p": 14.3
+    },
+    {
+     "id": "chanchu",
+     "cn": "蟾蜍妖",
+     "p": 14.3
+    },
+    {
+     "id": "yinsha",
+     "cn": "阴煞",
+     "p": 14.3
+    },
+    {
+     "id": "xuefu",
+     "cn": "血蝠",
+     "p": 14.3
+    },
+    {
+     "id": "guixiu",
+     "cn": "鬼修",
+     "p": 14.3
+    },
+    {
+     "id": "shikui",
+     "cn": "尸傀",
+     "p": 14.3
+    },
+    {
+     "id": "bengyao",
+     "cn": "蹦山魈",
+     "p": 14.3
+    }
+   ]
+  },
+  {
+   "depth": 8,
+   "pool": [
+    {
+     "id": "xiesui",
+     "cn": "邪祟",
+     "p": 14.3
+    },
+    {
+     "id": "chanchu",
+     "cn": "蟾蜍妖",
+     "p": 14.3
+    },
+    {
+     "id": "yinsha",
+     "cn": "阴煞",
+     "p": 14.3
+    },
+    {
+     "id": "xuefu",
+     "cn": "血蝠",
+     "p": 14.3
+    },
+    {
+     "id": "guixiu",
+     "cn": "鬼修",
+     "p": 14.3
+    },
+    {
+     "id": "shikui",
+     "cn": "尸傀",
+     "p": 14.3
+    },
+    {
+     "id": "bengyao",
+     "cn": "蹦山魈",
+     "p": 14.3
+    }
+   ]
+  },
+  {
+   "depth": 9,
+   "pool": [
+    {
+     "id": "xiesui",
+     "cn": "邪祟",
+     "p": 14.3
+    },
+    {
+     "id": "chanchu",
+     "cn": "蟾蜍妖",
+     "p": 14.3
+    },
+    {
+     "id": "yinsha",
+     "cn": "阴煞",
+     "p": 14.3
+    },
+    {
+     "id": "xuefu",
+     "cn": "血蝠",
+     "p": 14.3
+    },
+    {
+     "id": "guixiu",
+     "cn": "鬼修",
+     "p": 14.3
+    },
+    {
+     "id": "shikui",
+     "cn": "尸傀",
+     "p": 14.3
+    },
+    {
+     "id": "bengyao",
+     "cn": "蹦山魈",
+     "p": 14.3
+    }
+   ]
+  },
+  {
+   "depth": 10,
+   "pool": [
+    {
+     "id": "xiesui",
+     "cn": "邪祟",
+     "p": 14.3
+    },
+    {
+     "id": "chanchu",
+     "cn": "蟾蜍妖",
+     "p": 14.3
+    },
+    {
+     "id": "yinsha",
+     "cn": "阴煞",
+     "p": 14.3
+    },
+    {
+     "id": "xuefu",
+     "cn": "血蝠",
+     "p": 14.3
+    },
+    {
+     "id": "guixiu",
+     "cn": "鬼修",
+     "p": 14.3
+    },
+    {
+     "id": "shikui",
+     "cn": "尸傀",
+     "p": 14.3
+    },
+    {
+     "id": "bengyao",
+     "cn": "蹦山魈",
+     "p": 14.3
+    }
+   ]
+  },
+  {
+   "depth": 11,
    "pool": [
     {
      "id": "xiesui",
@@ -1898,7 +2293,202 @@
    ]
   },
   {
-   "depth": 6,
+   "depth": 12,
+   "pool": [
+    {
+     "id": "xiesui",
+     "cn": "邪祟",
+     "p": 8.3
+    },
+    {
+     "id": "chanchu",
+     "cn": "蟾蜍妖",
+     "p": 8.3
+    },
+    {
+     "id": "yinsha",
+     "cn": "阴煞",
+     "p": 8.3
+    },
+    {
+     "id": "xuefu",
+     "cn": "血蝠",
+     "p": 8.3
+    },
+    {
+     "id": "guixiu",
+     "cn": "鬼修",
+     "p": 8.3
+    },
+    {
+     "id": "shikui",
+     "cn": "尸傀",
+     "p": 8.3
+    },
+    {
+     "id": "bengyao",
+     "cn": "蹦山魈",
+     "p": 8.3
+    },
+    {
+     "id": "jianling",
+     "cn": "剑灵",
+     "p": 8.3
+    },
+    {
+     "id": "yingmo",
+     "cn": "影魅",
+     "p": 8.3
+    },
+    {
+     "id": "xuanguang",
+     "cn": "玄光瞳",
+     "p": 8.3
+    },
+    {
+     "id": "tiehun",
+     "cn": "铁魄妖",
+     "p": 8.3
+    },
+    {
+     "id": "xuanjia",
+     "cn": "玄甲卫",
+     "p": 8.3
+    }
+   ]
+  },
+  {
+   "depth": 13,
+   "pool": [
+    {
+     "id": "xiesui",
+     "cn": "邪祟",
+     "p": 8.3
+    },
+    {
+     "id": "chanchu",
+     "cn": "蟾蜍妖",
+     "p": 8.3
+    },
+    {
+     "id": "yinsha",
+     "cn": "阴煞",
+     "p": 8.3
+    },
+    {
+     "id": "xuefu",
+     "cn": "血蝠",
+     "p": 8.3
+    },
+    {
+     "id": "guixiu",
+     "cn": "鬼修",
+     "p": 8.3
+    },
+    {
+     "id": "shikui",
+     "cn": "尸傀",
+     "p": 8.3
+    },
+    {
+     "id": "bengyao",
+     "cn": "蹦山魈",
+     "p": 8.3
+    },
+    {
+     "id": "jianling",
+     "cn": "剑灵",
+     "p": 8.3
+    },
+    {
+     "id": "yingmo",
+     "cn": "影魅",
+     "p": 8.3
+    },
+    {
+     "id": "xuanguang",
+     "cn": "玄光瞳",
+     "p": 8.3
+    },
+    {
+     "id": "tiehun",
+     "cn": "铁魄妖",
+     "p": 8.3
+    },
+    {
+     "id": "xuanjia",
+     "cn": "玄甲卫",
+     "p": 8.3
+    }
+   ]
+  },
+  {
+   "depth": 14,
+   "pool": [
+    {
+     "id": "xiesui",
+     "cn": "邪祟",
+     "p": 8.3
+    },
+    {
+     "id": "chanchu",
+     "cn": "蟾蜍妖",
+     "p": 8.3
+    },
+    {
+     "id": "yinsha",
+     "cn": "阴煞",
+     "p": 8.3
+    },
+    {
+     "id": "xuefu",
+     "cn": "血蝠",
+     "p": 8.3
+    },
+    {
+     "id": "guixiu",
+     "cn": "鬼修",
+     "p": 8.3
+    },
+    {
+     "id": "shikui",
+     "cn": "尸傀",
+     "p": 8.3
+    },
+    {
+     "id": "bengyao",
+     "cn": "蹦山魈",
+     "p": 8.3
+    },
+    {
+     "id": "jianling",
+     "cn": "剑灵",
+     "p": 8.3
+    },
+    {
+     "id": "yingmo",
+     "cn": "影魅",
+     "p": 8.3
+    },
+    {
+     "id": "xuanguang",
+     "cn": "玄光瞳",
+     "p": 8.3
+    },
+    {
+     "id": "tiehun",
+     "cn": "铁魄妖",
+     "p": 8.3
+    },
+    {
+     "id": "xuanjia",
+     "cn": "玄甲卫",
+     "p": 8.3
+    }
+   ]
+  },
+  {
+   "depth": 15,
    "pool": [
     {
      "id": "xiesui",
@@ -1966,21 +2556,21 @@
  "floors": [
   {
    "depth": 1,
-   "rooms": 13.8,
-   "normalRooms": 8,
-   "eliteRate": 43,
-   "secretRate": 38,
+   "rooms": 13.6,
+   "normalRooms": 8.4,
+   "eliteRate": 63,
+   "secretRate": 50,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 51,
    "sink": 60,
-   "reserve": 13,
-   "eliteMult": 2.37,
+   "reserve": 12,
+   "eliteMult": 2.49,
    "locks": 2,
    "bombs": 1.5,
-   "enemies": 35.1,
-   "enemiesPerRoom": 4.4,
+   "enemies": 31.9,
+   "enemiesPerRoom": 3.8,
    "hpScale": 1,
    "power": 1,
    "threat": 1,
@@ -1990,122 +2580,338 @@
   },
   {
    "depth": 2,
-   "rooms": 14.9,
-   "normalRooms": 8.9,
-   "eliteRate": 50,
-   "secretRate": 50,
+   "rooms": 14.8,
+   "normalRooms": 9.9,
+   "eliteRate": 48,
+   "secretRate": 43,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 57,
    "sink": 67,
-   "reserve": 14,
-   "eliteMult": 2.47,
+   "reserve": 13,
+   "eliteMult": 2.46,
    "locks": 2,
-   "bombs": 1.7,
-   "enemies": 48,
-   "enemiesPerRoom": 5.4,
-   "hpScale": 1.57,
-   "power": 1.92,
-   "threat": 2.15,
-   "mult": 1.411,
-   "count": 1.096,
+   "bombs": 1.6,
+   "enemies": 43.7,
+   "enemiesPerRoom": 4.4,
+   "hpScale": 1.39,
+   "power": 1.9,
+   "threat": 1.45,
+   "mult": 1.184,
+   "count": 1.046,
    "tag": "险"
   },
   {
    "depth": 3,
-   "rooms": 16,
-   "normalRooms": 10.1,
-   "eliteRate": 55,
-   "secretRate": 40,
+   "rooms": 16.1,
+   "normalRooms": 11.3,
+   "eliteRate": 43,
+   "secretRate": 35,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 65,
    "sink": 76,
    "reserve": 15,
-   "eliteMult": 2.43,
+   "eliteMult": 2.46,
    "locks": 2,
    "bombs": 1.6,
-   "enemies": 64,
-   "enemiesPerRoom": 6.4,
-   "hpScale": 2.21,
-   "power": 3,
-   "threat": 3.71,
-   "mult": 1.804,
-   "count": 1.17,
-   "tag": "危"
+   "enemies": 61.8,
+   "enemiesPerRoom": 5.5,
+   "hpScale": 1.82,
+   "power": 3.18,
+   "threat": 2.46,
+   "mult": 1.498,
+   "count": 1.114,
+   "tag": "险"
   },
   {
    "depth": 4,
-   "rooms": 15.7,
-   "normalRooms": 9.2,
-   "eliteRate": 80,
-   "secretRate": 68,
+   "rooms": 15.9,
+   "normalRooms": 10.9,
+   "eliteRate": 60,
+   "secretRate": 40,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 71,
    "sink": 83,
-   "reserve": 14,
-   "eliteMult": 2.46,
+   "reserve": 18,
+   "eliteMult": 2.57,
    "locks": 2,
-   "bombs": 1.6,
-   "enemies": 71.7,
-   "enemiesPerRoom": 7.8,
-   "hpScale": 2.86,
-   "power": 4.03,
-   "threat": 2.82,
-   "mult": 1.595,
-   "count": 1.133,
-   "tag": "危"
+   "bombs": 1.4,
+   "enemies": 71.8,
+   "enemiesPerRoom": 6.6,
+   "hpScale": 2.19,
+   "power": 4.32,
+   "threat": 7.45,
+   "mult": 2.469,
+   "count": 1.273,
+   "tag": "绝"
   },
   {
    "depth": 5,
-   "rooms": 16.2,
-   "normalRooms": 9.6,
-   "eliteRate": 90,
-   "secretRate": 73,
+   "rooms": 16.1,
+   "normalRooms": 10.3,
+   "eliteRate": 38,
+   "secretRate": 38,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 78,
    "sink": 92,
-   "reserve": 16,
-   "eliteMult": 2.61,
+   "reserve": 18,
+   "eliteMult": 2.44,
    "locks": 2,
-   "bombs": 1.4,
-   "enemies": 82.3,
-   "enemiesPerRoom": 8.6,
-   "hpScale": 3.78,
-   "power": 5.85,
-   "threat": 7.66,
-   "mult": 2.5,
-   "count": 1.277,
-   "tag": "绝"
+   "bombs": 1.5,
+   "enemies": 80.9,
+   "enemiesPerRoom": 7.8,
+   "hpScale": 2.53,
+   "power": 5.45,
+   "threat": 4.17,
+   "mult": 1.901,
+   "count": 1.187,
+   "tag": "危"
   },
   {
    "depth": 6,
-   "rooms": 16.4,
-   "normalRooms": 9.9,
-   "eliteRate": 83,
-   "secretRate": 70,
+   "rooms": 15.8,
+   "normalRooms": 10.7,
+   "eliteRate": 70,
+   "secretRate": 48,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 84,
    "sink": 99,
-   "reserve": 16,
-   "eliteMult": 2.54,
+   "reserve": 18,
+   "eliteMult": 2.52,
+   "locks": 2,
+   "bombs": 1.5,
+   "enemies": 56,
+   "enemiesPerRoom": 5.3,
+   "hpScale": 3.31,
+   "power": 7.55,
+   "threat": 9.09,
+   "mult": 2.7,
+   "count": 1.303,
+   "tag": "绝"
+  },
+  {
+   "depth": 7,
+   "rooms": 16.4,
+   "normalRooms": 11,
+   "eliteRate": 78,
+   "secretRate": 57,
+   "treasureRate": 100,
+   "shopRate": 100,
+   "sacrificeRate": 100,
+   "budget": 92,
+   "sink": 108,
+   "reserve": 19,
+   "eliteMult": 2.55,
    "locks": 2,
    "bombs": 1.6,
-   "enemies": 89.8,
-   "enemiesPerRoom": 9.1,
-   "hpScale": 4.54,
-   "power": 7.07,
-   "threat": 6.45,
-   "mult": 2.313,
-   "count": 1.251,
+   "enemies": 69.3,
+   "enemiesPerRoom": 6.3,
+   "hpScale": 3.75,
+   "power": 9.14,
+   "threat": 6.05,
+   "mult": 2.248,
+   "count": 1.241,
+   "tag": "绝"
+  },
+  {
+   "depth": 8,
+   "rooms": 16.1,
+   "normalRooms": 11.2,
+   "eliteRate": 40,
+   "secretRate": 53,
+   "treasureRate": 100,
+   "shopRate": 100,
+   "sacrificeRate": 100,
+   "budget": 98,
+   "sink": 115,
+   "reserve": 19,
+   "eliteMult": 2.52,
+   "locks": 2,
+   "bombs": 1.5,
+   "enemies": 80.8,
+   "enemiesPerRoom": 7.2,
+   "hpScale": 4.33,
+   "power": 11.67,
+   "threat": 16.21,
+   "mult": 3.503,
+   "count": 1.397,
+   "tag": "绝"
+  },
+  {
+   "depth": 9,
+   "rooms": 16,
+   "normalRooms": 10.7,
+   "eliteRate": 75,
+   "secretRate": 57,
+   "treasureRate": 100,
+   "shopRate": 100,
+   "sacrificeRate": 100,
+   "budget": 105,
+   "sink": 124,
+   "reserve": 20,
+   "eliteMult": 2.53,
+   "locks": 2,
+   "bombs": 1.6,
+   "enemies": 93.6,
+   "enemiesPerRoom": 8.8,
+   "hpScale": 4.96,
+   "power": 14.82,
+   "threat": 13.9,
+   "mult": 3.268,
+   "count": 1.371,
+   "tag": "绝"
+  },
+  {
+   "depth": 10,
+   "rooms": 15.9,
+   "normalRooms": 9.8,
+   "eliteRate": 60,
+   "secretRate": 48,
+   "treasureRate": 100,
+   "shopRate": 100,
+   "sacrificeRate": 100,
+   "budget": 111,
+   "sink": 131,
+   "reserve": 23,
+   "eliteMult": 2.44,
+   "locks": 2,
+   "bombs": 1.5,
+   "enemies": 92,
+   "enemiesPerRoom": 9.4,
+   "hpScale": 5.35,
+   "power": 16.48,
+   "threat": 14.35,
+   "mult": 3.316,
+   "count": 1.377,
+   "tag": "绝"
+  },
+  {
+   "depth": 11,
+   "rooms": 16.1,
+   "normalRooms": 10.7,
+   "eliteRate": 83,
+   "secretRate": 63,
+   "treasureRate": 100,
+   "shopRate": 100,
+   "sacrificeRate": 100,
+   "budget": 119,
+   "sink": 140,
+   "reserve": 22,
+   "eliteMult": 2.52,
+   "locks": 2,
+   "bombs": 1.4,
+   "enemies": 74.3,
+   "enemiesPerRoom": 7,
+   "hpScale": 6.6,
+   "power": 20.85,
+   "threat": 17.19,
+   "mult": 3.597,
+   "count": 1.407,
+   "tag": "绝"
+  },
+  {
+   "depth": 12,
+   "rooms": 16.5,
+   "normalRooms": 10.9,
+   "eliteRate": 83,
+   "secretRate": 75,
+   "treasureRate": 100,
+   "shopRate": 100,
+   "sacrificeRate": 100,
+   "budget": 125,
+   "sink": 147,
+   "reserve": 20,
+   "eliteMult": 2.52,
+   "locks": 2,
+   "bombs": 1.4,
+   "enemies": 88.3,
+   "enemiesPerRoom": 8.1,
+   "hpScale": 7.5,
+   "power": 26.89,
+   "threat": 24.02,
+   "mult": 4.18,
+   "count": 1.464,
+   "tag": "绝"
+  },
+  {
+   "depth": 13,
+   "rooms": 15.9,
+   "normalRooms": 10.4,
+   "eliteRate": 78,
+   "secretRate": 73,
+   "treasureRate": 100,
+   "shopRate": 100,
+   "sacrificeRate": 100,
+   "budget": 133,
+   "sink": 156,
+   "reserve": 20,
+   "eliteMult": 2.51,
+   "locks": 2,
+   "bombs": 1.5,
+   "enemies": 98.2,
+   "enemiesPerRoom": 9.4,
+   "hpScale": 7.99,
+   "power": 32.55,
+   "threat": 27.96,
+   "mult": 4.477,
+   "count": 1.491,
+   "tag": "绝"
+  },
+  {
+   "depth": 14,
+   "rooms": 16.1,
+   "normalRooms": 10.6,
+   "eliteRate": 83,
+   "secretRate": 73,
+   "treasureRate": 100,
+   "shopRate": 100,
+   "sacrificeRate": 100,
+   "budget": 139,
+   "sink": 163,
+   "reserve": 22,
+   "eliteMult": 2.44,
+   "locks": 2,
+   "bombs": 1.4,
+   "enemies": 102.3,
+   "enemiesPerRoom": 9.7,
+   "hpScale": 8.45,
+   "power": 38.93,
+   "threat": 40,
+   "mult": 4.6,
+   "count": 1.5,
+   "tag": "绝"
+  },
+  {
+   "depth": 15,
+   "rooms": 16.1,
+   "normalRooms": 9.5,
+   "eliteRate": 90,
+   "secretRate": 68,
+   "treasureRate": 100,
+   "shopRate": 100,
+   "sacrificeRate": 100,
+   "budget": 146,
+   "sink": 172,
+   "reserve": 23,
+   "eliteMult": 2.48,
+   "locks": 2,
+   "bombs": 1.6,
+   "enemies": 94.8,
+   "enemiesPerRoom": 10,
+   "hpScale": 8.65,
+   "power": 48.25,
+   "threat": 40,
+   "mult": 4.6,
+   "count": 1.5,
    "tag": "绝"
   }
  ],
@@ -2113,15 +2919,20 @@
   "POWER_BASE": 1,
   "DIFF_POW": 0.45,
   "DIFF_CNT_POW": 0.12,
-  "DIFF_MAX": 3,
+  "DIFF_MAX_BY_SEG": [
+   3,
+   3.8,
+   4.6
+  ],
   "DIFF_MIN": 0.8,
   "countMin": 0.85,
   "countMax": 1.5,
-  "formula": "threat = power / POWER_BASE；血量 mult = clamp(threat^DIFF_POW, DIFF_MIN, DIFF_MAX)；数量 count = clamp(threat^DIFF_CNT_POW, 0.85, 1.5)",
+  "formula": "threat = power / POWER_BASE；血量 mult = clamp(threat^DIFF_POW, DIFF_MIN, DIFF_MAX_by_seg[段])；数量 count = clamp(threat^DIFF_CNT_POW, 0.85, 1.5)",
+  "diffMaxNote": "封顶按【段】放宽（3.0 / 3.8 / 4.6）—— 15 层制下若仍固定 3.0，战力到 12 就撞顶、后 5 层难度完全不动",
   "powerFormula": "dps / (3.5 * 2.6) // 攻击：裸装 ≈ 1.0 + s.pierce * 0.18 + s.homing * 3.0 + (s.homingRange - 220) * 0.002 + s.burn * 0.25 + s.frost * 0.2 + s.chain * 0.35 + s.poison * 0.3 + s.soul * 0.3 + (p.maxHP / 6 - 1) * 0.6 + p.shieldTotal * 0.08 // 生存 + (s.speed / 2.35 - 1) * 0.8 + s.luck * 0.06 + s.regen * 0.15 + (s.mpRegen || 0) * 0.25",
   "tags": "mult ≤0.95 缓 / ≤1.15 平 / ≤1.5 险 / ≤2.0 危 / >2.0 绝",
   "LOOT_DECAY": 0.82,
-  "lootFormula": "scale = LOOT_DECAY^(层-1)；心血掉率、灵力珠掉率与单颗量、精英必掉量、Boss 转阶段单颗量 全部 × scale"
+  "lootFormula": "scale = LOOT_DECAY^(段)；心血掉率、灵力珠掉率与单颗量、精英必掉量、Boss 转阶段单颗量 全部 × scale"
  },
  "curve": [
   {
@@ -2129,68 +2940,87 @@
    "threat": 1,
    "mult": 1,
    "count": 1,
-   "tag": "平"
+   "tag": "平",
+   "multSeg3": 1,
+   "tagSeg3": "平"
   },
   {
    "power": 1.5,
    "threat": 1.5,
    "mult": 1.2,
    "count": 1.05,
-   "tag": "险"
+   "tag": "险",
+   "multSeg3": 1.2,
+   "tagSeg3": "险"
   },
   {
    "power": 2,
    "threat": 2,
    "mult": 1.366,
    "count": 1.087,
-   "tag": "险"
+   "tag": "险",
+   "multSeg3": 1.366,
+   "tagSeg3": "险"
   },
   {
    "power": 3,
    "threat": 3,
    "mult": 1.639,
    "count": 1.141,
-   "tag": "危"
+   "tag": "危",
+   "multSeg3": 1.639,
+   "tagSeg3": "危"
   },
   {
    "power": 4,
    "threat": 4,
    "mult": 1.866,
    "count": 1.181,
-   "tag": "危"
+   "tag": "危",
+   "multSeg3": 1.866,
+   "tagSeg3": "危"
   },
   {
    "power": 6,
    "threat": 6,
    "mult": 2.24,
    "count": 1.24,
-   "tag": "绝"
+   "tag": "绝",
+   "multSeg3": 2.24,
+   "tagSeg3": "绝"
   },
   {
    "power": 8,
    "threat": 8,
    "mult": 2.549,
    "count": 1.283,
-   "tag": "绝"
+   "tag": "绝",
+   "multSeg3": 2.549,
+   "tagSeg3": "绝"
   },
   {
    "power": 12,
    "threat": 12,
    "mult": 3,
    "count": 1.347,
-   "tag": "绝"
+   "tag": "绝",
+   "multSeg3": 3.059,
+   "tagSeg3": "绝"
   },
   {
    "power": 20,
    "threat": 20,
    "mult": 3,
    "count": 1.433,
-   "tag": "绝"
+   "tag": "绝",
+   "multSeg3": 3.85,
+   "tagSeg3": "绝"
   }
  ],
  "lootCurve": [
   {
    "depth": 1,
+   "seg": 1,
    "scale": 1,
    "heartFull": 0.02,
    "heartCritical": 0.24,
@@ -2200,7 +3030,19 @@
    "mpBoss": 10
   },
   {
-   "depth": 2,
+   "depth": 5,
+   "seg": 1,
+   "scale": 1,
+   "heartFull": 0.02,
+   "heartCritical": 0.24,
+   "mpRate": 0.62,
+   "mpAmt": 7,
+   "mpElite": 18,
+   "mpBoss": 10
+  },
+  {
+   "depth": 6,
+   "seg": 2,
    "scale": 0.82,
    "heartFull": 0.0164,
    "heartCritical": 0.1968,
@@ -2210,7 +3052,19 @@
    "mpBoss": 8
   },
   {
-   "depth": 3,
+   "depth": 10,
+   "seg": 2,
+   "scale": 0.82,
+   "heartFull": 0.0164,
+   "heartCritical": 0.1968,
+   "mpRate": 0.5084,
+   "mpAmt": 5,
+   "mpElite": 15,
+   "mpBoss": 8
+  },
+  {
+   "depth": 11,
+   "seg": 3,
    "scale": 0.672,
    "heartFull": 0.0134,
    "heartCritical": 0.1614,
@@ -2220,34 +3074,15 @@
    "mpBoss": 7
   },
   {
-   "depth": 4,
-   "scale": 0.551,
-   "heartFull": 0.011,
-   "heartCritical": 0.1323,
-   "mpRate": 0.3418,
+   "depth": 15,
+   "seg": 3,
+   "scale": 0.672,
+   "heartFull": 0.0134,
+   "heartCritical": 0.1614,
+   "mpRate": 0.4169,
    "mpAmt": 4,
-   "mpElite": 10,
-   "mpBoss": 6
-  },
-  {
-   "depth": 5,
-   "scale": 0.452,
-   "heartFull": 0.009,
-   "heartCritical": 0.1085,
-   "mpRate": 0.2803,
-   "mpAmt": 3,
-   "mpElite": 8,
-   "mpBoss": 5
-  },
-  {
-   "depth": 6,
-   "scale": 0.371,
-   "heartFull": 0.0074,
-   "heartCritical": 0.089,
-   "mpRate": 0.2299,
-   "mpAmt": 2,
-   "mpElite": 7,
-   "mpBoss": 4
+   "mpElite": 12,
+   "mpBoss": 7
   }
  ],
  "skills": [
@@ -2877,6 +3712,6 @@
   "mpTickFrames": 0,
   "SHIELD_DUR": 300
  },
- "exportedAt": "2026-09-23 11:08:42",
+ "exportedAt": "2026-09-23 11:46:13",
  "errs": []
 }

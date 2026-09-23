@@ -21,11 +21,20 @@ const OUT = path.resolve(__dirname, '..', 'preview');
   const shot = async f => { await stage.screenshot({ path: path.join(OUT, f) }); console.log('saved', f); };
   const settle = (ms) => page.waitForTimeout(ms || 260);
 
-  /* ---------- 图一：择魔头 ---------- */
+  /* ---------- 图零：择流派（三级菜单的第一级） ---------- */
   await page.evaluate(() => {
     const G = window.Game;
     G.challResult = null;          // 先不带战果提示，看清干净的菜单
     G.openChallMenu();
+  });
+  await settle();
+  await shot('_preview_chall_style.png');
+
+  /* ---------- 图一：择魔头 ---------- */
+  await page.evaluate(() => {
+    const G = window.Game;
+    G.challPick(0);                // 先选中「飞剑流」
+    G.challConfirm();              // → 进「择魔头」
     G.challPick(2);                // 停在裂煞魔尊上，看得出选中态
   });
   await settle();

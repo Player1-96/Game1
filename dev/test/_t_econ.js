@@ -304,15 +304,19 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
           if (G.state === 'win') break;
           if (i % 90 === 0) {                 // 强制推进，覆盖深层内容
             G.enemies.length = 0;
-            if (G.depth < 5) G.nextFloor();
-            else { G.state = 'win'; break; }
+            /* 推进到「最后一层」而不是写死 5 —— 层数由 SEG_TOTAL_FLOORS 决定（当前 15）。
+               写死 5 会在扩层后漏测后半段的房间/经济。 */
+            if (G.depth < SEG_TOTAL_FLOORS) {
+              G.nextFloor();
+              if (G.state === 'stylePick' && G.styleMenu) G.styleMenuConfirm();
+            } else { G.state = 'win'; break; }
           }
         }
       } catch (e) { bad = e.message; }
       G.input.mouseDown = false; G.input.up = G.input.down = G.input.left = G.input.right = false;
       return { frames, maxDepth, bad, state: G.state, coins: G.coins, peakCoins };
     }, style);
-    ok(`${style} 推进到 5 层无异常`, r.bad === null && r.maxDepth >= 5,
+    ok(`${style} 推进到最后 1 层无异常`, r.bad === null && r.maxDepth >= 5,
       r.bad || `${r.frames} 帧 / 最深 ${r.maxDepth} 层 / state=${r.state}`);
     ok(`${style} 灵石未失控溢出`, r.peakCoins < 260, '峰值 ' + r.peakCoins);
   }
@@ -330,7 +334,10 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
       }
     };
     // —— Boss 房
+    /* ⚠️ Boss 房只在【段末】出现（SEG_FLOORS 的整数倍层），第 1 层是没有的。
+       原先直接 newRun 后 findRoom('boss') 必然拿不到 —— 会静默 skip 掉整组断言。 */
     G.newRun('feijian');
+    G.newFloor(SEG_FLOORS);
     const br = findRoom('boss');
     if (!br) return { skip: true };
     G.enterRoom(br, null);

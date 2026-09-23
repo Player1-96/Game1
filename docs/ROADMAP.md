@@ -279,15 +279,16 @@ Boss 5 个共 250 行（约 50 行/个）。
 > 已按全局编号做完：全局第 1 期（无限模式）、全局第 2 期（`Style.pal` + 中式 3 段）。
 
 **第 1 期（= 全局第 2 期）不需要任何新美术** —— 全用现有素材配色变体，
-能让「选风格 → 每段 3 层 → 再选」的完整手感先跑起来。
+能让「选风格 → **每段 5 层** → 再选」的完整手感先跑起来。
 
 ### 边界条件
 
 - **词缀必须能被玩家看见**。现在 `FONT5` 只有英文点阵，**中文飘字画不出来**
   （已踩过：`'灵力外溢'`/`'鳞罩'` 从未显示）。词缀提示走 `itemPopup`（DOM 浮层）或英文。
 - 小地图：换风格不影响，但**新风格的地板/墙要进 `renderBG` 的色板分支**。
-- `Floor` 目前按 `depth` 决定 `BOSS_KEYS[depth-1]`（一层一位）。
-  改成风格制后，要变成 **`BOSS_KEYS[style][segment]`**。
+- `Floor` 原来按 `depth` 决定 `BOSS_KEYS[depth-1]`（一层一位）。
+  第二期已改成 **按段取人**：`BOSS_KEYS[min(4, segOf(depth))]`，只在段末登场。
+  真正要做的是把 `BOSS_KEYS` 从「一维数组」升级成 **`BOSS_KEYS[style]`**（每风格一组尊者）。
 
 ### 交付物清单（全局第 2 期，**已完成**）
 
@@ -297,7 +298,7 @@ Boss 5 个共 250 行（约 50 行/个）。
 - [x] `palOf / curPal / setStyle / pal` 取值函数层
 - [x] 硬编码色 182 → 30（收敛判据写进 `px.js`）
 - [x] `buildSprites(style, seg)` + `SPR_CACHE`（key = `style_seg`）+ `switchStyle()`
-- [x] `STYLE_SYS` / `segOfFloor` / `isSegPickFloor`（每段 3 层 → 9 层）
+- [x] `STYLE_SYS` / `segOfFloor` / `isSegPickFloor` —— **判定转发自 `dungeon.js`**（见下）
 - [x] `nextFloor` 段间接点 + `applySegmentPalette`（色板必须换在 `newFloor` **之前**）
 - [x] 三选一面板 `openStyleMenu` + `renderStyleMenu` + 键盘（←→ / 1~3 / Enter / Esc）
 - [x] 单选项不弹面板（`pool.length === 1` 直接采用）
@@ -305,13 +306,57 @@ Boss 5 个共 250 行（约 50 行/个）。
 - [x] HUD 顶栏风格标识（如「中·二」）
 - [x] 探针 `_probe_pal.js`（烘焙耗时 / 体量 / 同种子一致性）
 - [x] 探针 `_probe_stylepal.js`（27 条断言：代理契约 / 三段差异 / 像素真变 / 缓存 / 互不污染 / 耗时）
-- [x] 回归 `_t_stylemap.js`（43 条断言，全绿）
+- [x] 回归 `_t_stylemap.js`（44 条断言，全绿）
 - [x] 截图 `_shot_stylemap.js`（6 张：同房三段对比 + 开局面板 + 段间面板 + HUD）
 
-**待用户拍板的开放问题**
+### 层数定案：**主玩法 15 层**（2026-09，用户拍板）
 
-- **层数方案**：当前按 `STYLE_SEG_FLOORS = 3`（9 层 3 段）落地，
-  单一常量即可改成 5（15 层）。**建议先跑 9 层**，时长以后调常量就行。
+用户明确要求主玩法 **15 层**，理由是**层数与后续「法宝融合」是乘法关系**：
+
+> 「层数不够的话养法器的空间就会比较小」
+
+数据核实 —— 一局能养出的法宝件数约 = 层数 × 1.6：
+
+| 层数 | 一局法宝期望 | 融合（试错 + 定型两条路）够不够 |
+| --- | --- | --- |
+| 9 层 | ≈ 14 件 | 刚好卡在「勉强够」，一旦误融合就报废 |
+| **15 层** | **≈ 24 件** | 有富余做「先试一条路，再定型一条路」 |
+
+**快速模式（9 层）本期不做** —— 用户决定不做，避免在主线未稳时多开一条分支。
+
+### ⚠️ 改成 15 层必须同时解决的三个卡点
+
+单纯把层数从 5 拉到 15 会让「名义上改了、实际不好玩」。改之前先探出三个硬卡点，
+统一用 **「按段计算」** 解决（`SEG_FLOORS = 5` → `SEG_COUNT = 3` → 共 15 层）：
+
+| # | 卡点 | 症状 | 解法 |
+| --- | --- | --- | --- |
+| ① | `BOSS_KEYS` 只有 5 位，原 `BOSS_KEYS[Math.min(4, depth-1)]` | 第 6~15 层**连着打 10 次烛龙** | Boss **只在段末**出现，按段取人 → 一局 3 个 Boss（第 5/10/15 层） |
+| ② | `DIFF_MAX = 3.0` 在战力 12 就封顶 | 后 5 层难度**完全不动**（血包更厚而已） | `DIFF_MAX_BY_SEG = [3.0, 3.8, 4.6]`，**每段各自封顶** |
+| ③ | `LOOT_DECAY = 0.82` **按层**衰减 | 15 层 = `0.82^14 ≈ 0.060` → 掉率只剩 6%，是死局不是难度 | 衰减单位改**每段一档** → `0.82^2 ≈ 0.67`，对齐原 5~6 层手感 |
+
+**「按段」是本期所有跨层节奏的统一单位。** 三个派生量都在 `dungeon.js`：
+
+- `segProgress(depth)` —— 段内进度 0→1（爬升形状）
+- `runProgress(depth)` —— 整局进度 0→1（用于数量/密度）
+- `segOf(depth)` —— 段号 0/1/2（用于解锁、封顶、取 Boss）
+
+> **为什么判定放 `dungeon.js` 而不是 `game.js`**
+> `new Floor()` 生成房间时就要按段分 Boss —— 这比 `game.js` 更早一层。
+> 放 `game.js` 会形成「下层依赖上层」的倒挂（模块顶层调用即 TDZ 崩）。
+> `game.js` 里的 `segOfFloor` / `isSegPickFloor` 是**转发别名，不是副本** ——
+> 两边各算一次迟早会算出不同的段。
+
+### 段末 Boss 强度：`BOSS_SEG_MUL = [1.00, 1.18, 1.36]`
+
+按段分配 Boss 之后，「段末」成了玩家唯一的硬门槛，
+所以段末 Boss **额外加厚**（用户要求「要注意强度」「段末再加一个也是好提议」）：
+血魔 → 白骨 → 裂煞 逐段递增，配合 `hpBase` 的段间台阶，后期是「更凶」而不是「更肉」。
+
+**挑战模式的连带修复**：`startChallenge` 原用 `BOSS_KEYS.indexOf(id)+1` 推层数，
+「按段取人」后索引 0（血魔）会算出**第 1 层 —— 而第 1 层没有 Boss 房**，
+挑战模式会开成一张没有头目的白图。改用 `bossFloorOf(id)`（该尊者所属段的段末）+
+`bossOverride` 显式指定，五位尊者才都能单挑。
 
 ---
 
@@ -451,15 +496,24 @@ Boss 5 个共 250 行（约 50 行/个）。
 | **◆** `sprites.js:1123` `SPR_CACHE` | 按 `style_seg` 缓存素材（3 套仅 0.7MB） |
 | **◆** `sprites.js:1125` `buildSprites(style, seg)` | 烘焙；**两条分支都走 `setStyle`**，否则缓存键与实际色板错位 |
 | **◆** `sprites.js:1227` `switchStyle(style, seg)` | 换风格；返回是否命中缓存 |
-| **◆** `game.js:360` `STYLE_SEG_FLOORS` | **每段层数（当前 3 → 9 层）**，调时长改这一个常量 |
-| **◆** `game.js:363` `STYLE_SYS` | 段数 / 总层数 / 可选池 `pickPool()`（只收 `ready:true`） |
-| **◆** `game.js:371/375` `segOfFloor/isSegPickFloor` | 「第几层属第几段」「这层要不要弹面板」 |
+| **◆** `dungeon.js` `SEG_FLOORS / SEG_COUNT / SEG_TOTAL_FLOORS` | **段系统的唯一真相**（5 层 × 3 段 = **15 层**）。调时长只改 `SEG_FLOORS` |
+| **◆** `dungeon.js` `segOf / isSegFirstFloor / isSegLastFloor` | 段号 / 段首（弹面板）/ 段末（出 Boss） |
+| **◆** `dungeon.js` `segProgress / runProgress` | 段内进度 / 整局进度（跨层曲线一律用这两个，别用 `depth`） |
+| **◆** `dungeon.js` `DIFF_MAX_BY_SEG` / `diffMaxOfSeg` | 难度**每段各自封顶** `[3.0, 3.8, 4.6]`（旧的单值 `DIFF_MAX` 只是兼容别名） |
+| **◆** `dungeon.js` `BOSS_SEG_MUL` | 段末 Boss 额外厚度 `[1.00, 1.18, 1.36]` |
+| **◆** `dungeon.js` `lootScale(depth)` / `LOOT_DECAY` | 产出衰减 —— 单位是**段** `0.82^segOf`（按层到 15 层会剩 6%，是死局） |
+| **◆** `dungeon.js` `bossFloorOf(id)` | 某尊者镇守的层数（= 所属段的段末）。**挑战模式推层数必须用它**，别用 `BOSS_KEYS.indexOf+1` |
+| **◆** `dungeon.js` `Floor.bossOverride` | 挑战模式显式指定尊者的口子（正常流程按段取人） |
+| **◆** `game.js` `STYLE_SYS` | 段数 / 总层数 / 可选池 `pickPool()`（只收 `ready:true`）；`segFloors` 等**转发自 `dungeon.js`** |
+| **◆** `game.js` `segOfFloor / isSegPickFloor` | **转发别名**（= `segOf` / `isSegFirstFloor`）—— 不要写成第二份实现 |
 | **◆** `game.js:568` `this.stylePath` / `this.seg` | 路径数组 + 当前段（0-based） |
 | **◆** `game.js:778` `continueGame` 的回落 | `stylePath` 缺失回落 `['cn']`，`seg` 缺失回落 `segOfFloor(d.depth)`；**必须在 `newFloor` 之前** |
-| **◆** `game.js:1044` `nextFloor` 通关文案 | 走满 9 层收场，带出历遍的风格串 |
+| **◆** `game.js` `nextFloor` 通关文案 | 走满 **15 层**（`STYLE_SYS.totalFloors`）收场，带出历遍的风格串 |
 | **◆** `game.js:1079` `applySegmentPalette()` | 按路径切色板 + 重建素材；**必须先于 `newFloor`** |
 | **◆** `game.js:1087` `openStyleMenu(step)` | 弹面板；含「池里只有 1 个 → 直接采用不弹面板」分支 |
 | **◆** `game.js:3463` `renderStyleMenu()` | `#stylePick` 面板绘制（色块 / 路径预览 / 卡片） |
+| **◆** `game.js` `newFloor(depth, seed, opts)` | `opts.boss` 透传成 `Floor.bossOverride`（挑战模式用） |
+| **◆** `game.js` `startChallenge` | 层数 = `bossFloorOf(bossId)`；⚠️ 用 `indexOf+1` 会算出第 1 层（无 Boss 房）→ 白图 |
 | **★** `game.js:380` `ENDLESS` | 无尽模式的全部可调参数（波次节奏 / 三条曲线 / 配装） |
 | **★** `game.js:435` `ENDLESS_MODS` | 8 条词缀表，每条一个 `apply(e)` |
 | **★** `game.js:515` `ENDLESS_BEST_KEY` | 最好成绩的 localStorage 键（与主存档分开） |
@@ -475,9 +529,9 @@ Boss 5 个共 250 行（约 50 行/个）。
 | **★** `entities.js` `Enemy.update` / `Enemy.die` | 词缀的两个效果出口（接触 / 回血、毒雾 / 爆散） |
 | `game.js:763` `spawnWave(i)` | 普通刷怪核心（无尽另写了一份，因为铺点与词缀不同） |
 | `game.js:742` `safeSpawn(x,y,r)` | 防贴脸生成 —— 无尽直接复用 |
-| `dungeon.js:486` `enemyPool(depth)` | 妖物按层解锁（无尽改成按波次，见 `endlessPool`） |
-| `dungeon.js:40` `difficultyOf()` | 难度曲线（`DIFF_MAX=3.0` 封顶 → 无尽必须另起） |
-| `dungeon.js:471` `RT.BOSS` 分支 | Boss 目前按 `BOSS_KEYS[depth-1]`，风格制要改 `[style][segment]` |
+| `dungeon.js` `enemyPool(depth)` | 妖物**按段**解锁（无尽改成按波次，见 `endlessPool`） |
+| `dungeon.js:40` `difficultyOf()` | 难度曲线（段一封顶 `3.0` → 无尽仍必须另起一条无上限曲线） |
+| `dungeon.js` `RT.BOSS` 分支 | Boss **按段取人** `BOSS_KEYS[min(4, segOf(depth))]`，只在段末登场；风格制要改 `BOSS_KEYS[style][seg]` |
 | `dungeon.js:523` `renderBG(r)` | 房间背景，色板分支入口 |
 | `game.js:533` `saveGame()` | 存档，`if (this.chall \|\| this.endless) return false;` |
 | `game.js:844/846` `state='dead'/'win'` | 结算状态机；无尽走 `endlessEnd` 而非 `dead` |

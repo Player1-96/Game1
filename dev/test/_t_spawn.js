@@ -142,7 +142,7 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     ok('凝形测试（未构造出敌人）', false);
   }
 
-  sec('T4  完整流程回归（两流派各推 5 层，含绘制）');
+  sec('T4  完整流程回归（两流派各推完整一局，含绘制）');
   for (const style of ['feijian', 'jujian']) {
     const r = await page.evaluate(st => {
       const G = window.Game;
@@ -150,7 +150,10 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
       try {
         G.newRun(st);
         const inp = window.input || (window.input = {});
-        for (let i = 0; i < 5000; i++) {
+        /* 推进节奏由层数决定：每 480 帧跳一层，总帧数必须够跳完全程
+           （15 层 → 至少 15×480 = 7200 帧；给 3 倍余量，免得卡在某层重试）。 */
+        const need = STYLE_SYS.totalFloors * 480;
+        for (let i = 0; i < need; i++) {
           // 随机移动 + 射击
           if (window.input) {
             window.input.up = Math.random() < 0.25;

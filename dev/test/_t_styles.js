@@ -153,7 +153,10 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
       let bad = null, frames = 0, maxDepth = 1, total = 0;
       try {
         G.newRun(st);
-        for (let i = 0; i < 5000; i++) {
+        /* 推进节奏由层数决定：每 480 帧跳一层，总帧数必须够跳完全程
+           （15 层 → 至少 15×480 = 7200 帧；给 3 倍余量，免得卡在某层重试）。 */
+        const need = STYLE_SYS.totalFloors * 480;
+        for (let i = 0; i < need; i++) {
           const inp = G.input;
           inp.up = Math.random() < 0.25; inp.down = Math.random() < 0.25;
           inp.left = Math.random() < 0.25; inp.right = Math.random() < 0.25;

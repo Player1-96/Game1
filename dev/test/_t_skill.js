@@ -621,7 +621,7 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   }
 
   /* ---------------- T16 产出平衡 ---------------- */
-  sec('T16  平衡：心血按血量掉率、产出逐层衰减、Boss 转阶段外溢灵力');
+  sec('T16  平衡：心血按血量掉率、产出按段衰减、Boss 转阶段外溢灵力');
   {
     const r = await page.evaluate(() => {
       const G = window.Game; G.newRun('feijian');
@@ -646,16 +646,26 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
       const nFull = sample(6), nLow = sample(2);
       p.hp = 6;
 
-      // 产出逐层衰减：不拾取任何加气运的法宝（luck = 0）时，期望必须严格递减
+      /* 产出衰减的采样层：必须踩在【段】上，而不是连排的 1..6 层。
+         衰减单位改成「每段降一档」之后，同一段内的各层期望完全相同（第 1 层与第 5 层都是 ×1.0），
+         再拿「一层 vs 五层」比就恒等于 1，断言会假失败。
+         取每段的代表层：段一第 1 层 / 段二第 6 层 / 段三第 11 层（都是段内首层，最干净）。 */
       p.stats.luck = 0;
+      const probeDepths = [1, SEG_FLOORS + 1, SEG_FLOORS * 2 + 1];
       const scale = [], rateFull = [], rateLow = [];
-      for (let d = 1; d <= 6; d++) {
+      for (const d of probeDepths) {
         G.depth = d;
         scale.push(lootScale(d));
         p.hp = 6; rateFull.push(G.heartRate());
         p.hp = 2; rateLow.push(G.heartRate());
       }
-      // 灵力珠抽样：同一只 40 血的妖，一层 vs 五层，各刷 600 只看总产出
+      // 同段内保持恒定（这是「按段」的核心性质，必须显式守住）
+      const sameSegStable = (() => {
+        const a = lootScale(1), b = lootScale(SEG_FLOORS);       // 同为段一
+        const c = lootScale(SEG_FLOORS + 1), e = lootScale(SEG_FLOORS * 2); // 同为段二
+        return a === b && c === e;
+      })();
+      // 灵力珠抽样：同一只 40 血的妖，段一 vs 段三，各刷 600 只看总产出
       function mpSample(depth) {
         G.depth = depth;
         let total = 0, drops = 0;
@@ -668,7 +678,7 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
         }
         return { drops: drops, total: total };
       }
-      const mp1 = mpSample(1), mp5 = mpSample(5);
+      const mp1 = mpSample(1), mp3 = mpSample(probeDepths[2]);
       G.depth = 1; p.hp = 6;
 
       // Boss 转阶段外溢
@@ -680,7 +690,9 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
       const bossMana = G.pickups.filter(k => k.kind === 'mp');
       return { full, two, one, nFull, nLow, phase,
                bossMana: bossMana.length, bossAmt: bossMana.map(k => k.value),
-               scale, rateFull, rateLow, mp1, mp5 };
+               scale, rateFull, rateLow, mp1, mp3, mp3depth: probeDepths[2],
+               segFloors: SEG_FLOORS, sameSegStable,
+               probeDepths: probeDepths, segOfProbe: probeDepths.map(d => segOf(d)) };
     });
     ok('满血时心血掉率很低', r.full <= 0.03, (r.full * 100).toFixed(1) + '%');
     ok('只剩一格血时明显放水', r.one >= 0.2 && r.one > r.full * 8,
@@ -688,17 +700,21 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     ok('实测：600 只妖，濒死掉的心远多于满血',
       r.nLow > r.nFull * 5, '满血 ' + r.nFull + ' 颗 / 濒死 ' + r.nLow + ' 颗');
     const fmt = a => JSON.stringify(a.map(v => +v.toFixed(3)));
-    ok('产出衰减逐层递减（一层为基准 1.0）',
+    console.log('     采样层（各段首层）：' + r.probeDepths.join(' / ') + ' → 段 ' + r.segOfProbe.join(' / '));
+    ok('同一段内产出恒定（衰减单位是段、不是层）', r.sameSegStable === true);
+    ok('产出衰减按段递减（段一为基准 1.0）',
       r.scale[0] === 1 && r.scale.every((v, i) => i === 0 || v < r.scale[i - 1]), fmt(r.scale));
-    ok('无气运时心血掉率（满血）逐层递减',
+    ok('无气运时心血掉率（满血）按段递减',
       r.rateFull.every((v, i) => i === 0 || v < r.rateFull[i - 1]), fmt(r.rateFull));
-    ok('无气运时心血掉率（濒死）逐层递减',
+    ok('无气运时心血掉率（濒死）按段递减',
       r.rateLow.every((v, i) => i === 0 || v < r.rateLow[i - 1]), fmt(r.rateLow));
-    ok('五层心血掉率约为一层的一半以下',
-      r.rateFull[4] <= r.rateFull[0] * 0.5, (r.rateFull[4] * 100).toFixed(2) + '% vs ' + (r.rateFull[0] * 100).toFixed(2) + '%');
-    ok('灵力珠总产出随层数明显下降',
-      r.mp5.total < r.mp1.total * 0.45 && r.mp5.drops < r.mp1.drops,
-      '一层 ' + r.mp1.total + ' 点/' + r.mp1.drops + ' 颗 → 五层 ' + r.mp5.total + ' 点/' + r.mp5.drops + ' 颗');
+    ok('段三心血掉率约为段一的六成（对齐原 5 层制手感）',
+      r.rateFull[2] <= r.rateFull[0] * 0.72,
+      (r.rateFull[2] * 100).toFixed(2) + '% vs 段一 ' + (r.rateFull[0] * 100).toFixed(2) + '%');
+    ok('灵力珠总产出随段下移明显下降',
+      r.mp3.total < r.mp1.total * 0.85 && r.mp3.drops < r.mp1.drops,
+      '段一 ' + r.mp1.total + ' 点/' + r.mp1.drops + ' 颗 → 段三(' + r.mp3depth + '层) '
+        + r.mp3.total + ' 点/' + r.mp3.drops + ' 颗');
     ok('Boss 转阶段会掉出灵力', r.phase === 2 && r.bossMana === 3,
       'phase=' + r.phase + ' 灵力珠 ' + r.bossMana + ' 颗 ' + JSON.stringify(r.bossAmt));
   }

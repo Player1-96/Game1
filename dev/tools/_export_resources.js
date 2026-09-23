@@ -200,11 +200,18 @@ const PERK_CN = {
        这里是「风格地图」的三个世界（中式/北欧/克苏鲁），别混。
        这张表既是玩法说明也是调参入口：段数 / 每段层数 / 色板全在这里看得见。 */
     const styleMap = {
-      segFloors: STYLE_SEG_FLOORS,
-      segCount: STYLE_DEF.cn.segs.length || 3,
-      totalFloors: STYLE_SEG_FLOORS * 3,
-      paths: Math.pow(Object.keys(STYLE_DEF).length, 3),
+      segFloors: SEG_FLOORS,
+      segCount: SEG_COUNT,
+      totalFloors: SEG_TOTAL_FLOORS,
+      paths: Math.pow(Object.keys(STYLE_DEF).length, SEG_COUNT),
       pool: Object.keys(STYLE_DEF).filter(k => STYLE_DEF[k].ready),
+      // 每段一个 Boss（段末），段数 3、头目表 5 位 —— 差额留给挑战模式与将来的风格专属
+      bossBySeg: Array.from({ length: SEG_COUNT }, (_, i) =>
+        BOSS_KEYS[Math.min(BOSS_KEYS.length - 1, i)]),
+      diagMaxBySeg: DIFF_MAX_BY_SEG,
+      bossSegMul: BOSS_SEG_MUL,
+      lootDecay: LOOT_DECAY,
+      lootPerSeg: [0, 1, 2].map(s => +Math.pow(LOOT_DECAY, s).toFixed(3)),
       worlds: Object.keys(STYLE_DEF).map(k => {
         const d = STYLE_DEF[k];
         return {
@@ -234,7 +241,7 @@ const PERK_CN = {
 
     /* ---------- 7. 坊市价格（按深度） ---------- */
     const shopPrices = [];
-    for (let d = 1; d <= 6; d++) {
+    for (let d = 1; d <= SEG_TOTAL_FLOORS; d++) {
       const rng = mulberry32(20260911 + d);
       const gs = Floor.prototype.shopGoods.call({ owned: [] }, rng, d);
       shopPrices.push({
@@ -250,7 +257,7 @@ const PERK_CN = {
 
     /* ---------- 8. 妖物池（按深度） ---------- */
     const pools = [];
-    for (let d = 1; d <= 6; d++) {
+    for (let d = 1; d <= SEG_TOTAL_FLOORS; d++) {
       const f = Object.create(Floor.prototype);
       const pool = f.enemyPool(d);
       pools.push({ depth: d, pool: pool.map(id => ({ id, cn: ENEMY_CN[id] || id, p: +(1 / pool.length * 100).toFixed(1) })) });
@@ -259,7 +266,7 @@ const PERK_CN = {
     /* ---------- 9. 各层实测（房间数 / 精英 / 密室 / 经济 / 难度） ---------- */
     const SAMPLES = 40;
     const floors = [];
-    for (let depth = 1; depth <= 6; depth++) {
+    for (let depth = 1; depth <= SEG_TOTAL_FLOORS; depth++) {
       const acc = {
         rooms: 0, normal: 0, elite: 0, secret: 0, treasure: 0, shop: 0, sacrifice: 0,
         budget: 0, sink: 0, reserve: 0, eliteMult: 0, eliteMultN: 0,
@@ -325,25 +332,28 @@ const PERK_CN = {
     /* ---------- 10. 难度公式与节流参数 ---------- */
     const diffParams = {
       POWER_BASE: POWER_BASE, DIFF_POW: DIFF_POW, DIFF_CNT_POW: DIFF_CNT_POW,
-      DIFF_MAX: DIFF_MAX, DIFF_MIN: DIFF_MIN,
+      DIFF_MAX_BY_SEG: DIFF_MAX_BY_SEG, DIFF_MIN: DIFF_MIN,
       countMin: 0.85, countMax: 1.5,
-      formula: 'threat = power / POWER_BASE；血量 mult = clamp(threat^DIFF_POW, DIFF_MIN, DIFF_MAX)；数量 count = clamp(threat^DIFF_CNT_POW, 0.85, 1.5)',
+      formula: 'threat = power / POWER_BASE；血量 mult = clamp(threat^DIFF_POW, DIFF_MIN, DIFF_MAX_by_seg[段])；数量 count = clamp(threat^DIFF_CNT_POW, 0.85, 1.5)',
+      diffMaxNote: '封顶按【段】放宽（3.0 / 3.8 / 4.6）—— 15 层制下若仍固定 3.0，战力到 12 就撞顶、后 5 层难度完全不动',
       powerFormula: (G.powerScore.toString().match(/const v = ([\s\S]*?);\s*return/) || [, ''])[1].replace(/\s+/g, ' ').trim(),
       tags: 'mult ≤0.95 缓 / ≤1.15 平 / ≤1.5 险 / ≤2.0 危 / >2.0 绝',
       LOOT_DECAY: LOOT_DECAY,
-      lootFormula: 'scale = LOOT_DECAY^(层-1)；心血掉率、灵力珠掉率与单颗量、精英必掉量、Boss 转阶段单颗量 全部 × scale'
+      lootFormula: 'scale = LOOT_DECAY^(段)；心血掉率、灵力珠掉率与单颗量、精英必掉量、Boss 转阶段单颗量 全部 × scale'
     };
-    // 难度对照：给定实力分，各档 mult / count
+    // 难度对照：给定实力分，各档 mult / count（取第 1 段的地板与第 3 段的天花板各算一次）
     const curve = [1.0, 1.5, 2, 3, 4, 6, 8, 12, 20].map(pw => {
       const d = difficultyOf(1, pw);
-      return { power: pw, threat: d.threat, mult: d.mult, count: d.count, tag: d.tag };
+      const d3 = difficultyOf(SEG_TOTAL_FLOORS, pw);
+      return { power: pw, threat: d.threat, mult: d.mult, count: d.count, tag: d.tag,
+               multSeg3: d3.mult, tagSeg3: d3.tag };
     });
-    // 产出衰减对照：各层的 scale，以及心血（满血 / 濒死）与普通灵力珠的期望
-    const lootCurve = [1, 2, 3, 4, 5, 6].map(d => {
+    // 产出衰减对照：按段（15 层里只有 3 档），以及心血与普通灵力珠的期望
+    const lootCurve = [1, 5, 6, 10, 11, 15].map(d => {
       const s = lootScale(d);
       const enemyHp = 40;                                 // 取一只中层妖物作样本
       return {
-        depth: d, scale: +s.toFixed(3),
+        depth: d, seg: segOf(d) + 1, scale: +s.toFixed(3),
         heartFull: +(0.02 * s).toFixed(4),
         heartCritical: +(0.24 * s).toFixed(4),
         mpRate: +(MP_DROP_RATE * s).toFixed(4),

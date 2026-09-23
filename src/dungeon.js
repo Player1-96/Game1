@@ -36,30 +36,109 @@ const ROOM_LABEL = {
 const POWER_BASE = 1.0;          // 裸装实力分（powerScore 的基准）
 const DIFF_POW = 0.45;           // 血量校正指数：越大越硬
 const DIFF_CNT_POW = 0.12;       // 数量校正指数：比血量温和得多，免得糊屏
-const DIFF_MAX = 3.0, DIFF_MIN = 0.8;
+
+/* ------------------------------------------------------------
+ *  层段系统（一局切成 3 段，每段 SEG_FLOORS 层）
+ *
+ *  ⚠️ 这套常量放在 dungeon.js 而不是 game.js —— 因为脚本加载顺序是
+ *     dungeon.js → entities.js → game.js，而 dungeon.js 在生成房间时
+ *     （new Floor()）就要用到「这一层属于第几段」。放在 game.js 里会形成
+ *     「下层依赖上层」的倒挂，且一旦将来有人在模块顶层调用就会 TDZ 崩。
+ *     game.js 通过 STYLE_SYS 再引用这几个值（见那边注释）。
+ *
+ *  段是**所有跨层节奏的统一单位**：
+ *    · Boss      → 每段一个（段末）
+ *    · 产出衰减  → 每段降一档（不再是每层）
+ *    · 难度封顶  → 按段放宽
+ *    · 风格选择  → 每段开头弹一次
+ *  「一段 = 一个完整小章节」—— 不管这段是 3 层还是 5 层，段落节奏不变。
+ * ---------------------------------------------------------- */
+const SEG_COUNT = 3;             // 一局固定 3 段
+const SEG_FLOORS = 5;            // 每段 5 层 → 15 层（主玩法）
+const SEG_TOTAL_FLOORS = SEG_FLOORS * SEG_COUNT;   // 15
+
+/* 某一层属于第几段（0-based）。1~5 层 → 0 段；6~10 → 1 段；11~15 → 2 段 */
+function segOf(depth) {
+  return clamp(Math.floor((Math.max(1, depth) - 1) / SEG_FLOORS), 0, SEG_COUNT - 1);
+}
+/* 这一层是不是「段末」（该出 Boss / 该结算这一段） */
+function isSegLastFloor(depth) {
+  return Math.max(1, depth) % SEG_FLOORS === 0;
+}
+/* 这一层是不是「段首」（该弹选风格），第一层除外（开局已经选过了） */
+function isSegFirstFloor(depth) {
+  return depth > 1 && (depth - 1) % SEG_FLOORS === 0;
+}
+/* 段内进度：0 → 1 之间（本段第 1 层 = 0，最后 1 层 = 1 - 1/FLOORS）。
+   跨层曲线用它而不是 depth，才能在「每段 5 层 / 每段 3 层」下都保持同样的爬升形状。
+   --- 这一条是 15 层化的关键：原先所有曲线都写 `depth * k`，在 5 层制下正好爬满；
+       拉到 15 层要么早早在第 4~5 层撞顶、之后十层不动，要么爬得太慢显得没变化。 */
+function segProgress(depth) {
+  const d = Math.max(1, depth);
+  return ((d - 1) % SEG_FLOORS) / SEG_FLOORS;
+}
+/* 全局进度：0 → 1（第 1 层 = 0，最后一层 = 1）。用于「整局尺度」的曲线。 */
+function runProgress(depth) {
+  return clamp((Math.max(1, depth) - 1) / (SEG_TOTAL_FLOORS - 1), 0, 1);
+}
+
+/* 难度封顶：随段放宽的三档。
+   原先固定 DIFF_MAX = 3.0 —— 那是给 5 层制定的，实测战力到 12 就撞顶，
+   15 层制下后 5 层难度**完全不动**。改成段末逐段放宽，让后期仍有压力。 */
+const DIFF_MAX_BY_SEG = [3.0, 3.8, 4.6];
+/* 兼容别名：第一段的封顶值。老的探针 / 导出脚本 / 文档都在引用 DIFF_MAX，
+   语义仍是「一段的封顶」，只是现在它会随段放宽。新代码请用 diffMaxOfSeg()。 */
+const DIFF_MAX = DIFF_MAX_BY_SEG[0];
+const DIFF_MIN = 0.8;
+/* 段末 Boss 的额外厚度：它是一段的收束，要比同层杂兵更有一道坎的分量。
+   只作用于 Boss（见 genRoom 的 RT.BOSS 分支），不抬高普通妖物。 */
+const BOSS_SEG_MUL = [1.00, 1.18, 1.36];
+
+function diffMaxOfSeg(seg) {
+  return DIFF_MAX_BY_SEG[clamp(seg | 0, 0, DIFF_MAX_BY_SEG.length - 1)];
+}
+
+/* 某一位尊者「镇守」的层数 —— 也就是它所属那一段的段末（第 5 / 10 / 15 层）。
+   ⚠️ 不要再用 `BOSS_KEYS.indexOf(id) + 1`：那是「按层取人」时代的换算，
+      现在 Boss 只在段末出现，索引 0 会算出第 1 层 —— 而第 1 层根本没有 Boss 房，
+      挑战模式会开成一张没有头目的普通图（选了血魔却打空气）。
+   `bossSlotOf` 反过来用：先由 id 求段，再由段求段末层。 */
+function bossFloorOf(id) {
+  const idx = Math.max(0, BOSS_KEYS.indexOf(id));
+  return (Math.min(idx, SEG_COUNT - 1) + 1) * SEG_FLOORS;
+}
+function bossOrdinalOf(id) {           // 该尊者是第几个（0 起），非 BOSS_KEYS 里的一律 0
+  return Math.max(0, Math.min(BOSS_KEYS.length - 1, BOSS_KEYS.indexOf(id)));
+}
+
 function difficultyOf(depth, power) {
   const threat = clamp((power || POWER_BASE) / POWER_BASE, 0.5, 40);
-  const mult = clamp(Math.pow(threat, DIFF_POW), DIFF_MIN, DIFF_MAX);
+  const mult = clamp(Math.pow(threat, DIFF_POW), DIFF_MIN, diffMaxOfSeg(segOf(depth)));
   const count = clamp(Math.pow(threat, DIFF_CNT_POW), 0.85, 1.5);
   const tag = mult <= 0.95 ? '缓' : (mult <= 1.15 ? '平' : (mult <= 1.5 ? '险' : (mult <= 2.0 ? '危' : '绝')));
   return { threat: +threat.toFixed(2), mult: +mult.toFixed(3), count: +count.toFixed(3), tag };
 }
 
 /* ------------------------------------------------------------
- *  产出的层数衰减（心血 / 灵力珠）
+ *  产出的衰减（心血 / 灵力珠）—— 按【段】而不是按【层】
  *
  *  难度并不是被「敌人变强」拉平的，而是被「补给变多」拉平的：
  *  后期 build 成型 → 清怪更快、怪数量也上来了（count 最多 ×1.5），
  *  气运又被乾坤袋 / 金丹抬起来 —— 三者一叠加，杀一只妖的补给期望反而比一层更高，
  *  于是越到后面越不缺，难度直线下降。
  *
- *  所以把心血与灵力珠的「基础期望」按层数下压：每深一层 ×LOOT_DECAY。
+ *  ⚠️ 关键改动：衰减单位从「每层」改成「每段」。
+ *     按层算的话，原来的 5 层制 `0.82^4 ≈ 0.45`、6 层 `0.37`，手感正好；
+ *     但拉到 15 层就是 `0.82^14 ≈ 0.060` —— 血量与灵力掉率只剩 6%，
+ *     玩家会陷入「血包几乎不掉、怪却越来越厚」的绝境，那不是难度是死局。
+ *     改成每段降一档（15 层只降 2 次）：`0.82^2 ≈ 0.67`，与原来 5~6 层的手感对齐。
+ *
  *  气运仍在这条下降的基线上加成（加完再乘衰减），不会抵消衰减本身。
  *  注意只压血量与灵力两条命脉，灵石另有 planEconomy 的整层配额管着，不在此列。
  * ---------------------------------------------------------- */
-const LOOT_DECAY = 0.82;         // 每深一层，心血 / 灵力珠的产出期望 ×0.82
+const LOOT_DECAY = 0.82;         // 每深【一段】，心血 / 灵力珠的产出期望 ×0.82
 function lootScale(depth) {
-  return Math.pow(LOOT_DECAY, Math.max(0, (depth | 0) - 1));
+  return Math.pow(LOOT_DECAY, segOf(depth));
 }
 
 class Room {
@@ -104,6 +183,10 @@ class Floor {
     this.opts = opts || {};
     this.owned = this.opts.owned || [];
     this.slots = this.opts.slots || [];      // 玩家的小技能槽，供坊市挑货时避开已满级的
+    /* Boss 覆写：挑战模式要能单挑任意一位尊者，而正常流程是「按段取人」。
+       没有这个口子的话，选了烛龙（索引 4）会算出 depth=5 → 段 0，
+       结果打的还是血魔尊者 —— 挑战模式静默失效。 */
+    this.bossOverride = this.opts.boss || null;
     this.diff = difficultyOf(depth, this.opts.power || POWER_BASE);
     this.hasElite = false;
     this.hasSecret = false;
@@ -164,15 +247,26 @@ class Floor {
     }
 
     /* 3) 特殊房间分配（以撒规则：死胡同优先） */
+
+    /* Boss 房只在【段末】出现 —— 一局 15 层只有 3 个 Boss（第 5 / 10 / 15 层）。
+       原先每层都有 Boss 房、且头目按 BOSS_KEYS[depth-1] 取，
+       于是 5 位尊者撑不起 15 层：第 6~15 层会连着打 10 次烛龙（实测确认）。
+       改成按段之后，层数与 Boss 数量彻底解耦 —— 每段仍是一个完整章节。 */
+    const hasBoss = isSegLastFloor(this.depth);
+    this.hasBoss = hasBoss;
     const all = [...this.rooms.values()];
     const deadEnds = all.filter(r => r.type === RT.NORMAL && this.degree(r) === 1)
       .sort((a, b) => b.dist - a.dist);
     const far = all.filter(r => r.type === RT.NORMAL).sort((a, b) => b.dist - a.dist);
 
-    // Boss：距离最远的死胡同
-    let boss = deadEnds.shift() || far[0];
-    if (!boss) boss = all[all.length - 1];
-    boss.type = RT.BOSS;
+    // Boss：距离最远的死胡同（只在该出 Boss 的层占位，其余层的死胡同留给别的特殊房）
+    let boss = null;
+    if (hasBoss) {
+      boss = deadEnds.shift() || far[0];
+      if (!boss) boss = all[all.length - 1];
+      boss.type = RT.BOSS;
+    }
+    this.bossRoom = boss;
 
     // 藏珍阁 / 坊市 / 祭坛：其余死胡同（回退也必须落在死胡同，否则会挡住一条支路）
     const take = (arr) => { const r = arr.shift(); return r || null; };
@@ -181,7 +275,9 @@ class Floor {
     if (t1) t1.type = RT.TREASURE;
     const s1 = take(deadEnds) || take(far.filter(leaf));
     if (s1) s1.type = RT.SHOP;
-    const a1 = take(deadEnds) || null;
+    /* 祭坛在无 Boss 层要占一个额外死胡同 —— 非 Boss 层的房间池多一个名额。
+       若真拿不到死胡同（房间太少），宁可不出祭坛也不占用通路。 */
+    const a1 = take(deadEnds) || (hasBoss ? null : take(far.filter(leaf)));
     if (a1 && a1 !== boss) a1.type = RT.SACRIFICE;
 
     /* 4) 精英窟 + 密室（都按概率，且密室优先藏进精英窟） */
@@ -227,7 +323,13 @@ class Floor {
     const rng = this.rng;
     this.eliteRoom = null;
     this.hasElite = false;
-    const p = Math.min(0.85, 0.38 + (this.depth - 1) * 0.11);
+    /* ⚠️ 这一条也是按【段】铺开的。
+       原先 `0.38 + (depth-1)*0.11` 在 5 层制下正好从 38% 爬到 85%；
+       拉到 15 层就会在第 6 层撞顶、之后 10 层恒为 85% —— 「每层都有精英窟」等于没有节奏。
+       改成按段：段一 42% → 段二 60% → 段三 80%，每段一档，爬满 15 层。 */
+    /* 拉满三段：42% / 65% / 82%（实测成效率约 38 / 68 / 81 —— 起始房与 dist=0 的房
+       不能放精英窟，所以设定值要略高于期望值）。 */
+    const p = [0.46, 0.65, 0.82][segOf(this.depth)];
     if (rng() > p) return;
     const pool = [...this.rooms.values()].filter(r => r.type === RT.NORMAL && r.dist > 0);
     if (!pool.length) return;
@@ -246,7 +348,9 @@ class Floor {
   planSecret(cells) {
     const rng = this.rng;
     const el = this.eliteRoom;
-    const p = el ? 0.60 + Math.min(0.2, (this.depth - 1) * 0.05) : 0.20;
+    // 同 planElite：按段铺开（密室跟着精英窟走，精英率按段变了，这里也按段）
+    const seg = segOf(this.depth);
+    const p = el ? [0.62, 0.72, 0.82][seg] : 0.20;
     if (rng() > p) return;
     if (!cells || !cells.length) return;
 
@@ -296,9 +400,12 @@ class Floor {
     const secret = rooms.find(r => r.type === RT.SECRET);
     const nN = Math.max(1, normals.length);
 
-    // 配额：普通房均分 62%，Boss 18%，密室 12%，余数留作宝箱/祭坛备用
-    // 精英窟拿普通房的 2~3 倍，其余普通房均分剩下的 —— 整层总量不变，只是向精英窟倾斜
-    const per = Math.max(1, Math.floor(budget * 0.62 / nN));
+    /* 配额：普通房 62%，Boss 18%，密室 12%，余数留作宝箱/祭坛备用。
+       ⚠️ Boss 只在段末出现（15 层里 3 次），所以无 Boss 层的 18% 不能凭空蒸发 ——
+       否则那些层的灵石总产出会掉两成，玩家在段中会明显觉得「钱变少了」。
+       这里把 Boss 那份并进普通房配额，保证「整层总量恒等于预算」这条不变量成立。 */
+    const normalShare = boss ? 0.62 : 0.80;
+    const per = Math.max(1, Math.floor(budget * normalShare / nN));
     const el = rooms.find(r => r.elite);
     this.eliteRoom = el || null;
     this.eliteMult = 1;
@@ -306,7 +413,7 @@ class Floor {
       /* 直接按倍率解方程：设普通房 x、精英房 m·x，则 (nN-1)·x + m·x = S。
          这样倍率只受取整影响，不会在普通房数量少的时候失控。
          因 target = round(x·m) 且 m∈[2,3]，实测倍率恒在 2~3 之间。 */
-      const S = budget * 0.62;
+      const S = budget * normalShare;
       const mult = 2 + rng();                       // 2~3 倍
       let x = Math.max(1, Math.floor(S / (nN - 1 + mult)));
       let target = Math.max(x, Math.round(x * mult));
@@ -372,7 +479,12 @@ class Floor {
     const depth = this.depth;
     const dm = this.diff.mult;                 // 血量校正（动态难度）
     const dc = this.diff.count;                // 数量校正（比血量温和）
-    const hpBase = (1 + (depth - 1) * 0.18) * dm;
+    /* 血量基数：**按段**爬，而不是按层。
+       原 `1 + (depth-1)*0.18` 在 5 层制下是 1.0 → 1.72；直接套到 15 层会到 3.52，
+       再乘上 dm（难度校正，段三封顶已抬到 4.6）就是十几倍 —— 纯粹的血包墙。
+       改成「段内爬升 + 段间台阶」：每段内 1.0 → 1.24，段间再叠 1.35 的台阶，
+       与 dm 的分段放宽配合，保证后期是「更凶」而不是「更肉」。 */
+    const hpBase = (1 + segProgress(depth) * 0.24 + segOf(depth) * 0.35) * dm;
     r.props = []; r.obstacles = []; r.spawns = []; r.waves = [];
 
     // 可放置的安全坐标（避开门口通道）
@@ -404,7 +516,9 @@ class Floor {
           const E = ELITE_DEF[r.elite];
           const wv = [{ type: E.base, x: ROOM_W / 2, y: 112, hpScale: hpBase, elite: r.elite }];
           const pool = this.enemyPool(depth);
-          const minions = 2 + Math.floor(depth / 2) + (dm > 1.2 ? 1 : 0);
+          /* 随从数按【整局进度】而不是层数：原 `2 + floor(depth/2)` 在 15 层下会长到 9 只，
+             精英窟变成「一只精英 + 一堆随从」的糊屏；改成整局 2 → 5 只，节奏可控。 */
+          const minions = 2 + Math.round(runProgress(depth) * 3) + (dm > 1.2 ? 1 : 0);
           for (let i = 0; i < minions; i++) {
             const s = safeSpot();
             wv.push({ type: pool[Math.floor(rng() * pool.length)], x: s.x, y: s.y, hpScale: hpBase });
@@ -413,10 +527,14 @@ class Floor {
           r.props.push({ kind: 'lantern', x: 60 + rng() * (ROOM_W - 120), y: 70 });
           break;
         }
-        const budget = (4 + Math.min(9, Math.floor(r.dist * 0.9 + depth * 1.6))) * dc;
+        /* 密度：房间距离（同层内的探索深度）+ 段内进度（本段的推进感）。
+           原先 `depth * 1.6` 被 Math.min(9,…) 在第 4~5 层就削平 —— 15 层下后十层毫无变化。
+           改成 dist + 段内进度后，每一段都重新经历一次「由松到紧」，而段与段之间靠
+           dc（难度数量校正）整体上台阶。 */
+        const budget = (4 + Math.min(9, Math.floor(r.dist * 0.9 + segProgress(depth) * 8 + segOf(depth) * 1.6))) * dc;
         const pool = this.enemyPool(depth);
         const n = Math.max(3, Math.floor(budget / 2.2) + Math.floor(rng() * 3));
-        const waves = (rng() < 0.35 + depth * 0.05) ? 2 : 1;
+        const waves = (rng() < 0.35 + segProgress(depth) * 0.25) ? 2 : 1;
         for (let w = 0; w < waves; w++) {
           const cnt = Math.max(1, Math.round(Math.ceil(n / waves)));
           const wv = [];
@@ -469,12 +587,19 @@ class Floor {
         break;
       }
       case RT.BOSS: {
-        /* 一层一位，固定不轮换：五层正好五位尊者，
-           由浅入深依次是「整圈弹幕 → 白骨三阶段 → 弹幕裂变 → 缺口环 → 横扫+鳞罩」，
-           越深的那一位题面越新，玩家每一层都要重学一次怎么走位。 */
+        /* 按【段】取尊者，不再按层：第 1 / 2 / 3 段分别对上 1 / 2 / 3 号位，
+           由浅入深依次是「整圈弹幕 → 白骨三阶段 → 弹幕裂变」——
+           每段一套新题面，玩家每进一段要重学一次怎么走位。
+           ⚠️ 段数（3）与头目数（5）不是一回事：多出来的 裂煞·轮回·烛龙
+              留给 Boss 挑战模式，以及将来「北欧/克苏鲁」接入时按风格各配一套。
+           段末 Boss 再叠一道 BOSS_SEG_MUL：它是一段的收束，要比同层杂兵更有一道坎，
+           但**只作用于 Boss**，不抬高普通妖物（否则那一段整体变硬，手感错位）。 */
+        const seg = segOf(depth);
         r.waves.push([{ type: 'boss', x: ROOM_W / 2, y: 96,
-          boss: BOSS_KEYS[Math.min(BOSS_KEYS.length - 1, depth - 1)],
-          hpScale: (1 + (depth - 1) * 0.45) * (1 + (dm - 1) * 0.6) }]);
+          /* bossOverride 优先：挑战模式点谁打谁（见 Floor 构造函数的注释） */
+          boss: this.bossOverride || BOSS_KEYS[Math.min(BOSS_KEYS.length - 1, seg)],
+          hpScale: (1 + (segProgress(depth) + seg * 1) * 0.45 * (SEG_FLOORS / 5))
+            * (1 + (dm - 1) * 0.6) * BOSS_SEG_MUL[seg] }]);
         break;
       }
     }
@@ -483,13 +608,21 @@ class Floor {
   /* 妖物池：池内等概率，所以「加一种」等于「稀释全部」。
      因此新妖物一律按层解锁、一次只放一两种进来 ——
      既让后四层每层都有新面孔，又不至于把一层的池子冲淡到看不出性格。 */
+  /* 妖物池：池内等概率，所以「加一种」等于「稀释全部」。
+     因此新妖物一律按【段】解锁、一次只放两三种进来 ——
+     既让每一段都有新面孔，又不至于把一段的池子冲淡到看不出性格。
+
+     ⚠️ 解锁点按段算，不按层：原来的 `depth >= 4` 在 15 层制下会让
+        第 4~15 层共 12 层的池子完全不变（新面孔早早就全出来了），
+        玩家在段二段三会遇到「同一批妖物打十层」。改成按段之后，
+        段一 5 种、段二 +3、段三 +4，每段都有一批新的要学。 */
   enemyPool(depth) {
+    const seg = segOf(depth);
     const pool = ['xiesui', 'chanchu'];
     pool.push('yinsha');
-    if (depth >= 1) pool.push('xuefu');
-    if (depth >= 2) { pool.push('guixiu'); pool.push('shikui'); pool.push('bengyao'); }
-    if (depth >= 3) { pool.push('jianling'); pool.push('yingmo'); pool.push('xuanguang'); }
-    if (depth >= 4) { pool.push('tiehun'); pool.push('xuanjia'); }
+    if (seg >= 0) pool.push('xuefu');
+    if (seg >= 1) { pool.push('guixiu'); pool.push('shikui'); pool.push('bengyao'); }
+    if (seg >= 2) { pool.push('jianling'); pool.push('yingmo'); pool.push('xuanguang'); pool.push('tiehun'); pool.push('xuanjia'); }
     return pool;
   }
 

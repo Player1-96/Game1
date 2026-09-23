@@ -44,7 +44,9 @@ const OUT = path.resolve(__dirname, '..', 'preview');
       const G = window.Game;
       G.newRun('feijian');
       G.seg = seg; G.stylePath = ['cn']; G.applySegmentPalette();
-      G.newFloor(1 + seg * 3);
+      /* 用【各段首层】而不是 seg*3 —— 每段层数由 SEG_FLOORS 决定（现在 5），
+         写死 3 的话截图会拍到上一段的尾巴。 */
+      G.newFloor(1 + seg * SEG_FLOORS);
       // 摆几只妖物 + 一点掉落，让画面有内容可比
       G.enemies.length = 0;
       const keys = ['xiesui', 'chanchu', 'guixiu'];
@@ -70,15 +72,17 @@ const OUT = path.resolve(__dirname, '..', 'preview');
 
   /* ---------- ③ 段间面板（第三段，路径已定两段） ---------- */
   console.log('\n③ 段间面板（已走过两段）');
+  const d3 = await page.evaluate(() => SEG_FLOORS * 2 + 1);
   await page.evaluate(() => {
     const G = window.Game;
     G.newRun('feijian');
-    G.depth = 7; G.seg = 2;
+    /* 段间面板出现在第三段首层 = SEG_FLOORS*2+1（现在 11 层） */
+    G.depth = SEG_FLOORS * 2 + 1; G.seg = 2;
     G.stylePath = ['cn', 'cn', 'cn'];
     G.applySegmentPalette();
     G.openStyleMenu('next');
   });
-  await shot('_preview_stylemap_next.png', '第 7 层 · 再择前路');
+  await shot('_preview_stylemap_next.png', '第 ' + d3 + ' 层 · 再择前路');
 
   /* ---------- ④ 顶栏风格标识 ---------- */
   console.log('\n④ HUD 顶栏的风格标识');
@@ -86,10 +90,10 @@ const OUT = path.resolve(__dirname, '..', 'preview');
     const G = window.Game;
     G.styleMenu = null; G.state = 'play';
     G.newRun('feijian');
-    G.depth = 5; G.seg = 1;
+    G.depth = SEG_FLOORS + 1; G.seg = 1;      // 第二段首层（现在 6 层）
     G.stylePath = ['cn', 'cn', 'cn'];
     G.applySegmentPalette();
-    G.newFloor(5);
+    G.newFloor(SEG_FLOORS + 1);
     for (let f = 0; f < 20; f++) G.update();
     for (let f = 0; f < 5; f++) G.draw();
   });

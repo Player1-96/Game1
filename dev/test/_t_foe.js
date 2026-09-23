@@ -438,15 +438,27 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     const G = window.Game;
     const out = { pools: {}, order: [] };
     const f = Object.create(Floor.prototype);
-    for (let d = 1; d <= 5; d++) out.pools[d] = f.enemyPool(d).slice();
+    /* 妖物池按【段】解锁：只取每段的首层与末层，看池子怎么长 */
+    for (const d of [1, SEG_FLOORS, SEG_FLOORS + 1, SEG_FLOORS * 2, SEG_FLOORS * 2 + 1, SEG_TOTAL_FLOORS]) {
+      out.pools[d] = f.enemyPool(d).slice();
+    }
     G.newRun('feijian');
-    for (let d = 1; d <= 5; d++) {
+    /* 逐层扫，记录「哪些层有 Boss 房、是谁」——Boss 现在只在段末出现 */
+    out.bossFloors = [];
+    for (let d = 1; d <= SEG_TOTAL_FLOORS; d++) {
       G.newFloor(d);
+      let who = null;
       for (const r of G.floor.rooms.values()) {
         if (r.type !== 'boss') continue;
-        out.order.push(r.waves[0][0].boss);
+        who = r.waves[0][0].boss;
       }
+      out.order.push(who);
+      if (who) out.bossFloors.push(d);
     }
+    out.segFloors = SEG_FLOORS;
+    out.segTotal = SEG_TOTAL_FLOORS;
+    out.poolLens = [1, SEG_FLOORS, SEG_FLOORS + 1, SEG_FLOORS * 2, SEG_FLOORS * 2 + 1, SEG_TOTAL_FLOORS]
+      .map(d => out.pools[d].length);
     const NEW = ['xuanguang', 'tiehun', 'bengyao', 'xuanjia', 'yingmo'];
     out.sprites = NEW.map(id => {
       const s = SPR.enemies[id];
@@ -463,15 +475,30 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('一层还是那四种老面孔（教学层不塞新机制）',
     t9.pools[1].length === 4 && !t9.pools[1].some(id => ['xuanguang', 'tiehun', 'bengyao', 'xuanjia', 'yingmo'].includes(id)),
     t9.pools[1].join(','));
-  ok('五种新妖物全部在五层内登场',
+  ok('五种新妖物全都在一局内登场',
     ['xuanguang', 'tiehun', 'bengyao', 'xuanjia', 'yingmo']
       .every(id => Object.keys(t9.pools).some(d => t9.pools[d].includes(id))));
-  ok('每层只往池子里加一两张新面孔（不把老池子冲淡）',
-    [1, 2, 3, 4, 5].every(d => t9.pools[d].length <= 14)
-      && t9.pools[4].length === t9.pools[5].length);
-  ok('五层正好五位头目，一层一位不重复',
-    t9.order.length === 5 && new Set(t9.order).size === 5, t9.order.join(' → '));
-  ok('头目顺序与 BOSS_KEYS 一致', t9.order.join(',') === t9.keys.join(','), t9.order.join(','));
+  /* ⚠️ 这两条原来假设「5 层制」：段长等于 5，段首与段末的池子长度正好一样。
+     15 层制下段长是 5 但仍按段解锁，所以「段内不变」「跨段增加」才是真正的契约。 */
+  ok('同一段内池子不随层数变化（解锁点按段）',
+    t9.poolLens[0] === t9.poolLens[1] && t9.poolLens[2] === t9.poolLens[3]
+      && t9.poolLens[4] === t9.poolLens[5], t9.poolLens.join(' / '));
+  ok('段与段之间池子递增（每段都有新面孔要学）',
+    t9.poolLens[1] < t9.poolLens[2] && t9.poolLens[3] < t9.poolLens[4],
+    t9.poolLens[1] + ' → ' + t9.poolLens[2] + ' → ' + t9.poolLens[4]);
+  /* ⚠️ 原断言是「五层正好五位头目，一层一位」——那是 5 层制 + 按层取人的写法。
+     15 层制改成按段取人：Boss 只在段末出现，且三段三个不同的尊者。 */
+  ok('Boss 只在段末出现（' + t9.bossFloors.join(' / ') + '）',
+    t9.bossFloors.length === t9.segTotal / t9.segFloors
+      && t9.bossFloors.every(d => d % t9.segFloors === 0),
+    t9.bossFloors.join(' / '));
+  ok('三段三位不同的尊者（不再出现「连着十层同一个」）',
+    t9.order.filter(Boolean).length === t9.segTotal / t9.segFloors
+      && new Set(t9.order.filter(Boolean)).size === t9.segTotal / t9.segFloors,
+    t9.order.filter(Boolean).join(' → '));
+  ok('头目顺序与 BOSS_KEYS 前三位一致',
+    t9.order.filter(Boolean).join(',') === t9.keys.slice(0, t9.segTotal / t9.segFloors).join(','),
+    t9.order.filter(Boolean).join(','));
   ok('五位头目血量随层数递增', t9.bossHp.every((h, i, a) => i === 0 || h >= a[i - 1]),
     t9.bossHp.join(' / '));
   ok('五种新妖物的两张帧图都烘焙出来了', t9.sprites.every(Boolean));
@@ -487,7 +514,10 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     let total = 0;
     for (let s = 0; s < 8; s++) {
       G.newRun('feijian');
-      for (let d = 1; d <= 5; d++) {
+      /* ⚠️ 必须扫满一局（SEG_TOTAL_FLOORS 层），不能写死 5 ——
+         妖物池按【段】解锁，只扫前 5 层等于只扫了段一，那里面一个新面孔都没有。
+         （原先写死 5 在 5 层制下正好合适，扩到 15 层后这个断言会假失败。） */
+      for (let d = 1; d <= SEG_TOTAL_FLOORS; d++) {
         G.newFloor(d);
         for (const r of G.floor.rooms.values()) {
           for (const wv of r.waves) for (const sp of wv) {
@@ -497,9 +527,9 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
         }
       }
     }
-    return { seen: seen, total: total };
+    return { seen: seen, total: total, floors: SEG_TOTAL_FLOORS };
   });
-  console.log('  参考：8 局 × 5 层共 ' + t10.total + ' 个刷怪点');
+  console.log('  参考：8 局 × ' + t10.floors + ' 层共 ' + t10.total + ' 个刷怪点');
   ok('每种新妖物都能在正常开图里刷出来',
     Object.values(t10.seen).every(v => v > 0), JSON.stringify(t10.seen));
 

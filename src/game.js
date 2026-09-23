@@ -350,31 +350,40 @@ function styleColor(style) {
  *     否则走「中-中-中」的玩家会在第二段遇到和第一段一模一样的层。
  *     这正是 ROADMAP 说的「9 个内容包」的由来，也是第一期只做配色变体的原因。
  *
- *  第一期的范围：机制跑通 + 中式 3 段配色（零新美术）。
- *  北欧 / 克苏鲁在 STYLE_DEF 里已留位（ready:false），三期填内容即可。
+ *  层数：**15 层（每段 5 层）**。用户定案 —— 「这个和我后面融合玩法是有联动的，
+ *  层数不够的话养法器的空间就会比较小」。实测 9 层一局只拿到约 14 件法宝
+ *  （25 件池只见一半），融合要「试错 + 定型」两条路，14 件不够；15 层约 24 件。
+ *  快速模式（9 层）暂不做：只保留常量能力，不建面板。
+ *
+ *  当前范围：机制跑通 + 中式 3 段配色（零新美术）。
+ *  北欧 / 克苏鲁在 STYLE_DEF 里已留位（ready:false），后两期填内容即可。
  */
 const STYLE_PICK_SEL = ['selA', 'selB', 'selC'];
 
-/* 第几层之后弹「再选一次风格」。用户说「每五层」，但总层数要能装下 3 段，
-   所以这里用 STYLE_SEG_FLOORS 描述「每段几层」，改一个常量即可调全局。 */
-const STYLE_SEG_FLOORS = 3;          // 每段 3 层 → 9 层 3 段（可调成 5 → 15 层）
+/* 层段划分的**唯一真相在 dungeon.js**（SEG_FLOORS / SEG_COUNT / segOf）——
+   因为 new Floor() 生成房间时就要按段分 Boss，那是比这边更早的一层。
+   这里只做转发与「风格系统」自己的包装，不再维护第二份常数。
+
+   主玩法：每段 5 层 × 3 段 = **15 层**。
+   ⚠️ 层数直接决定「养法器的空间」：实测 9 层一局只拿到约 14 件法宝
+      （25 件池里只见一半），而融合玩法的前提是「料够多、能试错」。
+      15 层约 24 件，基本能把池子看全，融合的原料才够。
+      快速模式（9 层）暂不做 —— 只保留常量能力，不建面板：现在还没有
+      「速通」的真实需求，等北欧/克苏鲁内容上来、重复感出现了再加才有意义。 */
 
 /* 风格系统的全部可调参数 */
 const STYLE_SYS = {
-  segFloors: STYLE_SEG_FLOORS,
-  totalFloors: STYLE_SEG_FLOORS * 3,     // 9
+  segFloors: SEG_FLOORS,                 // 5
+  segCount: SEG_COUNT,                   // 3
+  totalFloors: SEG_TOTAL_FLOORS,         // 15
   /* 只在已就绪的风格里挑。未就绪的（北欧/克苏鲁）不出现，避免选中后没内容 */
   pickPool() { return Object.keys(STYLE_DEF).filter(k => STYLE_DEF[k].ready); }
 };
 
-/* 某一层属于第几段（0-based）。第 1~3 层 → 0 段；4~6 层 → 1 段；7~9 层 → 2 段 */
-function segOfFloor(depth) {
-  return clamp(Math.floor((Math.max(1, depth) - 1) / STYLE_SYS.segFloors), 0, 2);
-}
-/* 某一层是不是「该弹选风格」的层（每段的首层，且不是第一层） */
-function isSegPickFloor(depth) {
-  return depth > 1 && (depth - 1) % STYLE_SYS.segFloors === 0;
-}
+/* 转发 dungeon.js 的段判定（保留 game.js 侧的旧名字，避免大范围改调用点）。
+   ⚠️ 必须转发而不是复制一份 —— 两边各算一次迟早会算出不同的段。 */
+const segOfFloor = segOf;                  // 某一层属于第几段（0-based）
+const isSegPickFloor = isSegFirstFloor;    // 某一层是不是「该弹选风格」（段首，第一层除外）
 
 /* ---------------- Boss 挑战模式 ----------------
  *  目的：单独调试某位头目的行动，不必先走完前几层。
@@ -672,13 +681,16 @@ class GameCore {
       + (s.mpRegen || 0) * 0.25;
     return Math.max(0.2, v);
   }
-  newFloor(depth, seed) {
+  /* opts.boss：只在挑战模式下传，强制这一层出指定的尊者。
+     正常流程不传 → 按【段】取人（第 1/2/3 段分别对上 1/2/3 号位）。 */
+  newFloor(depth, seed, opts) {
     this.depth = depth;
     // seed 可由读档传入：同一颗种子必须重建出同一层（存档的地基）
     this.floor = new Floor(depth, seed != null ? (seed >>> 0) : ((Math.random() * 0xffffffff) >>> 0), {
       power: this.powerScore(),
       owned: this.player ? this.player.items.slice() : [],
-      slots: this.player ? this.player.slots.map(s => (s ? { id: s.id, lv: s.lv } : null)) : []
+      slots: this.player ? this.player.slots.map(s => (s ? { id: s.id, lv: s.lv } : null)) : [],
+      boss: (opts && opts.boss) || null
     });
     // 本层备用灵石（宝箱、祭坛失手时的小额产出，已计入预算）
     this.coinReserve = this.floor.coinReserve || 0;
@@ -1038,8 +1050,8 @@ class GameCore {
        所以显式拦住，免得将来某个改动意外走到这里。 */
     if (this.endless) return;
     this.depth++;
-    /* 通关判定：总层数由 STYLE_SYS 决定（第一期 9 层 = 3 段 × 3 层）。
-       原来是写死的 5 层，扩层后必须跟着 STYLE_SYS 走，否则 6~9 层进不去。 */
+    /* 通关判定：总层数由 STYLE_SYS 决定（15 层 = 3 段 × 5 层）。
+       原来是写死的 5 层，扩层后必须跟着 STYLE_SYS 走，否则后面几层进不去。 */
     if (this.depth > STYLE_SYS.totalFloors) {
       const segs = this.stylePath.map(k => (STYLE_DEF[k] || {}).cn || k);
       const tail = segs.length > 1 ? `　历遍「${segs.join('·')}」` : '';
@@ -1051,7 +1063,7 @@ class GameCore {
     }
     this.player.hp = Math.min(this.player.maxHP, this.player.hp + 2);
 
-    /* 层段推进：每到一段的首层（第 4 / 7 层），先让玩家**重选风格**再进场。
+    /* 层段推进：每到一段的首层（第 6 / 11 层），先让玩家**重选风格**再进场。
        与流派选择（#choose）走同一套「暂停 + 面板」形状：state 切到 'stylePick'，
        逻辑停住，选完再 newFloor。
        ⚠️ 顺序要紧：**先把 seg 推进到新段、换好色板与素材，再 newFloor** ——
@@ -1233,7 +1245,11 @@ class GameCore {
   }
   startChallenge(bossId, diffIdx, style) {
     const d = CHALLENGE_DIFF[diffIdx] || CHALLENGE_DIFF[0];
-    const depth = Math.max(1, BOSS_KEYS.indexOf(bossId) + 1);   // 该头目原本镇守的层数
+    /* 层数取「该尊者的段末」（血魔→5 / 白骨→10 / 裂煞→15）。
+       ⚠️ 不能再用 BOSS_KEYS.indexOf + 1：Boss 现在只在段末刷，
+          索引 0（血魔）会算出第 1 层，而第 1 层没有 Boss 房 ——
+          挑战模式会开成一张没有头目的白图（选谁都是打空气）。 */
+    const depth = bossFloorOf(bossId);
     this.style = style || this.style || PLAYABLE_STYLES[0];
     this.depth = depth;
     this.coins = 0; this.keys = 0; this.bombs = 0; this.kills = 0; this.time = 0;
@@ -1254,7 +1270,9 @@ class GameCore {
       frames: 0, upgrades: CHALL_UPGRADES, upgradeT: 24, endT: 0, win: null
     };
     this.giveChallengeLoadout();
-    this.newFloor(depth);              // 生成整层；Boss 房按 depth 自带正确的头目
+    /* ⚠️ 必须把选中的尊者显式传进去：正常流程按【段】取人，
+       而挑战模式点谁就该打谁（选烛龙时 depth 算出 5 → 段 0，会被换成血魔）。 */
+    this.newFloor(depth, null, { boss: bossId });
     const br = [...this.floor.rooms.values()].find(r => r.type === RT.BOSS);
     if (br) this.enterRoom(br, null);
     this.chall.upgradeT = 24;          // 进房后隔 0.4 秒再开始问进境
@@ -3582,10 +3600,13 @@ function renderChallMenu() {
       + '<div class="pickRow">';
     BOSS_KEYS.forEach((k, i) => {
       const b = BOSS_DEF[k];
+      /* 标「段末层」而不是「第 i+1 层」 —— Boss 现在只在段末刷（第 5/10/15 层），
+         写 i+1 会变成「血魔第 1 层」这样的假信息（第 1 层根本没有魔窟）。
+         注意后三位都落在第 15 层（同属第三段），所以标签会重复，这是对的。 */
       h += '<div class="pickCard' + (i === cm.idx ? ' selB' : '') + '" data-i="' + i + '">'
         + '<div class="nm">' + b.name + '</div>'
         + '<div class="tag">' + b.en + '</div>'
-        + '<div class="lv">第 ' + (i + 1) + ' 层　基础血 ' + b.hp + '</div>'
+        + '<div class="lv">第 ' + bossFloorOf(k) + ' 层　基础血 ' + b.hp + '</div>'
         + '<div class="dsc">' + (CHALL_BOSS_NOTE[k] || '') + '</div>'
         + '</div>';
     });
