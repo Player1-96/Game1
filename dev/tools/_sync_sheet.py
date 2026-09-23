@@ -4,10 +4,19 @@ _sync_sheet.py —— 把 _resources.json 同步到腾讯文档《九劫录·资
 
 用法（在仓库根目录执行）：
     node dev/tools/_export_resources.js    # 先从源码导出最新数值
-    python dev/tools/_sync_sheet.py        # 再上传到云端表格
+    python dev/tools/_sync_sheet.py        # 再上传到云端表格（18 个子表整页重写）
+
+只刷个别子表（改文案、补日志这类小事，避免一次性烧完调用配额）：
+    python dev/tools/_sync_sheet.py --only 变更日志
+    python dev/tools/_sync_sheet.py --only 变更日志,风格地图
 
 表格：https://docs.qq.com/sheet/DTEtrQUFaQmtkamNM
 每改动一次 src/ 里的数值，重跑上面两条命令即可，表格会整页重写。
+
+⚠️ 配额：接口按服务端窗口限流，超了报 400007 "You have reached access limit"。
+实测连跑 4 整轮后会撞上，且**等待 5 分钟 / 15 分钟 / 30 分钟均不恢复**
+（2026-09-23 实测三次），说明不是「短暂限流」，得隔数小时或次日再跑。
+所以：改动大才整跑，小改动用 --only。
 """
 import json, os, re, subprocess, sys, io, math, time
 
@@ -95,7 +104,8 @@ class _Transient(RuntimeError):
 
 
 def tdoc_call(tool, args, service="sheet-mcp"):
-    """偶发 504 / 空返回：重试几次再放弃。整同步一次要几百次调用，不能因为一次抖动全盘重来。"""
+    """偶发 504 / 空返回：重试几次再放弃。整同步一次要几百次调用，不能因为一次抖动全盘重来。
+    注意：配额类错误（400007）不重试 —— 它是服务端窗口限制，重试只是白等。"""
     last = None
     for attempt in range(4):
         try:
@@ -114,9 +124,23 @@ def tdoc_call(tool, args, service="sheet-mcp"):
     raise last
 
 
+def _is_quota(j):
+    """判断是不是「配额用尽」类错误（400007 access limit）。"""
+    e = j.get("error")
+    if not isinstance(e, dict):
+        return False
+    return str(e.get("code")) == "400007" or "access limit" in str(e.get("message", "")).lower()
+
+
 def tdoc_payload(tool, args, service="sheet-mcp"):
     """取回工具返回的业务对象（structuredContent 缺失时回退解析 content[0].text）。"""
     j = tdoc_call(tool, args, service)
+    if _is_quota(j):
+        # 配额按「服务端窗口」计，等几分钟不会恢复。快速失败并指向 --only，
+        # 这样单个子表（如「变更日志」）的小改动不用重跑整张表。
+        raise RuntimeError(
+            "腾讯文档配额已用尽（400007 access limit）。短时重试无效，"
+            "建议隔几小时再跑；只想补个别子表可用：python _sync_sheet.py --only 变更日志")
     sc = j.get("structuredContent")
     if sc:
         return sc
@@ -1378,11 +1402,29 @@ TABS = [
 
 
 def main():
+    # 0) --only 名字,名字 ：只重写指定子表。
+    #    用途：整同步一次要几百次 API 调用，很容易撞上服务端配额（400007）。
+    #    加了这个开关后，改一段文案这种小事只需几次调用。
+    only = None
+    argv = sys.argv[1:]
+    if "--only" in argv:
+        i = argv.index("--only")
+        only = [s.strip() for s in (argv[i + 1] if i + 1 < len(argv) else "").split(",") if s.strip()]
+        if not only:
+            raise SystemExit("--only 后面要跟子表名，例如：--only 变更日志")
+
     # 1) 先拉真实子表清单，保证脚本可重复运行
     info = tdoc_payload("get_sheet_info", {})
     sheets = info.get("sheets") or []
     ids = {s["sheet_name"]: s["sheet_id"] for s in sheets}
     print("  现有子表：" + "、".join(ids.keys()))
+
+    if only:
+        unknown = [n for n in only if n not in ids]
+        if unknown:
+            raise SystemExit("云端没有这些子表：%s（现有：%s）" % ("、".join(unknown), "、".join(ids.keys())))
+        ids = {n: ids[n] for n in only}
+        print("  仅重写：" + "、".join(only))
 
     # 2) 按需改名
     for old, new in RENAME.items():
@@ -1394,6 +1436,8 @@ def main():
     # 3) 补齐缺失的子表（凡是 TABS 里要写、而云端还没有的，都自动建 —— 只认一处清单）
     for name, _fn in TABS:
         if name in ids:
+            continue
+        if only:
             continue
         res = tdoc_payload("add_sheet", {"name": name, "append_index": True})
         sid = res.get("sheet_id") or res.get("id")
@@ -1416,7 +1460,11 @@ def main():
         print("  %-8s %2d 行 × %2d 列" % (name, n, w))
 
     print("\n完成：" + SHEET_URL)
-    print("下次改动源码后：node _export_resources.js && python _sync_sheet.py")
+    if only:
+        print("本次只重写：" + "、".join(only) + "（其余子表未动）")
+    else:
+        print("下次改动源码后：node _export_resources.js && python _sync_sheet.py")
+        print("只想刷个别子表：python _sync_sheet.py --only 变更日志,风格地图")
 
 
 if __name__ == "__main__":
