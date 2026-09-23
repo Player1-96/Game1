@@ -10,6 +10,24 @@
  *                          名称自动加「·二重 / ·三重」后缀。
  * ============================================================ */
 
+/* ------------------------------------------------------------
+ *  太虚护盾：由「一次性 +2 格」改成「受创后稳住即补回」。
+ *
+ *  原版是 addShield(2) —— 整局就那两格，吃完这件法宝等于白拿。
+ *  改版后护盾成了一条**能被消耗、也能被挣回来**的资源：
+ *  受创（无论这一下是被盾吃掉还是真扣血）就重新开始数无伤时长，
+ *  在**还有敌人的房间里**连续 N 帧不挨打，就补回一格，直到上限。
+ *
+ *  「房间里还有敌人」这个前置条件是有意的 —— 否则清完房站一会儿就能
+ *  把盾刷满，等于每间房白送几格；而且那会把玩家推向两个坏选择：
+ *  要么站着干等，要么为了不等而不敢收最后一刀。加上它之后，
+ *  回盾只发生在战斗中，对价是「一边打一边不挨打」，正是这件法宝想考的东西。
+ *
+ *  caps = 同时持有的上限，gaps = 补一格的间隔（帧）。
+ *  升级同时 +1 上限、-2 秒间隔 —— 两个维度一起动，每一重都摸得到。
+ * ---------------------------------------------------------- */
+const TAIXU = { caps: [2, 3, 4], gaps: [600, 480, 360] };
+
 const ITEM_DEFS = [
   /* ---------- 法宝（被动） ---------- */
   { id: 'qingfeng', name: '青锋剑', type: 'fabao', icon: 'sword', c1: PAL.greyL, c2: PAL.jade,
@@ -47,8 +65,24 @@ const ITEM_DEFS = [
       wujian: ['缠丝更紧：突进剑锋的触及范围累计 +17',
                '缠丝如网：触及范围累计 +21，擦着剑风也能斩中']
     } },
+  /* 太虚护盾：不再是「一次性 +2 格」，改成受创后稳住就能补回（数值见 TAIXU）。
+     标 func:true —— 它的重复获得是「进阶」而不是「叠加数值」（上限 2→3→4 格，
+     不是 2+2+2），正合功能型的定义。这同时也是**文案能对上**的前提：
+     itemView 只对 func 法宝读 up[]，否则只会加个「Lv3」后缀而 desc 仍停在一重。 */
   { id: 'taixu', name: '太虚护盾', type: 'fabao', icon: 'shield2', c1: PAL.jade, c2: PAL.jadeL,
-    desc: '获得 2 点常驻灵力护盾（不设时限，受击才扣）', apply: p => { p.addShield(2); } },
+    func: true,
+    desc: '开局 ' + TAIXU.caps[0] + ' 格护盾；受创后 ' + (TAIXU.gaps[0] / 60)
+      + ' 秒无伤即补回一格（上限 ' + TAIXU.caps[0] + '）',
+    apply: (p, rank) => {
+      const k = Math.max(0, Math.min(TAIXU.caps.length - 1, rank | 0));
+      p.shieldCap = TAIXU.caps[k];
+      p.shieldGap = TAIXU.gaps[k];
+      if (p.shield < p.shieldCap) p.shield = p.shieldCap;   // 到手 / 升阶即补满
+      p.shieldReviveT = -1;                                 // 未启动：要先挨一下才开始数
+    },
+    // 从 TAIXU 推导，免得改了上限/间隔而文案忘了跟
+    up: [1, 2].map(k => '护盾上限 ' + TAIXU.caps[k] + ' 格；受创后 '
+      + (TAIXU.gaps[k] / 60) + ' 秒无伤补回一格') },
   { id: 'lingxi', name: '灵犀玉佩', type: 'fabao', icon: 'jade', c1: PAL.jade, c2: PAL.jadeL,
     desc: '御剑速度 +35%', apply: p => { p.stats.fireRate *= 1.35; },
     byStyle: {
@@ -208,7 +242,10 @@ const ITEM_TALLY = {
       ? '剑身增宽（威力 ×' + Math.pow(1.35, n).toFixed(2) + '）　基础伤害 -' + (0.3 * n).toFixed(1)
       : '额外散剑 +' + n + ' 柄　单发伤害 -' + (0.3 * n).toFixed(1),
   chuanyun: (n, st) => (st === 'wujian' ? '一次挥砍可多命中 ' : '额外穿透 ') + (2 * n) + ' 个',
-  taixu: n => '常驻灵力护盾 +' + (2 * n),
+  taixu: n => {
+    const k = Math.max(0, Math.min(TAIXU.caps.length - 1, (n | 0) - 1));
+    return '护盾上限 ' + TAIXU.caps[k] + ' 格　受创 ' + (TAIXU.gaps[k] / 60) + ' 秒无伤补回一格';
+  },
   yuyi: n => '常驻护盾 +' + n + '　身法 ×' + Math.pow(1.05, n).toFixed(2),
   huiling: n => '灵力自然回复 +' + n + '/秒',
   lingxi: (n, st) => (st === 'wujian' ? '挥砍速度 ×' : '御剑出手速度 ×') + Math.pow(1.35, n).toFixed(2),

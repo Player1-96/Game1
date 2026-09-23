@@ -316,6 +316,56 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     ok('受击先扣限时护盾', r.first[0] === 0 && r.first[1] === 2, JSON.stringify(r.first));
     ok('限时扣完才动常驻', r.second[0] === 0 && r.second[1] === 1, JSON.stringify(r.second));
   }
+  /* 太虚护盾：由「一次性 +2 格」改成「受创后稳住补回」（逐帧细节见 _probe_taixu.js） */
+  {
+    const r = await page.evaluate(() => {
+      const G = window.Game;
+      const p = window.__clean('feijian');
+      G.enemies.length = 0; G.bullets.length = 0;
+      const foe = () => {                     // 不动、不还手的靶子，只为满足「房内还有敌人」
+        const e = new Enemy('xiesui', 430, 60, 1);
+        e.spawnT = 0; e.maxHp = 99999; e.hp = 99999;
+        e.speed = 0; e.cd = 999999; e.touch = 0;
+        G.enemies.push(e);
+      };
+      const run = n => { for (let i = 0; i < n; i++) { p.invuln = Math.max(p.invuln, 1); G.update(); } };
+      p.shield = 0; p.tShield = 0;
+      foe();
+      p.give('taixu', G);
+      const onGet = { s: p.shield, cap: p.shieldCap, gap: p.shieldGap, t: p.shieldReviveT };
+      run(900);                                        // 15 秒不挨打
+      const noHurt = p.shield;
+      p.shield = 0;
+      p.invuln = 0; p.takeDamage(1, G);                // 受创 → 启动计时
+      const t0 = p.shieldReviveT;
+      run(p.shieldGap);
+      const oneBack = p.shield;
+      run(p.shieldGap * 2);                            // 给足时间，看会不会溢出上限
+      const capped = p.shield;
+      p.shield = 0; p.shieldReviveT = -1;
+      p.invuln = 0; p.takeDamage(1, G);
+      G.enemies.length = 0;                            // 清房
+      run(1200);
+      const empty = { s: p.shield, t: p.shieldReviveT };
+      p.items.length = 0; p.shieldCap = 0; p.shieldGap = 0; p.shield = 0;
+      const tiers = [];
+      for (let i = 0; i < 3; i++) { p.give('taixu', G); tiers.push([p.shieldCap, p.shieldGap]); }
+      return { onGet, noHurt, t0, oneBack, capped, empty, tiers };
+    });
+    ok('太虚护盾到手即补满、计时未启动',
+      r.onGet.s === r.onGet.cap && r.onGet.t === -1,
+      r.onGet.s + '/' + r.onGet.cap + ' 格，间隔 ' + r.onGet.gap + ' 帧');
+    ok('没受过伤就不给盾', r.noHurt === r.onGet.cap, '15 秒后仍 ' + r.noHurt + ' 格');
+    ok('受创后数满即补回一格', r.t0 === 0 && r.oneBack === 1,
+      '计时归零后补回 ' + r.oneBack + ' 格');
+    ok('补到上限就停', r.capped === r.onGet.cap, r.capped + ' 格');
+    ok('清房后不回盾（防干等）', r.empty.s === 0 && r.empty.t === 0,
+      '空房 20 秒后护盾 ' + r.empty.s + '、计时 ' + r.empty.t);
+    ok('三阶上限递增、间隔递减',
+      r.tiers[0][0] === 2 && r.tiers[2][0] === 4 && r.tiers[0][1] > r.tiers[1][1]
+      && r.tiers[1][1] > r.tiers[2][1],
+      r.tiers.map(t => t[0] + '格/' + t[1] + '帧').join(' → '));
+  }
 
   /* ---------------- ⑩ 血量恒为整数 ---------------- */
   sec('⑩  气血取整：小数伤害不再让血条「空着却还活着」');

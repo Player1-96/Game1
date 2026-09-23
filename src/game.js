@@ -92,6 +92,8 @@ const SFX = {
   secret() { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.tone(f, 0.12, 'triangle', 0.15), i * 70)); },
   thunder() { this.noise(0.5, 0.35, 400); this.tone(90, 0.4, 'sawtooth', 0.2, 40); },
   blink() { this.tone(1200, 0.16, 'sine', 0.16, 2400); },
+  /* 太虚护盾补回一格：上行双音，与受击的下行音区分开 */
+  shield() { this.tone(620, 0.10, 'triangle', 0.13); setTimeout(() => this.tone(930, 0.14, 'triangle', 0.11), 70); },
   levelup() { [523, 659, 784, 1046, 1318].forEach((f, i) => setTimeout(() => this.tone(f, 0.14, 'square', 0.14), i * 90)); },
   /* 巨剑流：蓄力跨段提示 */
   chargeUp(tier) {

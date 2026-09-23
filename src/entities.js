@@ -2092,6 +2092,11 @@ class Player {
     this.shield = 0;                  // 常驻护盾：不设时限，只被受击逐层扣掉
     this.tShield = 0;                 // 限时护盾：目前只有护体金光会结
     this.shieldT = 0;                 // 限时护盾剩余帧数：到点整层散去
+    /* 太虚护盾（数值见 items.js 的 TAIXU）：受创后连续 N 帧不挨打就补回一格。
+       shieldCap = 0 表示没这件法宝，整条逻辑直接跳过。 */
+    this.shieldCap = 0;               // 护盾上限（同时持有几格）
+    this.shieldGap = 0;               // 补一格的间隔（帧）
+    this.shieldReviveT = -1;          // 无伤计时；-1 = 未启动（要先受创）
     this.dir = 'down'; this.face = 1;
     this.anim = 0; this.animT = 0;
     this.shootCd = 0;
@@ -2155,6 +2160,9 @@ class Player {
   get shieldTotal() { return this.shield + this.tShield; }
   takeDamage(n, g, sx, sy) {
     if (this.invuln > 0 || this.dead) return;
+    /* 太虚护盾：受创即重新开始数无伤时长。注意上面那行 —— 无敌帧内挨打不算受创，
+       而「被护盾吃掉」与「真掉血」都算：这一下无论什么结果，计时都从此刻归零。 */
+    if (this.shieldCap > 0) this.shieldReviveT = 0;
     if (this.charging) this.chargeT = 0;      // 受伤打断蓄力进度（需重新蓄）
     /* 舞剑流：蓄势中挨打 → 剑势溃散，专属技能立刻进冷却。
        突进本身无敌（上面的 invuln 提前返回），所以真正的软肋
@@ -2296,6 +2304,23 @@ class Player {
       this.tShield = 0;
       g.burst(this.x, this.y, 10, PAL.jade);
       g.floaters.push(new Floater(this.x, this.y - 26, '护盾消散', PAL.grey));
+    }
+    /* 太虚护盾：受创之后，在**还有敌人**的房间里连续 N 帧不挨打就补回一格。
+       两个前置条件都不是凑数的：
+       · 要求「还有敌人」——否则清完房站一会儿就能刷满，等于每间房白送几格，
+         而且会把玩家推向「站着干等」或「不敢收最后一刀」两个坏选择；
+       · 计时用 -1 表示未启动 —— 整场没受过伤就一格都不给。
+         护盾的定位是「把挨打丢掉的那格补回来」，不是白送。
+       两个都满足时，它对价的是「一边打一边不挨打」，正是这件法宝要考的东西。 */
+    if (this.shieldCap > 0 && this.shieldReviveT >= 0 && this.shield < this.shieldCap) {
+      const foes = g.enemies.some(e => !e.dead);
+      if (foes && ++this.shieldReviveT >= this.shieldGap) {
+        this.shieldReviveT = 0;
+        this.shield++;
+        SFX.shield();
+        g.burst(this.x, this.y, 12, PAL.jadeL);
+        g.floaters.push(new Floater(this.x, this.y - 26, 'SHIELD', PAL.jadeL));
+      }
     }
     const B = this.buffs;
     if (B.spdT > 0) B.spdT--; else B.spdMul = 0;
