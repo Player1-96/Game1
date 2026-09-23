@@ -195,6 +195,31 @@
   #help .body::-webkit-scrollbar{ width:6px; }
   #help .body::-webkit-scrollbar-thumb{ background:#3a3358; border-radius:3px; }
   #help .body div{ background:rgba(20,16,38,.55); border:1px solid #221d38; padding:8px 10px; border-radius:4px; }
+  /* —— 设置面板 ——
+     独立于 state，任何界面按 O 都能开，所以 z-index 要高过其余 overlay。 */
+  #settings{
+    position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:flex-start;
+    gap:.8em; background:rgba(6,4,14,.965); text-align:center; pointer-events:auto; z-index:20;
+    padding:1.2em 1em; overflow-y:auto; overscroll-behavior:contain;
+  }
+  #settings::before, #settings::after{ content:''; flex:0 0 auto; margin:auto; }
+  #setPanel{ display:flex; flex-direction:column; gap:.4em; width:min(100%, 25em); }
+  .setRow{
+    display:flex; align-items:center; gap:.7em; padding:.5em .7em; text-align:left; cursor:pointer;
+    background:rgba(18,14,34,.92); border:1px solid #3a3358; border-left:3px solid #3a3358;
+    border-radius:4px; transition:border-color .12s, background .12s;
+  }
+  .setRow.sel{ border-left-color:var(--gold); background:rgba(30,24,50,.96); }
+  .setRow.warn{ border-left-color:#e05a62; background:rgba(48,18,24,.96); }
+  .setName{ flex:1 1 auto; min-width:0; font-size:1em; color:var(--txt); line-height:1.35; }
+  .setName small{ display:block; font-size:.76em; color:#8f8ba8; }
+  .setVal{ flex:0 0 auto; min-width:3.2em; text-align:right; font-size:.95em; color:var(--jade); }
+  .setVal.wide{ min-width:6.6em; }
+  .setRow.sel .setVal{ color:var(--gold); }
+  .setBar{ flex:0 0 8em; height:.6em; border-radius:3px; background:#241f3c; border:1px solid #3a3358; overflow:hidden; }
+  .setBar i{ display:block; height:100%; background:var(--jade); }
+  .setRow.sel .setBar i{ background:var(--gold); }
+  .setTip{ font-size:.95em; color:#8f8ba8; letter-spacing:.06em; }
   #help b{ color:var(--jade); font-weight:600; }
 </style>
 </head>
@@ -234,6 +259,11 @@
       </div>
       <div id="pick"></div>
       <div id="chall"></div>
+      <div id="settings">
+        <div class="pickTitle">设 置</div>
+        <div id="setPanel"></div>
+        <div class="setTip"><span class="kbd">↑</span><span class="kbd">↓</span> 选择　<span class="kbd">←</span><span class="kbd">→</span> 调节　<span class="kbd">Enter</span> 切换　<span class="kbd">Esc</span> 关闭</div>
+      </div>
       <div id="title">
         <div class="big">九劫录</div>
         <div class="sub">飞 剑 问 仙</div>
@@ -246,7 +276,8 @@
           <span class="kbd">↑</span><span class="kbd">↓</span><span class="kbd">←</span><span class="kbd">→</span> 或 <span class="kbd">鼠标左键</span> 御剑斩妖<br>
           <span class="kbd">空格</span> 专属技能　<span class="kbd">Q</span> 小技能　<span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span> 切换小技能<br>
           <span class="kbd">E</span> 交互（坊市 / 祭坛）　<span class="kbd">F</span> 埋设雷符（炸妖 / 开裂缝 / 炸箱 / 碎石柱）<br>
-          <span class="kbd">P</span> 或 <span class="kbd">Esc</span> 暂停　<span class="kbd">R</span> 重入轮回（局内长按 1 秒可重开并换流派）　<span class="kbd">M</span> 静音<br>
+          <span class="kbd">P</span> 或 <span class="kbd">Esc</span> 暂停　<span class="kbd">R</span> 重入轮回（局内长按 1 秒可重开并换流派）<br>
+          <span class="kbd">O</span> 设置（音量 / 全屏 / 存档）　<span class="kbd">M</span> 静音<br>
           <span class="kbd">B</span> <b style="color:var(--gold)">Boss 挑战</b>　跳过前几层，直接单挑某位尊者（自带配装，不写存档）
         </div>
         <div class="tip blink">按任意键入山门</div>
@@ -258,6 +289,7 @@
     <div class="body">
       <div><b>洞天探秘</b><br>石室清空妖物后石门自开；魔窟（Boss）需斩杀尊者，届时传送阵显现，踏入即入下一层。共五层，皆可随机生成。</div>
       <div><b>Boss 挑战</b><br>标题界面按 <b style="color:var(--gold)">B</b> 进入，跳过前几层直接单挑某位尊者 —— 方便单独调试头目的行动。两级菜单：先择魔头（五位，标着原本镇守的层数与基础血），再择难度（<b>险</b> / <b>危</b> / <b>绝</b>）。难度同时决定你的配装与它的血量：<b>法宝 3 × 系数</b> 件、<b>功法 1 × 系数</b> 个、<b>专属技 Lv. 系数</b>，头目血量再乘 <b>×1.0 / ×1.6 / ×2.4</b>。专属技的进境每档都给 <b>3 次三选一，全部由你手选</b>。<br>挑战与真实进度<b>完全隔离</b>：不写存档、阵亡也不销档，胜负都在演出后直接回选择菜单（并留下上次的战果）。挑战中长按 <b>R</b> 是放弃并回菜单。</div>
+      <div><b>设置与音乐</b><br>任何界面按 <span class="kbd">O</span> 打开设置：<b>总音量 / 背景音乐 / 音效</b> 三层各自可调、<b>全屏</b>、以及<b>清空存档</b>（需连按两次确认，免得手滑）。偏好会自动记住，与游戏存档分开存。<br>背景音乐共三首，随场景切换：<b>标题</b>（慢）→ <b>石室</b>（中速）→ <b>魔窟</b>（快，头目在场时）。暂停时音乐自动压低，阵亡与飞升时静场。</div>
       <div><b>三大流派</b><br>
         <b style="color:var(--gold)">飞剑流</b>：按住鼠标持续御剑，出手极快、转向灵动，以频次压制全场。<br>
         <b style="color:var(--gold)">巨剑流</b>：按住蓄力凝聚巨剑，松手一击破军 —— 每上升一段蓄力，穿透数、剑身宽度与飞行距离同步提升。出剑后有<b>力竭回气</b>的后摇（头顶紫条回满方可再凝剑），段位越高后摇越短，故狂点射远不如蓄满一击；单体输出仍不及飞剑流，强在一剑贯穿成排妖物。<br>

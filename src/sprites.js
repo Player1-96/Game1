@@ -1012,8 +1012,15 @@ function makeItemIcon(kind, c1, c2) {
       p.line(6, 12, 11, 6, c2); p.line(3, 12, 8, 6, c2); break;
     case 'lotus':   // 莲花
       p.disc(8, 9, 4, c1); p.disc(5, 6, 2, c2); p.disc(11, 6, 2, c2); p.disc(8, 5, 2, c2); break;
-    case 'thunder': // 雷符
+    case 'thunder': // 雷符：一道折线闪电
       p.line(9, 2, 5, 8, c1, 2); p.line(5, 8, 8, 8, c1, 2); p.line(8, 8, 6, 14, c1, 2); break;
+    /* 连锁雷：主雷 + 两道分叉。
+       「引雷符」（法宝，加连锁）与「天雷引」（功法）原本共用 thunder，
+       而 thunder 只用到 c1 —— 两者画出来是同一个位图，在坊市里并排摆着没法区分。
+       分叉既是形状上的差异，也正好说明「连锁」这件事。 */
+    case 'chain':
+      p.line(9, 2, 5, 8, c1, 2); p.line(5, 8, 8, 8, c1, 2); p.line(8, 8, 6, 14, c1, 2);
+      p.line(5, 8, 2, 6, c2, 1); p.line(8, 8, 11, 11, c2, 1); break;
     case 'flame':   // 火
       p.ell(8, 9, 4.6, 5.4, c1); p.ell(8, 8, 2.6, 3, c2); p.set(7, 5, PAL.white); break;
     case 'skull':   // 骷髅

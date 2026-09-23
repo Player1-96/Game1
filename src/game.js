@@ -3,16 +3,51 @@
  *  game.js —— 主循环 / 房间管理 / HUD / 音效
  * ============================================================ */
 
+/* ---------------- 设置（与存档分开存） ----------------
+   音量三层：master 是总闸，下面挂 sfxBus（音效）与 BGM.bus（音乐）。
+   master 的基准取 0.32 —— 各音效的 vol 参数是按这个量级配的，
+   改基准会让全部音效一起变响/变轻，别单独动。
+*/
+const SET_KEY = 'xiuxian-isaac.settings.v1';
+const SETTINGS = {
+  master: 0.8,      // 总音量 0~1（乘 0.4 后落到 master gain）
+  music: 0.7,       // 背景音乐 0~1
+  sfx: 0.9,         // 音效 0~1
+  bgm: true,        // 背景音乐开关（与 M 键的总静音独立）
+  save() {
+    try {
+      localStorage.setItem(SET_KEY, JSON.stringify({
+        master: this.master, music: this.music, sfx: this.sfx, bgm: this.bgm
+      }));
+    } catch (e) { }
+  },
+  load() {
+    try {
+      const d = JSON.parse(localStorage.getItem(SET_KEY) || 'null');
+      if (!d) return;
+      if (typeof d.master === 'number') this.master = d.master;
+      if (typeof d.music === 'number') this.music = d.music;
+      if (typeof d.sfx === 'number') this.sfx = d.sfx;
+      if (typeof d.bgm === 'boolean') this.bgm = d.bgm;
+    } catch (e) { }
+  }
+};
+
 /* ---------------- 音效（WebAudio 合成） ---------------- */
 const SFX = {
-  ctx: null, master: null, on: true,
+  ctx: null, master: null, sfxBus: null, on: true,
   ensure() {
     if (this.ctx) return;
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.28;
+      this.sfxBus = this.ctx.createGain();
+      this.sfxBus.connect(this.master);
       this.master.connect(this.ctx.destination);
+      applyVolumes();
+      BGM.attach();
+      // 自动播放策略：context 可能是 suspended，用户首次交互时唤醒
+      if (this.ctx.state === 'suspended') this.ctx.resume();
     } catch (e) { this.ctx = null; }
   },
   tone(freq, dur, type, vol, slideTo) {
@@ -25,7 +60,7 @@ const SFX = {
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(vol || 0.3, t + 0.008);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g); g.connect(this.master);
+    o.connect(g); g.connect(this.sfxBus);
     o.start(t); o.stop(t + dur + 0.02);
   },
   noise(dur, vol, filterFreq) {
@@ -38,7 +73,7 @@ const SFX = {
     const src = this.ctx.createBufferSource(); src.buffer = buf;
     const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = filterFreq || 2000;
     const g = this.ctx.createGain(); g.gain.value = vol || 0.25;
-    src.connect(f); f.connect(g); g.connect(this.master);
+    src.connect(f); f.connect(g); g.connect(this.sfxBus);
     src.start(t);
   },
   shoot() { this.tone(880, 0.06, 'square', 0.10, 420); },
@@ -74,6 +109,183 @@ const SFX = {
     if (tier >= 2) { this.tone(900, 0.09, 'square', 0.13, 260); this.noise(0.10, 0.16, 3600); }
     else if (tier === 1) { this.tone(760, 0.08, 'square', 0.12, 320); this.noise(0.09, 0.13, 3200); }
     else this.noise(0.07, 0.11, 3000);
+  }
+};
+
+/* 把 SETTINGS 落到三个 gain 节点上。SFX.ensure() 之前调用是空操作。 */
+function applyVolumes() {
+  if (SFX.master) SFX.master.gain.value = SFX.on ? SETTINGS.master * 0.4 : 0;
+  if (SFX.sfxBus) SFX.sfxBus.gain.value = SETTINGS.sfx;
+  BGM.setGain();
+}
+
+/* ---------------- 背景音乐（WebAudio 程序化合成，零素材） ----------------
+   曲子写在 BGM_TRACKS 里：每小节 4 拍，bass 每小节一个根音（长音铺底），
+   lead 每拍一个 token（`.` / `-` 表示不发声），perc 每小节 8 个八分位。
+   音高用 `c4` / `a#3` 记谱；调式取五声（宫商角徵羽）——
+   五声音阶内任意两音都撞不出小二度，这是它适合当背景音的硬道理，
+   也是能靠「随手写几个音」就成曲的原因。
+
+   调度走 look-ahead：每 60ms 把未来 0.35 秒的拍排进 AudioContext 的时间轴，
+   而不是到点再播 —— setInterval 本身有抖动，靠它直接卡拍会听出节奏飘。
+*/
+const NOTE_SEMI = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
+function noteFreq(s) {
+  const m = /^([a-g])(#?)(\d)$/.exec(s || '');
+  if (!m) return 0;
+  const midi = NOTE_SEMI[m[1]] + (m[2] ? 1 : 0) + (+m[3] + 1) * 12;
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+const BGM_TRACKS = {
+  /* 标题 / 菜单：慢、空、留白多 */
+  title: {
+    bpm: 64,
+    bass: ['c2', 'c2', 'a1', 'a1', 'f1', 'f1', 'g1', 'g1'],
+    lead: [
+      'e5', '.', 'd5', '.', 'c5', '.', '.', '.',
+      'a4', '.', 'c5', '.', 'd5', '.', '.', '.',
+      'e5', '.', 'g5', '.', 'a5', '.', 'g5', '.',
+      'e5', '.', 'd5', '.', 'c5', '.', '.', '.'
+    ],
+    perc: ''
+  },
+  /* 探索：中速，有推进感但不吵 —— 这曲子是听最久的，克制比张扬重要 */
+  explore: {
+    bpm: 100,
+    bass: ['c2', 'c2', 'g1', 'g1', 'a1', 'a1', 'f1', 'f1'],
+    lead: [
+      'g4', 'a4', 'c5', '.', 'd5', '.', 'c5', '.',
+      'a4', '.', 'g4', '.', 'e4', '.', 'g4', '.',
+      'c5', 'd5', 'e5', '.', 'g5', '.', 'e5', '.',
+      'd5', '.', 'c5', '.', 'a4', '.', '.', '.'
+    ],
+    perc: 'x..x..x.'
+  },
+  /* 魔窟：与探索曲同一个调式，只换节奏与密度 —— 听感上「还是这个世界，但不对劲了」 */
+  boss: {
+    bpm: 138,
+    bass: ['c2', 'c2', 'c2', 'c2', 'a1', 'a1', 'g1', 'g1'],
+    lead: [
+      'e5', 'e5', 'g5', 'e5', 'd5', 'e5', 'd5', 'c5',
+      'e5', 'e5', 'g5', 'a5', 'g5', 'e5', 'd5', '.',
+      'c5', 'c5', 'e5', 'c5', 'a4', 'c5', 'd5', 'e5',
+      'e5', 'd5', 'c5', 'd5', 'c5', '.', '.', '.'
+    ],
+    perc: 'x.xxx.x.'
+  }
+};
+
+const BGM = {
+  bus: null,
+  track: null,          // 当前曲名；null = 没在播
+  step: 0,              // 已调度的拍数
+  next: 0,              // 下一拍的绝对时间（AudioContext 时钟）
+  timer: null,
+  duck: 1,              // 压低倍率：暂停时降到 0.22，失焦时 0
+  noiseBuf: null,
+
+  attach() {
+    if (this.bus || !SFX.ctx) return;
+    this.bus = SFX.ctx.createGain();
+    this.bus.connect(SFX.master);
+    this.setGain();
+  },
+  setGain() {
+    if (!this.bus || !SFX.ctx) return;
+    const want = SETTINGS.bgm ? SETTINGS.music * this.duck : 0;
+    const t = SFX.ctx.currentTime, g = this.bus.gain;
+    g.cancelScheduledValues(t);
+    if (want <= 0.001) {
+      /* 要静音就别用 setTargetAtTime —— 它是指数渐近，永远差最后 3%，
+         关掉音乐后仍留一点残音。线性降到 0 才是干净的收尾。 */
+      g.setValueAtTime(g.value, t);
+      g.linearRampToValueAtTime(0, t + 0.25);
+    } else {
+      g.setTargetAtTime(want, t, 0.12);   // 改音量 / 暂停压低：平滑过渡，不出「咔」声
+    }
+  },
+  /* 换曲。同名直接返回 —— 这个方法每帧都会被调 */
+  play(name) {
+    if (this.track === name) return;
+    this.track = name;
+    this.step = 0;
+    if (!SFX.ctx || !this.bus) return;     // 还没交互过，等 ensure() 再来
+    this.next = SFX.ctx.currentTime + 0.06;
+    if (!this.timer) this.timer = setInterval(() => this.pump(), 60);
+  },
+  stop() {
+    this.track = null;
+    if (this.timer) { clearInterval(this.timer); this.timer = null; }
+  },
+  pump() {
+    const ctx = SFX.ctx, T = BGM_TRACKS[this.track];
+    if (!ctx || !T || !this.bus) return;
+    // 从后台标签页回来时 next 会落后一大截，直接对齐到当下，别把缺的拍一次补出来
+    if (this.next < ctx.currentTime - 0.4) this.next = ctx.currentTime + 0.05;
+    const beat = 60 / T.bpm;
+    let guard = 0;                          // 兜底：单次最多排 24 拍
+    while (this.next < ctx.currentTime + 0.35 && guard++ < 24) {
+      this.beat(this.next, T, this.step, beat);
+      this.next += beat;
+      this.step++;
+    }
+  },
+  beat(t, T, i, beat) {
+    const bar = (i >> 2) % T.bass.length, b = i & 3;
+    if (b === 0) {                          // 小节头拍换根音
+      const f = noteFreq(T.bass[bar]);
+      if (f) this.note(f, t, beat * 3.7, 0.13, 700);
+    }
+    const tok = T.lead[i % T.lead.length];
+    if (tok && tok !== '.' && tok !== '-') {
+      const f = noteFreq(tok);
+      if (f) this.note(f, t, beat * 0.8, 0.075, 4200);
+    }
+    if (T.perc) {
+      for (let s = 0; s < 2; s++) {
+        if (T.perc[(b * 2 + s) % T.perc.length] === 'x') this.drum(t + s * beat / 2, s === 0);
+      }
+    }
+  },
+  note(f, t, dur, vol, lp) {
+    const ctx = SFX.ctx;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(f, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    const bq = ctx.createBiquadFilter();
+    bq.type = 'lowpass'; bq.frequency.value = lp || 4000;
+    o.connect(g); g.connect(bq); bq.connect(this.bus);
+    o.start(t); o.stop(t + dur + 0.03);
+  },
+  /* 打击：低音位是底鼓（低频下滑），高音位是踩镲（高通噪声） */
+  drum(t, low) {
+    const ctx = SFX.ctx;
+    if (low) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(118, t);
+      o.frequency.exponentialRampToValueAtTime(44, t + 0.11);
+      g.gain.setValueAtTime(0.20, t);
+      g.gain.exponentialRampToValueAtTime(0.0008, t + 0.15);
+      o.connect(g); g.connect(this.bus);
+      o.start(t); o.stop(t + 0.18);
+    } else {
+      if (!this.noiseBuf) {                 // 缓一份噪声，别每拍重建
+        const sr = ctx.sampleRate, len = Math.floor(sr * 0.06);
+        this.noiseBuf = ctx.createBuffer(1, len, sr);
+        const d = this.noiseBuf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
+      }
+      const src = ctx.createBufferSource(); src.buffer = this.noiseBuf;
+      const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 6500;
+      const g = ctx.createGain(); g.gain.value = 0.035;
+      src.connect(f); f.connect(g); g.connect(this.bus);
+      src.start(t);
+    }
   }
 };
 
@@ -145,6 +357,23 @@ const CHALLENGE_DIFF = [
 ];
 const CHALL_UPGRADES = 3;      // 三档都给足 3 次手选（「三级都由玩家手选」）
 const CHALL_RESULT_T = 110;    // 胜负判定后停留的帧数，让爆炸演完再回菜单
+
+/* ---------------- 设置面板的行定义 ----------------
+   kind 决定交互方式：range 用 ←→ 调（鼠标点进度条也行）、
+   toggle 用 Enter 翻、button 用 Enter 触发。
+   渲染、键位、鼠标三处都读这一份，所以加一项只改这里。
+   行的 id 与 SETTINGS 的字段同名（range / toggle 直接按 id 取值），
+   例外是 full 与 clear —— 那两个读的是浏览器状态和存档，不在 SETTINGS 里。
+*/
+const SET_ROWS = [
+  { id: 'master', kind: 'range', name: '总音量', desc: '音效与音乐一起调' },
+  { id: 'music', kind: 'range', name: '背景音乐', desc: '三首曲子随场景切换' },
+  { id: 'sfx', kind: 'range', name: '音效' },
+  { id: 'bgm', kind: 'toggle', name: '背景音乐开关', desc: '关掉后调音量也不会出声' },
+  { id: 'full', kind: 'toggle', name: '全屏显示', desc: 'F11 亦可' },
+  { id: 'clear', kind: 'button', name: '清空存档', desc: '删除「续前缘」的进度' }
+];
+
 /* 挑战菜单里的头目题面（一句话）—— 挑 Boss 时一眼看清「这一位考的是什么」。
    刻意压到 8 字上下：5 张卡并排时每张只有 9.6em 宽，长句会被折成三行。 */
 const CHALL_BOSS_NOTE = {
@@ -195,6 +424,12 @@ class GameCore {
     this.pick = null;                // 选择界面：{ kind:'skill'|'ult', ... }，非 null 时暂停
     this.ultUpgradeT = 0;            // 斩精英后延迟弹出三选一的倒计时（帧）
     this.paused = false;             // 主动暂停（P / Esc）：逻辑全停，画面照画
+    /* 设置面板（配置表见 SET_ROWS）：独立于 state —— 从标题或局内都能开，
+       关掉后回到原处，所以用标记位而不是新增一个 state。
+       setIdx 是当前选中行；setClearArm 是「清空存档」的二次确认。 */
+    this.settingsOpen = false;
+    this.setIdx = 0;
+    this.setClearArm = false;
     /* Boss 挑战模式（配置见 CHALLENGE_DIFF）：
        chall       非 null = 正在挑战中（含 bossId / diff / 升级队列 / 结算倒计时）
        challMenu   菜单状态 { step:'boss'|'diff', idx, bossId }
@@ -1237,6 +1472,8 @@ class GameCore {
   update() {
     // 主动暂停：比选择界面还优先，连 tick 都不走（暂停时不希望任何计时在跑）
     if (this.paused) { input.interact = false; this.restartHold = 0; return; }
+    // 设置面板：同样全停（它可能盖在三选一之上，所以排在 pick 前面）
+    if (this.settingsOpen) { input.interact = false; this.restartHold = 0; return; }
     // 选择界面：先于 tick 拦截，整个世界（含动画计时）完全静止
     if (this.pick) { input.interact = false; this.restartHold = 0; return; }
     // 斩精英后稍缓一拍再弹三选一，先让死亡特效演完
@@ -1635,10 +1872,11 @@ class GameCore {
     g.fillRect(0, 0, 480, 320);
     g.fillStyle = PAL.gold; g.globalAlpha = 0.6;
     g.fillRect(240 - 62, 124, 124, 1);
-    g.fillRect(240 - 62, 192, 124, 1);
+    g.fillRect(240 - 62, 198, 124, 1);
     g.globalAlpha = 1;
     drawPixelText(g, 'PAUSED', 240 - 3 * 12, 138, 2, PAL.goldL);
-    drawPixelText(g, 'P RESUME', 240 - 4 * 6, 172, 1, PAL.jadeL);
+    drawPixelText(g, 'P RESUME', 240 - 4 * 6, 170, 1, PAL.jadeL);
+    drawPixelText(g, 'O OPTIONS', 240 - 4.5 * 6, 184, 1, PAL.jadeL);
     g.restore();
   }
 
@@ -2201,15 +2439,115 @@ class GameCore {
       }
     }
     try { this.draw(); } catch (e) { console.error('[draw]', e); }
+    try { this.updateBgm(); } catch (e) { console.error('[bgm]', e); }
     try { this.updateItemTip(); } catch (e) { console.error('[tip]', e); }
     try { this.updateShopTip(); } catch (e) { console.error('[tip]', e); }
     requestAnimationFrame(t => this.frame(t));
+  }
+
+  /* 选曲：菜单用 title、普通石室用 explore、魔窟用 boss。
+     每帧调用无妨 —— BGM.play 同名直接返回。 */
+  updateBgm() {
+    if (!SFX.ctx) return;
+    if (this.state === 'dead' || this.state === 'win') {
+      if (BGM.track) BGM.stop();          // 阵亡 / 飞升：静场，把结局留白
+    } else {
+      let want = 'title';
+      if (this.state === 'play') {
+        const inBoss = this.room && this.room.type === RT.BOSS
+          && this.bossRef && !this.bossRef.dead;
+        want = inBoss ? 'boss' : 'explore';
+      }
+      BGM.play(want);
+    }
+    const wantDuck = (this.paused || this.settingsOpen) ? 0.22 : 1;
+    if (wantDuck !== BGM.duck) { BGM.duck = wantDuck; BGM.setGain(); }
+  }
+
+  /* ---------------- 设置菜单 ----------------
+     settingsOpen 时不推进世界（见 update 开头），等价于暂停；
+     但**不动 this.paused** —— 这样关掉面板能回到「原来在跑 / 原来已暂停」的状态。 */
+  openSettings() {
+    if (this.settingsOpen) return;
+    this.settingsOpen = true;
+    this.setIdx = 0;
+    this.setClearArm = false;
+    renderSettings();
+    SFX.tone(660, 0.06, 'square', 0.10);
+  }
+  closeSettings() {
+    if (!this.settingsOpen) return;
+    this.settingsOpen = false;
+    this.setClearArm = false;
+    SETTINGS.save();
+    renderSettings();
+    SFX.tone(440, 0.06, 'square', 0.10);
+  }
+  settingsMove(d) {
+    const n = SET_ROWS.length;
+    this.setIdx = (this.setIdx + d + n) % n;
+    this.setClearArm = false;
+    renderSettings();
+    SFX.tone(520, 0.04, 'square', 0.07);
+  }
+  /* ←→：range 调值；toggle 当开关使（与 Enter 等效） */
+  settingsAdjust(d) {
+    const row = SET_ROWS[this.setIdx];
+    if (!row) return;
+    if (row.kind === 'range') this.settingsSetValue(row.id, SETTINGS[row.id] + d * 0.05);
+    else if (row.kind === 'toggle') this.settingsToggle(row.id);
+  }
+  /* 调音量时顺手用一个音高反馈当前值 —— 耳朵比百分比数字好用 */
+  settingsSetValue(id, v) {
+    SETTINGS[id] = Math.max(0, Math.min(1, Math.round(v * 100) / 100));
+    applyVolumes();
+    SETTINGS.save();
+    SFX.tone(440 + SETTINGS[id] * 440, 0.04, 'square', 0.07);
+    renderSettings();
+  }
+  settingsToggle(id) {
+    if (id === 'bgm') {
+      SETTINGS.bgm = !SETTINGS.bgm;
+      BGM.setGain();
+      SETTINGS.save();
+      SFX.tone(SETTINGS.bgm ? 880 : 330, 0.07, 'square', 0.11);
+    } else if (id === 'full') {
+      this.toggleFullscreen();
+    }
+    renderSettings();
+  }
+  /* Enter：toggle 翻转、button 触发（清档要连按两次，避免误触） */
+  settingsTrigger() {
+    const row = SET_ROWS[this.setIdx];
+    if (!row) return;
+    if (row.kind === 'toggle') this.settingsToggle(row.id);
+    else if (row.kind === 'button' && row.id === 'clear') {
+      if (this.setClearArm) {
+        this.clearSave();
+        this.setClearArm = false;
+        SFX.thunder();
+      } else {
+        this.setClearArm = true;
+        SFX.hurt();
+      }
+      renderSettings();
+    }
+  }
+  toggleFullscreen() {
+    try {
+      const p = document.fullscreenElement
+        ? document.exitFullscreen()
+        : (document.documentElement.requestFullscreen
+          ? document.documentElement.requestFullscreen() : null);
+      if (p && p.catch) p.catch(() => { });   // 被拒绝时静默，不弹报错
+    } catch (e) { }
   }
 }
 
 /* ---------------- 启动 ---------------- */
 let Game = null;
 function boot() {
+  SETTINGS.load();          // 音量等偏好要在建 Game 之前读进来
   buildSprites();
   buildItemIcons();
   const canvas = document.getElementById('game');
@@ -2224,6 +2562,8 @@ function boot() {
 function bindInput(canvas, game) {
     const setKey = (e, down) => {
     const k = e.key.toLowerCase();
+    // 设置面板开着：按键只归面板用（方向键与空格在那里另有含义），一律不喂给游戏
+    if (game.settingsOpen) { if (down) SFX.ensure(); return; }
     switch (k) {
       case 'w': input.up = down; break;
       case 's': input.down = down; break;
@@ -2265,6 +2605,18 @@ function bindInput(canvas, game) {
     if ([' ', 'enter', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
     if (!e.repeat) setKey(e, true);
     if (e.repeat) return;
+    /* 设置面板：优先级最高（可能盖在三选一之上）。
+       O 开合、任何界面都能用；面板内 ↑↓ 选项、←→ 调值、Enter 触发。 */
+    if (game.settingsOpen) {
+      if (k === 'o' || k === 'escape') game.closeSettings();
+      else if (k === 'arrowup') game.settingsMove(-1);
+      else if (k === 'arrowdown') game.settingsMove(1);
+      else if (k === 'arrowleft') game.settingsAdjust(-1);
+      else if (k === 'arrowright') game.settingsAdjust(1);
+      else if (k === 'enter' || k === ' ') game.settingsTrigger();
+      return;
+    }
+    if (k === 'o') { SFX.ensure(); game.openSettings(); return; }
     // 技能替换 / 专属升级面板：优先吃掉方向键与回车
     if (game.pick) {
       if (k === 'arrowleft') game.pickMove(-1);
@@ -2314,7 +2666,13 @@ function bindInput(canvas, game) {
   // 窗口失焦 / 页面隐藏时松手事件可能收不到：主动放开，避免「一直按住」的假象
   window.addEventListener('blur', () => { input.mouseDown = false; input.restart = false; });
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { input.mouseDown = false; input.restart = false; }
+    if (document.hidden) {
+      input.mouseDown = false; input.restart = false;
+      // 切走就挂起音频：省电，也免得后台标签页继续出声
+      if (SFX.ctx && SFX.ctx.state === 'running') SFX.ctx.suspend();
+    } else if (SFX.ctx && SFX.ctx.state === 'suspended') {
+      SFX.ctx.resume();
+    }
   });
 }
 
@@ -2464,8 +2822,64 @@ function renderChallMenu() {
   });
 }
 
+/* 设置面板。同样走 DOM —— 画布像素字体画不了中文。
+   值的显示口径收在 setRowValue() 一处，键盘与鼠标共用。 */
+function setRowValue(row) {
+  if (row.kind === 'range') return Math.round(SETTINGS[row.id] * 100) + '%';
+  if (row.id === 'bgm') return SETTINGS.bgm ? '开' : '关';
+  if (row.id === 'full') return document.fullscreenElement ? '开' : '关';
+  if (row.id === 'clear') {
+    if (Game && Game.setClearArm) return '再按一次确认';
+    return (Game && Game.hasSave()) ? '有存档' : '无存档';
+  }
+  return '';
+}
+
+function renderSettings() {
+  const el = document.getElementById('settings');
+  if (!el) return;
+  if (!Game || !Game.settingsOpen) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  const panel = document.getElementById('setPanel');
+  if (!panel) return;
+  let h = '';
+  SET_ROWS.forEach((r, i) => {
+    const cls = 'setRow' + (i === Game.setIdx ? ' sel' : '')
+      + (r.id === 'clear' && Game.setClearArm ? ' warn' : '');
+    h += '<div class="' + cls + '" data-i="' + i + '">'
+      + '<div class="setName">' + r.name
+      + (r.desc ? '<small>' + r.desc + '</small>' : '') + '</div>';
+    if (r.kind === 'range') {
+      const v = Math.round(SETTINGS[r.id] * 100);
+      h += '<div class="setBar"><i style="width:' + v + '%"></i></div>'
+        + '<div class="setVal">' + v + '%</div>';
+    } else {
+      h += '<div class="setVal wide">' + setRowValue(r) + '</div>';
+    }
+    h += '</div>';
+  });
+  panel.innerHTML = h;
+  panel.querySelectorAll('.setRow').forEach(rowEl => {
+    rowEl.addEventListener('click', e => {
+      const i = +rowEl.getAttribute('data-i');
+      const bar = e.target.closest ? e.target.closest('.setBar') : null;
+      if (bar && SET_ROWS[i].kind === 'range') {
+        // 点进度条：按横向比例取值，像真的滑条一样
+        const r = bar.getBoundingClientRect();
+        Game.setIdx = i;
+        Game.settingsSetValue(SET_ROWS[i].id, (e.clientX - r.left) / r.width);
+      } else if (Game.setIdx === i) {
+        Game.settingsTrigger();          // 已选中再点一次 = 确认
+      } else {
+        Game.setIdx = i; Game.setClearArm = false; renderSettings();
+      }
+    });
+  });
+}
+
 function updateOverlay() {
   if (!Game) return;
+  renderSettings();     // 独立于 state（可能盖在三选一或暂停之上），先渲染
   const floorName = document.getElementById('floorName');
   const hint = document.getElementById('hint');
   const card = document.getElementById('card');

@@ -795,7 +795,7 @@ const ELITE_DEF = {
   jiying: {
     name: '疾影血蝠', en: 'RUSH', base: 'xuefu', perk: 'rush',
     hpMul: 2.2, spdMul: 1.4, scale: 1.45, rMul: 1.45, coins: 9, score: 72,
-    aura: PAL.purpleL, perkCd: 80, desc: '瞬影突进，来去无踪'
+    aura: PAL.purpleL, perkCd: 80, desc: '瞬影突进，来去无踪；殒命炸出十二枚血弹'
   },
   wandu: {
     name: '万毒蟾尊', en: 'VENOM', base: 'chanchu', perk: 'venom',

@@ -72,7 +72,9 @@ const ITEM_DEFS = [
     apply: (p) => { p.stats.frost += 1; },
     up: ['寒气更盛：减速 55% → 62%，冰封持续 +35 帧',
          '寒气彻骨：减速 62% → 69%，冰封持续再 +35 帧'] },
-  { id: 'leifu', name: '引雷符', type: 'fabao', icon: 'thunder', c1: PAL.gold, c2: PAL.cyan,
+  /* 引雷符用 chain（连锁雷：主雷 + 分叉），与功法「天雷引」的 thunder 分开 ——
+     两者原先 icon / c1 / c2 三项全同，而 thunder 只画 c1，等于同一个位图。 */
+  { id: 'leifu', name: '引雷符', type: 'fabao', icon: 'chain', c1: PAL.gold, c2: PAL.cyan,
     desc: '命中引动雷法，连锁伤害', apply: p => { p.stats.chain += 1; } },
   { id: 'jingang', name: '金刚不坏', type: 'fabao', icon: 'banner', c1: PAL.gold, c2: PAL.orange,
     desc: '受创后无敌时间延长', apply: p => { p.stats.iframe += 40; } },
@@ -158,7 +160,9 @@ const ITEM_DEFS = [
     desc: '气血上限 +2，并回满', apply: p => { p.maxHP += 4; p.hp = p.maxHP; } },
   { id: 'jinchuang', name: '金疮药', type: 'dan', icon: 'pill', c1: PAL.orange, c2: PAL.white,
     desc: '回复 1 点气血', apply: p => { p.heal(2); } },
-  { id: 'jingyuan', name: '精元散', type: 'dan', icon: 'pill', c1: PAL.gold, c2: PAL.goldL,
+  /* 精元散给的是灵石，配色取「青玉 + 金」。原先与洗髓丹同为 gold + goldL，
+     而两者都是 pill 形状 —— 又一个「同形状 + 同配色」的位图重复。 */
+  { id: 'jingyuan', name: '精元散', type: 'dan', icon: 'pill', c1: PAL.jade, c2: PAL.goldL,
     desc: '获得 15 枚灵石', apply: p => { Game.addCoins(15); } },
 
   /* ---------- 小技能（原功法，Q 释放、消耗灵力） ----------

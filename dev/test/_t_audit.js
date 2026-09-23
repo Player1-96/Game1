@@ -382,8 +382,37 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     ok('叠加文案合计正确', r.tally === '灵力自然回复 +2/秒', r.tally);
   }
 
-  /* ---------------- ⑫ 全局错误 ---------------- */
-  sec('⑫  全局错误检查');
+  /* ---------------- ⑫ 图标唯一性 ---------------- */
+  /* 同形状本身没问题（丹药都该是丸状），但「同形状 + 同配色」＝生成同一个位图，
+     玩家只能靠位置猜它是什么。2026-09-21「灵力丹看起来占用了法宝格」就是这么来的。 */
+  sec('⑫  图标不撞车（同形状 + 同配色 = 同一个位图）');
+  {
+    const r = await page.evaluate(() => {
+      const groups = {};
+      for (const d of Object.values(ITEM_MAP)) (groups[d.icon] = groups[d.icon] || []).push(d);
+      const clash = [];
+      for (const [icon, g] of Object.entries(groups)) {
+        if (g.length < 2) continue;
+        const seen = {};
+        for (const d of g) {
+          const key = d.c1 + '|' + d.c2;
+          if (seen[key]) clash.push(icon + '（' + seen[key] + ' / ' + d.name + '）');
+          seen[key] = d.name;
+        }
+      }
+      return {
+        total: Object.keys(ITEM_MAP).length,
+        shared: Object.entries(groups).filter(([, g]) => g.length > 1).length,
+        clash: clash
+      };
+    });
+    ok('没有「同形状 + 同配色」的道具', r.clash.length === 0,
+      r.clash.length ? r.clash.join('；')
+        : r.total + ' 项道具，' + r.shared + ' 组共用形状、配色互不相同');
+  }
+
+  /* ---------------- ⑬ 全局错误 ---------------- */
+  sec('⑬  全局错误检查');
   ok('全程无 pageerror / console.error', errs.length === 0, errs.slice(0, 3).join(' | '));
 
   console.log('\n========================================');

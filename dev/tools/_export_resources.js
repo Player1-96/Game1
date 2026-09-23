@@ -61,7 +61,10 @@ const BOSS_GIMMICK = {
 };
 const PERK_CN = {
   blood: '血箭（受创减免四成）', volley: '符箓三连发+灼烧',
-  rush: '瞬影突进', venom: '毒弹落地成沼', swarm: '环形剑气+召小剑灵'
+  rush: '瞬影突进', venom: '毒弹落地成沼',
+  /* swarm 的召唤发生在 eliteDeath，不在战斗中 —— 「神通说明」这一列讲的是战斗中做什么，
+     那件事已经写在「死后余祸」（desc）列里了，这里只留剑气的部分。 */
+  swarm: '环形剑气'
 };
 
 (async () => {
