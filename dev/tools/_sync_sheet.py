@@ -39,6 +39,8 @@ def _find_skill_dir():
 SKILL = _find_skill_dir()
 FILE_ID = "DTEtrQUFaQmtkamNM"
 SHEET_URL = "https://docs.qq.com/sheet/" + FILE_ID
+# 固定用公有云域，挡住宿主 provider 下发的死域 apiBase（详见 _tdoc_once 注释）
+SKILL_BASE = "https://docs.qq.com"
 
 # 已有的 4 个子表（用户预建），其余按需新建
 # ⚠️ 待建的页签不再单独维护一份列表 —— 直接用 TABS 推导（见 main 的第 3 步）。
@@ -51,13 +53,41 @@ D = json.load(open(os.path.join(HERE, "..", "data", "_resources.json"), encoding
 
 
 def _tdoc_once(tool, args, service):
+    """调一次 tencentdocs.py。
+
+    2026-09-23：连接器重新授权后同步仍全挂（全站 503 Tunnel connection failed）。
+    定位到两个叠加的环境问题，都在本函数里绕开：
+
+      1) 宿主的 V2 凭据 provider 除了下发票据，还会下发一个 apiBase 覆盖域
+         （实测为 https://www-docs.workbuddy.cn）。该域直连 DNS 不解析
+         （getaddrinfo failed）、走本机代理则 503 —— 等于把请求从一个可用端点
+         劫持到一个死端点。tencentdocs.py 里 `if not api_base` 用的是显式传入的
+         环境变量优先，所以预先设 TDOC_API_BASE_URL 就能挡住 provider 的覆盖。
+         docs.qq.com 实测直连与走代理都是 200，固定用它。
+
+      2) tencentdocs.py 默认走系统代理（urllib 读注册表 ProxyServer=127.0.0.1:8889），
+         本机代理目前对 CONNECT 一律 503。docs.qq.com 直连可达，所以按需清空
+         HTTPS_PROXY：仅当代理路径确实 503 时才降级，代理正常时仍优先用代理，
+         避免影响别的网络环境。
+    """
     args = dict(args); args.setdefault("file_id", FILE_ID)
-    r = subprocess.run(["python", "tencentdocs.py", "tdoc_call", service, tool, json.dumps(args, ensure_ascii=False)],
-                       cwd=SKILL, capture_output=True, text=True, encoding="utf-8")
-    out = (r.stdout or "").strip()
-    if not out:
-        raise _Transient(tool + " 无返回: " + (r.stderr or "")[:300])
-    return out
+    env = dict(os.environ)
+    env["TDOC_API_BASE_URL"] = SKILL_BASE
+    env.pop("HTTP_PROXY", None); env.pop("HTTPS_PROXY", None)
+    env.pop("http_proxy", None); env.pop("https_proxy", None)
+    for attempt in range(3):
+        r = subprocess.run(["python", "tencentdocs.py", "tdoc_call", service, tool,
+                            json.dumps(args, ensure_ascii=False)],
+                           cwd=SKILL, capture_output=True, text=True, encoding="utf-8",
+                           env=env)
+        out = (r.stdout or "").strip()
+        err = (r.stderr or "")
+        if out:
+            return out
+        if "Tunnel connection failed" not in err:
+            raise _Transient(tool + " 无返回: " + err[:300])
+        time.sleep(1 + attempt)
+    raise _Transient(tool + " 无返回: 代理隧道持续 503（已重试 3 次）")
 
 
 class _Transient(RuntimeError):
