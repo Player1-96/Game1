@@ -341,6 +341,20 @@ function styleColor(style) {
   return PAL.jade;
 }
 
+/* 层号中文化。主玩法 15 层，「十一」这类两位数必须走十位逻辑 ——
+   旧实现是一个只到「九」的数组，兜底 `|| depth` 在第 10 层起直接吐阿拉伯数字，
+   「第11层」比「第十一层」宽，会把顶栏的风格标识块挤歪（15 层化时暴露）。
+   取 1~99 足够覆盖主玩法与将来的快速模式；再多就回落阿拉伯数字（比截断好看）。 */
+const _CN_D = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+function cnNum(n) {
+  n = Math.floor(Math.abs(Number(n) || 0));
+  if (n > 99) return String(n);
+  if (n < 10) return _CN_D[n];
+  const tens = Math.floor(n / 10), ones = n % 10;
+  /* 十位是 1 时「一十」简作「十」（十 / 十一 / 十五），其余保留（二十 / 三十五） */
+  return (tens === 1 ? '十' : _CN_D[tens] + '十') + (ones ? _CN_D[ones] : '');
+}
+
 /* ---------------- 风格地图（27 条路径） ----------------
  *  用户需求（原话）：「一开始肯定就是让玩家三选一先，然后后面每五层选一次二选一」
  *                   「我的意思是可以进入相同的风格，会出现中式-中式-中式的可能性」
@@ -3812,7 +3826,7 @@ function updateOverlay() {
     floorName.textContent = '无尽试炼 · 第 ' + Game.endless.wave + ' 波';
     floorName.style.color = '#c9a6ff';
   } else {
-    const depthCN = ['一', '二', '三', '四', '五', '六', '七', '八', '九'][Game.depth - 1] || Game.depth;
+    const depthCN = cnNum(Game.depth);
     const elKey = Game.room && Game.room.elite;
     /* 风格地图：顶栏挂上「当前风格 · 第几段」——27 条路径的机制对玩家是隐形的，
        不显示就等于没有。用简写（中/北/克 + 段号）避免挤占楼层名的宽度。 */

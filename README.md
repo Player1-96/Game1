@@ -608,7 +608,7 @@ python dev/tools/_sync_sheet.py        # 整页重写云端资源表
 
 ### 回归测试
 
-`dev/test/` 下 **15 套** Playwright 回归测试（共 773 条断言），各自独立、开箱即跑（在仓库根目录执行）：
+`dev/test/` 下 **15 套** Playwright 回归测试（共 781 条断言），各自独立、开箱即跑（在仓库根目录执行）：
 
 ```bash
 node dev/test/_t_foe.js      # 换掉文件名即可跑其它套

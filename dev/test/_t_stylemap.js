@@ -108,6 +108,36 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
      [seg.segFloors + 1, seg.segFloors * 2 + 1].join(','),
      seg.pickFloors.join(','));
 
+  /* 顶栏层号必须走中文数字。旧实现是个只到「九」的数组，兜底表达式在第 10 层起
+     直接吐阿拉伯数字，「第11层」比「第十一层」宽，会把右侧风格标识块挤歪。
+     773 条断言全绿也照样漏掉 —— 因为没人断言过 HUD 文案本身。 */
+  sec('T3b  顶栏层号中文化（15 层化时出图才发现的问题）');
+  const cn = await page.evaluate(() => {
+    const G = window.Game;
+    /* updateOverlay 在 state='title' 时会把 floorName 清空并提前返回，
+       所以必须先真正开一局，否则量到的全是空串（踩过）。 */
+    G.newRun('feijian');
+    const floors = [];
+    for (let d = 1; d <= STYLE_SYS.totalFloors; d++) {
+      G.depth = d;
+      updateOverlay();
+      const el = document.getElementById('floorName');
+      floors.push({ d, txt: el ? el.textContent : '' });
+    }
+    return { floors, total: STYLE_SYS.totalFloors, n20: cnNum(20), n1: cnNum(1) };
+  });
+  console.log('     层号文案：' + cn.floors.map(f => f.d + '→' + f.txt.split(' ·')[0]).join('  '));
+  const bad = cn.floors.filter(f => /[0-9]/.test(f.txt));
+  ok('1~' + cn.total + ' 层的顶栏文案里不出现阿拉伯数字',
+     bad.length === 0,
+     bad.length ? bad.map(f => f.d + ':' + f.txt).join(' | ') : '');
+  ok('第 1 层写作「第一层」', cn.floors[0].txt.startsWith('第一层'), cn.floors[0].txt);
+  ok('第 10 层写作「第十层」', cn.floors[9].txt.startsWith('第十层'), cn.floors[9].txt);
+  ok('第 11 层写作「第十一层」', cn.floors[10].txt.startsWith('第十一层'), cn.floors[10].txt);
+  ok('第 15 层（末层）写作「第十五层」', cn.floors[14].txt.startsWith('第十五层'), cn.floors[14].txt);
+  ok('cnNum(20) = 「二十」（将来快速模式的余量）', cn.n20 === '二十', cn.n20);
+  ok('cnNum(1) = 「一」', cn.n1 === '一', cn.n1);
+
   sec('T4  27 条路径：允许重复 + 三段记录');
   const paths = await page.evaluate(() => {
     const out = {};

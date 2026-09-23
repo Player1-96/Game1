@@ -120,9 +120,17 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     rateByDepth[rateByDepth.length - 1] > rateByDepth[0],
     '第' + probeDepths[0] + '层 ' + rateByDepth[0].toFixed(2)
       + ' → 第' + probeDepths[probeDepths.length - 1] + '层 ' + rateByDepth[rateByDepth.length - 1].toFixed(2));
-  ok('出现率按段单调不降',
-    rateByDepth.every((v, i) => i === 0 || v >= rateByDepth[i - 1]),
+  /* ⚠️ 别断言「严格单调不降」—— 每段只有 50 个样本，±1 间房就是 2% 抖动，
+     会被采样噪声淹没，导致间歇性假失败（实测撞到过一次：[0.46, 0.76, 0.68]）。
+     正确做法：断言「末段明显高于首段」+「每段都落在设计值附近」，
+     用设计常量（planElite 的 [0.46, 0.65, 0.82]）当参照，而不是逐点比小数。 */
+  const ELITE_P = [0.46, 0.65, 0.82];
+  ok('末段出现率明显高于首段（段间确有提升）',
+    rateByDepth[rateByDepth.length - 1] - rateByDepth[0] > 0.15,
     JSON.stringify(rateByDepth.map(v => +v.toFixed(2))));
+  ok('每段出现率都贴近设计值（容差 0.15，采样 50 次）',
+    rateByDepth.every((v, i) => Math.abs(v - ELITE_P[i]) < 0.15),
+    rateByDepth.map((v, i) => (v * 100).toFixed(0) + '% vs 设计 ' + (ELITE_P[i] * 100) + '%').join(' / '));
   ok('精英窟落在普通石室', hasEl.every(r => r.type === 'normal'), [...new Set(hasEl.map(r => r.type))].join(','));
   ok('精英窟波次中确有精英', hasEl.every(r => r.hasEliteInWave));
   ok('精英窟 = 1 精英 + 少量随从（3~7 只）',
