@@ -76,17 +76,19 @@
   #title .blink{ color:var(--jade); animation:bl 1.1s steps(2,end) infinite; }
   @keyframes bl{50%{opacity:.15}}
   /* 流派选择 / 技能替换 / 专属升级：同一套卡片样式 */
-  #choose, #pick{
+  #choose, #pick, #chall{
     position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:flex-start;
     gap:.85em; background:rgba(6,4,14,.74); text-align:center; pointer-events:auto;
     padding:1.1em .9em; overflow-y:auto; overscroll-behavior:contain;
   }
   /* 内容比容器高时，flex 居中会把顶部顶到可视区外（标题直接被裁）——
      改用首尾 auto 外边距等效居中：不溢出时依然居中，溢出时从顶部开始且可向下滚。 */
-  #choose::before, #choose::after, #pick::before, #pick::after{
+  #choose::before, #choose::after, #pick::before, #pick::after,
+  #chall::before, #chall::after{
     content:''; flex:0 0 auto; margin:auto;
   }
   #pick{ gap:.6em; }
+  #chall{ gap:.7em; }
   .pickTitle{ font-size:1.5em; color:var(--gold); letter-spacing:.34em; text-shadow:0 0 14px rgba(242,199,97,.35); }
   .pickSub{ font-size:1.02em; color:#a9a5c0; letter-spacing:.06em; }
   .pickSub b{ color:var(--jade); }
@@ -112,6 +114,25 @@
   .pickCard .dsc::-webkit-scrollbar{ width:5px; }
   .pickCard .dsc::-webkit-scrollbar-thumb{ background:#5b4f8c; border-radius:3px; }
   .pickCard .dsc::-webkit-scrollbar-track{ background:transparent; }
+  /* —— Boss 挑战菜单 ——
+     头目有 5 位，沿用 12.5em 的宽度会横向溢出，故收窄并压小字号；
+     内容本来就短，不需要卡片内滚动。 */
+  #chall .pickCard{
+    width:9.6em; padding:.7em .6em;
+    max-height:min(30em, calc(100vh - 13em));
+  }
+  #chall .pickCard .nm{ font-size:1.25em; letter-spacing:.1em; }
+  #chall .pickCard .lv{ font-size:.8em; }
+  #chall .pickCard .dsc{ font-size:.88em; line-height:1.6; margin-top:.4em; }
+  /* 难度页只有 3 张卡，放得下正常的宽卡 —— 配装那一行才不会被折成两截 */
+  #chall .pickRow.wide .pickCard{ width:12.5em; }
+  /* 上一场战果：回菜单后挂一行，免得上一次赢了没有只能靠猜 */
+  .challResult{
+    font-size:1em; letter-spacing:.1em; padding:.35em 1em; border-radius:4px;
+    border:1px solid #4d4478; background:rgba(20,16,36,.9);
+  }
+  .challResult.win{ color:var(--gold); border-color:#6b5a2e; text-shadow:0 0 10px rgba(242,199,97,.4); }
+  .challResult.lose{ color:#8f8ba8; }
   .pickCard.selA{
     border-color:var(--jade); transform:translateY(-.4em) scale(1.04);
     box-shadow:0 0 0 2px rgba(87,214,176,.16), 0 10px 26px rgba(0,0,0,.55);
@@ -212,6 +233,7 @@
         </div>
       </div>
       <div id="pick"></div>
+      <div id="chall"></div>
       <div id="title">
         <div class="big">九劫录</div>
         <div class="sub">飞 剑 问 仙</div>
@@ -224,7 +246,8 @@
           <span class="kbd">↑</span><span class="kbd">↓</span><span class="kbd">←</span><span class="kbd">→</span> 或 <span class="kbd">鼠标左键</span> 御剑斩妖<br>
           <span class="kbd">空格</span> 专属技能　<span class="kbd">Q</span> 小技能　<span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span> 切换小技能<br>
           <span class="kbd">E</span> 交互（坊市 / 祭坛）　<span class="kbd">F</span> 埋设雷符（炸妖 / 开裂缝 / 炸箱 / 碎石柱）<br>
-          <span class="kbd">P</span> 或 <span class="kbd">Esc</span> 暂停　<span class="kbd">R</span> 重入轮回（局内长按 1 秒可重开并换流派）　<span class="kbd">M</span> 静音
+          <span class="kbd">P</span> 或 <span class="kbd">Esc</span> 暂停　<span class="kbd">R</span> 重入轮回（局内长按 1 秒可重开并换流派）　<span class="kbd">M</span> 静音<br>
+          <span class="kbd">B</span> <b style="color:var(--gold)">Boss 挑战</b>　跳过前几层，直接单挑某位尊者（自带配装，不写存档）
         </div>
         <div class="tip blink">按任意键入山门</div>
       </div>
@@ -234,6 +257,7 @@
     <summary>操 作 说 明 <span class="more">点击展开 / 收起</span></summary>
     <div class="body">
       <div><b>洞天探秘</b><br>石室清空妖物后石门自开；魔窟（Boss）需斩杀尊者，届时传送阵显现，踏入即入下一层。共五层，皆可随机生成。</div>
+      <div><b>Boss 挑战</b><br>标题界面按 <b style="color:var(--gold)">B</b> 进入，跳过前几层直接单挑某位尊者 —— 方便单独调试头目的行动。两级菜单：先择魔头（五位，标着原本镇守的层数与基础血），再择难度（<b>险</b> / <b>危</b> / <b>绝</b>）。难度同时决定你的配装与它的血量：<b>法宝 3 × 系数</b> 件、<b>功法 1 × 系数</b> 个、<b>专属技 Lv. 系数</b>，头目血量再乘 <b>×1.0 / ×1.6 / ×2.4</b>。专属技的进境每档都给 <b>3 次三选一，全部由你手选</b>。<br>挑战与真实进度<b>完全隔离</b>：不写存档、阵亡也不销档，胜负都在演出后直接回选择菜单（并留下上次的战果）。挑战中长按 <b>R</b> 是放弃并回菜单。</div>
       <div><b>三大流派</b><br>
         <b style="color:var(--gold)">飞剑流</b>：按住鼠标持续御剑，出手极快、转向灵动，以频次压制全场。<br>
         <b style="color:var(--gold)">巨剑流</b>：按住蓄力凝聚巨剑，松手一击破军 —— 每上升一段蓄力，穿透数、剑身宽度与飞行距离同步提升。出剑后有<b>力竭回气</b>的后摇（头顶紫条回满方可再凝剑），段位越高后摇越短，故狂点射远不如蓄满一击；单体输出仍不及飞剑流，强在一剑贯穿成排妖物。<br>

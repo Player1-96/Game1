@@ -149,7 +149,20 @@ const PERK_CN = {
       };
     });
 
-    /* ---------- 6. 流派与蓄力段位 ---------- */
+    /* ---------- 6. Boss 挑战模式 ----------
+       难度系数同时决定「玩家拿到什么」与「头目有多厚」，所以这张表既是
+       玩法说明、也是调参入口：三档的每一格都在 CHALLENGE_DIFF 里改。 */
+    const challenge = {
+      upgrades: CHALL_UPGRADES,
+      tiers: CHALLENGE_DIFF.map(x => ({
+        key: x.key, name: x.name, en: x.en,
+        items: x.items, skills: x.skills, ultLv: x.ultLv, bossMul: x.bossMul
+      })),
+      // 菜单里每位头目挂的那句题面（取自 CHALL_BOSS_NOTE）
+      bosses: BOSS_KEYS.map(k => ({ id: k, cn: BOSS_DEF[k].name, note: CHALL_BOSS_NOTE[k] || '' }))
+    };
+
+    /* ---------- 7. 流派与蓄力段位 ---------- */
     const styles = Object.keys(STYLES).map(k => ({
       id: k, name: STYLES[k].name, en: STYLES[k].en, tag: STYLES[k].tag, ready: !!STYLES[k].ready,
       // 机制固有参数一并导出：资源表的说明文案直接引用它们，改数值时不会两边漂移
@@ -323,7 +336,7 @@ const PERK_CN = {
       SHIELD_DUR: SKILL_DEF.huti.dur             // 限时护盾（仅护体金光）的持续帧数
     };
 
-    return { player, items, enemies, elites, bosses, styles, charge, shopPrices, pools, floors,
+    return { player, items, enemies, elites, bosses, challenge, styles, charge, shopPrices, pools, floors,
              diffParams, curve, lootCurve, skills, ults, ultPaths, skillConst };
   }, { ENEMY_CN, AI_CN, PERK_CN, ENEMY_NOTE, BOLT_CN, BOSS_GIMMICK });
 

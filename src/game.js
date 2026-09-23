@@ -124,6 +124,37 @@ function styleColor(style) {
   return PAL.jade;
 }
 
+/* ---------------- Boss 挑战模式 ----------------
+ *  目的：单独调试某位头目的行动，不必先走完前几层。
+ *
+ *  难度系数 d（1~3）同时决定「玩家拿到什么」与「头目有多厚」：
+ *  d 越大，给的 build 越接近后期，头目也按同样的进度加厚 ——
+ *  于是三档各自是「那个阶段的典型对局」，而不是单纯「血更多 / 更少」。
+ *
+ *  items  随机法宝件数（3 × d）
+ *  skills 随机功法个数（1 × d，槽位正好 3 个，不会溢出）
+ *  ultLv  专属技初始等级（1 × d；等级 = 1 + 各路线等级和，故先随机点亮 d-1 条路线）
+ *  bossMul 头目血量倍率（乘在楼层自带的 hpScale 之上）
+ *
+ *  专属技的进境一律交给玩家手选：进战斗后排队 CHALL_UPGRADES 次三选一。
+ */
+const CHALLENGE_DIFF = [
+  { key: 'xian', name: '险', en: 'PERIL', items: 3, skills: 1, ultLv: 1, bossMul: 1.0 },
+  { key: 'wei', name: '危', en: 'DANGER', items: 6, skills: 2, ultLv: 2, bossMul: 1.6 },
+  { key: 'jue', name: '绝', en: 'DOOM', items: 9, skills: 3, ultLv: 3, bossMul: 2.4 }
+];
+const CHALL_UPGRADES = 3;      // 三档都给足 3 次手选（「三级都由玩家手选」）
+const CHALL_RESULT_T = 110;    // 胜负判定后停留的帧数，让爆炸演完再回菜单
+/* 挑战菜单里的头目题面（一句话）—— 挑 Boss 时一眼看清「这一位考的是什么」。
+   刻意压到 8 字上下：5 张卡并排时每张只有 9.6em 宽，长句会被折成三行。 */
+const CHALL_BOSS_NOTE = {
+  xuemo: '整圈血弹 · 无限爪牙',
+  baigu: '冰符 · 蓄力冲刺',
+  liesha: '母弹三段裂变',
+  lunhui: '缺口环弹 · 不冲刺',
+  zhulong: '鳞罩 · 横扫激光'
+};
+
 /* ---------------- 存档 ----------------
  *  只存「种子 + 进度 + 玩家」，不存敌人实体。
  *  Floor 由 mulberry32(seed) 确定性生成 —— 房间布局、波次、交互物位置都能原样重建；
@@ -164,11 +195,20 @@ class GameCore {
     this.pick = null;                // 选择界面：{ kind:'skill'|'ult', ... }，非 null 时暂停
     this.ultUpgradeT = 0;            // 斩精英后延迟弹出三选一的倒计时（帧）
     this.paused = false;             // 主动暂停（P / Esc）：逻辑全停，画面照画
+    /* Boss 挑战模式（配置见 CHALLENGE_DIFF）：
+       chall       非 null = 正在挑战中（含 bossId / diff / 升级队列 / 结算倒计时）
+       challMenu   菜单状态 { step:'boss'|'diff', idx, bossId }
+       challResult 上一次的胜负，回菜单后挂一行结果提示 */
+    this.chall = null;
+    this.challMenu = null;
+    this.challResult = null;
   }
 
   /* ---------------- 生命周期 ---------------- */
   newRun(style) {
     this.style = style || this.style || 'feijian';
+    /* 开新局即脱离挑战模式 —— 否则 saveGame 会被挑战守卫一直挡着（那次开局存档写不进去） */
+    this.chall = null;
     this.depth = 1;
     this.coins = 0; this.keys = 0; this.bombs = 0; this.kills = 0;
     this.time = 0;
@@ -241,6 +281,9 @@ class GameCore {
 
   /* ---------------- 存档 / 读档 ---------------- */
   saveGame() {
+    /* 挑战模式一概不落盘 —— 它是调试场，写进去会把真实进度覆盖掉。
+       同时这也是「存档点定在进房那一刻」的那次自动存档被跳过的原因。 */
+    if (this.chall) return false;
     if (!this.player || this.state !== 'play' || !this.floor) return false;
     try {
       const p = this.player;
@@ -472,7 +515,8 @@ class GameCore {
     for (const s of w) {
       if (s.type === 'boss') {
         const bp = this.safeSpawn(s.x, s.y, 22);
-        const b = new Boss(s.boss, bp.x, bp.y, s.hpScale);
+        // 挑战模式再把难度倍数叠上去：三档分别对应「前期 / 中期 / 后期」那次典型对局
+        const b = new Boss(s.boss, bp.x, bp.y, s.hpScale * (this.chall ? this.chall.d.bossMul : 1));
         this.enemies.push(b); this.bossRef = b;
       } else {
         const ep = this.safeSpawn(s.x, s.y, s.elite ? 18 : 12);
@@ -507,7 +551,17 @@ class GameCore {
   onBossDead() {
     const r = this.room;
     for (const e of this.enemies) if (!e.dead && !e.isBoss) { e.dead = true; this.burst(e.x, e.y, 12, PAL.purpleL); }
-    r.cleared = true; r.portal = true;
+    r.cleared = true;
+    /* 挑战模式：不发战利品、不开传送阵 —— 斩完就够，直接回选择菜单。
+       留 CHALL_RESULT_T 帧让爆炸演完，否则刀刚落下菜单就糊上来。 */
+    if (this.chall) {
+      this.chall.win = true;
+      this.chall.endT = CHALL_RESULT_T;
+      this.bossRef = null;
+      this.floaters.push(new Floater(ROOM_W / 2, ROOM_H / 2 - 40, 'VICTORY', PAL.gold));
+      return;
+    }
+    r.portal = true;
     for (let d = 0; d < 4; d++) if (r.doors[d] && !r.doorHidden[d]) r.doorOpen[d] = true;
     this.props.push(new Prop('portal', ROOM_W / 2, ROOM_H / 2 + 10, {}));
     if (r.coinPool > 0) this.takeCoins(ROOM_W / 2, ROOM_H / 2, r.coinPool);
@@ -521,6 +575,15 @@ class GameCore {
     this.floaters.push(new Floater(ROOM_W / 2, ROOM_H / 2 - 56, '法器二选一 · 按 E', PAL.goldL));
   }
   onPlayerDead() {
+    /* 挑战模式：不销档、也不切死亡界面（那是「重入轮回」的流程，会误导），
+       原地留一段演出后回选择菜单。玩家已 dead，Player.update 会自停。 */
+    if (this.chall) {
+      this.chall.win = false;
+      this.chall.endT = CHALL_RESULT_T;
+      this.burst(this.player.x, this.player.y, 50, PAL.red);
+      SFX.bossDie();
+      return;
+    }
     this.state = 'dead';
     this.clearSave();          // 死了就销档，否则下次打开还能从死亡前的进度续上
     this.burst(this.player.x, this.player.y, 50, PAL.red);
@@ -532,6 +595,131 @@ class GameCore {
     if (this.depth > 5) { this.state = 'win'; this.msg = '历经五重劫难，道心通明 —— 飞升成仙！'; this.clearSave(); updateOverlay(); return; }
     this.player.hp = Math.min(this.player.maxHP, this.player.hp + 2);
     this.newFloor(this.depth);
+  }
+
+  /* ---------------- Boss 挑战模式 ----------------
+     配置表见文件顶部的 CHALLENGE_DIFF。三条硬约束：
+
+     1. 与真实进度**完全隔离**：不清档、不写档、死了不销档（saveGame 里有守卫）。
+     2. 楼层仍走正常的 Floor 生成 —— 房间背景、门的绘制、Boss 房波次全都现成，
+        生成完直接把玩家传进魔窟。小地图上还留着别的房间，那无害。
+     3. 头目血量 = 楼层自带的 hpScale × 难度倍数，于是三档分别对应
+        「前期 / 中期 / 后期」那次典型对局，而不是单纯的血多血少。
+  */
+  openChallMenu() {
+    if (!this.challMenu) this.challMenu = { step: 'boss', idx: 0, bossId: null };
+    else this.challMenu.step = 'boss';
+    this.chall = null;
+    this.player = null;
+    this.pick = null;
+    this.paused = false;
+    this.restartHold = 0;
+    this.ultUpgradeT = 0;
+    this.state = 'chall';
+    this.styleIdx = Math.max(0, PLAYABLE_STYLES.indexOf(this.style));
+    updateOverlay();
+  }
+  /* 收场：无论胜负都回 Boss 选择菜单（用户要求「打完直接返回」） */
+  exitChallenge(win) {
+    const c = this.chall;
+    if (c) {
+      this.challResult = {
+        win: !!win, bossId: c.bossId, diffIdx: c.diffIdx,
+        secs: Math.round(c.frames / 60)
+      };
+    }
+    this.openChallMenu();
+  }
+  /* 配装：法宝 3d 件、功法 d 个、专属技 Lv d。
+     全部走正常获取通道（give / addSkill），所以「分流派文案」与
+     「重复即进阶」这些规则自动生效，不必在挑战模式里另写一份。 */
+  giveChallengeLoadout() {
+    const p = this.player, d = this.chall.d;
+    for (let i = 0; i < d.items; i++) p.give(this.rollFabao(), this);
+    for (let i = 0; i < d.skills; i++) {
+      const id = this.rollSkill();
+      if (id) p.addSkill(id);          // 槽位共 3 个，而 d ≤ 3，不会溢出
+    }
+    p.giveUlt(this.style);
+    if (p.ult) {
+      /* 专属技等级 = 1 + 各路线等级和，所以「Lv d」要先随机点亮 d-1 条路线；
+         余下的 CHALL_UPGRADES 次进境全部交给玩家手选。 */
+      const pool = (ULT_PATH[this.style] || []).slice();
+      for (let i = 0; i < d.ultLv - 1 && pool.length; i++) {
+        const k = Math.floor(Math.random() * pool.length);
+        p.ult.paths[pool.splice(k, 1)[0].id] = 1;
+      }
+    }
+    this.itemPopup = null;             // 配装时 give 会叠一摞拾取卡片，清掉
+  }
+  startChallenge(bossId, diffIdx) {
+    const d = CHALLENGE_DIFF[diffIdx] || CHALLENGE_DIFF[0];
+    const depth = Math.max(1, BOSS_KEYS.indexOf(bossId) + 1);   // 该头目原本镇守的层数
+    this.style = this.style || PLAYABLE_STYLES[0];
+    this.depth = depth;
+    this.coins = 0; this.keys = 0; this.bombs = 0; this.kills = 0; this.time = 0;
+    this.player = new Player(ROOM_W / 2, ROOM_H / 2 + 20);
+    this.itemPopup = null;
+    this.pick = null; this.ultWarn = null; this.ultSword = null; this.ultUpgradeT = 0;
+    this.paused = false; this.restartHold = 0;
+    this.state = 'play';
+    /* 先清场再配装：giveChallengeLoadout 会往 floaters 里塞飘字，
+       而这几个数组原本只在 newFloor 里初始化 —— 从标题直接进挑战（还没开过局）
+       时它们还是 undefined，配装第一步就炸。顺带把上一局的残留一起清掉。 */
+    this.bullets = []; this.enemies = []; this.pickups = []; this.hazards = [];
+    this.particles = []; this.floaters = []; this.zaps = []; this.props = [];
+    this.beams = []; this.slashes = []; this.dnums = []; this.timers = [];
+    this.placedBombs = [];
+    this.chall = {
+      bossId: bossId, diffIdx: diffIdx, d: d, depth: depth,
+      frames: 0, upgrades: CHALL_UPGRADES, upgradeT: 24, endT: 0, win: null
+    };
+    this.giveChallengeLoadout();
+    this.newFloor(depth);              // 生成整层；Boss 房按 depth 自带正确的头目
+    const br = [...this.floor.rooms.values()].find(r => r.type === RT.BOSS);
+    if (br) this.enterRoom(br, null);
+    this.chall.upgradeT = 24;          // 进房后隔 0.4 秒再开始问进境
+    renderPickPanel();
+    updateOverlay();
+    SFX.levelup();
+  }
+  /* 挑战菜单的两级导航（←→ / 数字切换，Enter 确认，Esc 退一层） */
+  challPick(i) {
+    const cm = this.challMenu;
+    if (!cm) return;
+    const n = cm.step === 'boss' ? BOSS_KEYS.length : CHALLENGE_DIFF.length;
+    const ni = Math.max(0, Math.min(n - 1, i));
+    if (ni === cm.idx) return;
+    cm.idx = ni;
+    renderChallMenu();
+    SFX.tone(660 + ni * 90, 0.05, 'square', 0.09);
+  }
+  challConfirm() {
+    const cm = this.challMenu;
+    if (!cm) return;
+    if (cm.step === 'boss') {
+      cm.bossId = BOSS_KEYS[cm.idx];
+      cm.step = 'diff';
+      cm.idx = 1;                      // 默认停在中间那档「危」
+      renderChallMenu();
+      SFX.tone(880, 0.06, 'square', 0.1);
+    } else {
+      SFX.levelup();
+      this.startChallenge(cm.bossId, cm.idx);
+    }
+  }
+  challBack() {
+    const cm = this.challMenu;
+    if (!cm) return;
+    if (cm.step === 'diff') {
+      cm.step = 'boss';
+      cm.idx = Math.max(0, BOSS_KEYS.indexOf(cm.bossId));
+      renderChallMenu();
+    } else {
+      this.state = 'title';
+      updateOverlay();
+    }
+    SFX.tone(392, 0.06, 'square', 0.09);
   }
 
   /* ---------------- 工具 ---------------- */
@@ -999,6 +1187,7 @@ class GameCore {
       return;
     }
     this.pick = { kind: 'ult', list: list, idx: 0 };
+    this.itemPopup = null;    // 面板是全屏遮罩，底下那半张拾取卡片留着只会漏出来
     renderPickPanel();
     SFX.levelup();
   }
@@ -1052,6 +1241,12 @@ class GameCore {
     if (this.pick) { input.interact = false; this.restartHold = 0; return; }
     // 斩精英后稍缓一拍再弹三选一，先让死亡特效演完
     if (this.ultUpgradeT > 0 && --this.ultUpgradeT === 0) { this.openUltUpgrade(); return; }
+    /* 挑战模式的结算倒计时：先于「非局内就 return」处理 ——
+       玩家被打死时 state 会切成 'dead'，但这里仍要把这最后一段演完再回菜单。 */
+    if (this.chall && this.chall.endT > 0 && --this.chall.endT === 0) {
+      this.exitChallenge(this.chall.win);
+      return;
+    }
     this.tick++;
     if (this.shakeAmt > 0) this.shakeAmt *= 0.86;
     if (this.hurtFlash > 0) this.hurtFlash--;
@@ -1064,6 +1259,8 @@ class GameCore {
       this.restartHold++;
       if (this.restartHold >= 60) {
         this.restartHold = 0; input.restart = false;
+        // 挑战模式：放弃本次挑战、回选择菜单（而不是掉进普通开局的流派选择）
+        if (this.chall) { this.openChallMenu(); return; }
         this.state = 'choose';
         this.styleIdx = Math.max(0, PLAYABLE_STYLES.indexOf(this.style));
         updateOverlay();
@@ -1071,6 +1268,19 @@ class GameCore {
       }
     } else this.restartHold = 0;
     this.time++;
+    /* 挑战模式：累计战斗帧数（结算时报耗时），并排队弹出专属技的进境三选一。
+       面板关掉之后隔 40 帧再问下一次 —— 连问三次会让玩家来不及看清路线。 */
+    if (this.chall) {
+      this.chall.frames++;
+      // endT 一开就是结算演出（玩家已死或头目已斩），这时别再弹进境面板
+      if (this.chall.upgrades > 0 && this.chall.endT === 0) {
+        if (this.chall.upgradeT > 0) {
+          if (--this.chall.upgradeT === 0) { this.chall.upgrades--; this.openUltUpgrade(); }
+        } else {
+          this.chall.upgradeT = 40;
+        }
+      }
+    }
     this.computeAim();
 
     // 延时效果（精英死亡余祸等）：只在同一房间内生效，换房即作废
@@ -1267,7 +1477,7 @@ class GameCore {
     const g = this.g;
     g.clearRect(0, 0, 480, 320);
     g.fillStyle = '#0a0812'; g.fillRect(0, 0, 480, 320);
-    if (this.state === 'title' || this.state === 'choose') { this.drawTitle(g); return; }
+    if (this.state === 'title' || this.state === 'choose' || this.state === 'chall') { this.drawTitle(g); return; }
 
     const sx = (Math.random() - 0.5) * this.shakeAmt, sy = (Math.random() - 0.5) * this.shakeAmt;
     g.save();
@@ -2064,11 +2274,24 @@ function bindInput(canvas, game) {
     }
     if (game.state === 'play' && (k === 'p' || k === 'escape')) { game.togglePause(); return; }
     if (game.state === 'title') {
-      // 有存档时按 C 直接续档；其余任意键仍是开新局（进流派选择）
+      // 有存档时按 C 直接续档；B 进 Boss 挑战模式；其余任意键仍是开新局（进流派选择）
       if (k === 'c' && game.hasSave()) { game.continueGame(); return; }
+      if (k === 'b') { SFX.ensure(); game.openChallMenu(); return; }
       game.styleIdx = 0;
       game.state = 'choose';
       SFX.ensure();
+    } else if (game.state === 'chall') {
+      /* 挑战菜单：两级，←→ / 数字切换、Enter 确认、Esc 退一层
+         （键位习惯与 #pick 面板保持一致） */
+      const cm = game.challMenu;
+      if (!cm) return;
+      const n = cm.step === 'boss' ? BOSS_KEYS.length : CHALLENGE_DIFF.length;
+      const cur = cm.idx || 0;
+      if (k === 'escape') game.challBack();
+      else if (k === 'arrowleft') game.challPick((cur + n - 1) % n);
+      else if (k === 'arrowright') game.challPick((cur + 1) % n);
+      else if (k >= '1' && k <= '9') { const i = +k - 1; if (i < n) game.challPick(i); }
+      else if (k === 'enter' || k === ' ') game.challConfirm();
     } else if (game.state === 'choose') {
       const n = Math.max(1, PLAYABLE_STYLES.length);
       if (k === 'arrowleft') { game.styleIdx = (game.styleIdx + n - 1) % n; SFX.tone(660, 0.05, 'square', 0.09); }
@@ -2149,8 +2372,13 @@ function renderPickPanel() {
   } else {
     const U = Game.player.ult;
     const UD = ULT_DEF[U.style];
+    /* 挑战模式的进境是难度白送的，跟「斩却精英」没关系 —— 文案要跟着场景换，
+       否则玩家会去找那只并不存在的精英 */
+    const subNote = Game.chall
+      ? '挑战加成，择一条进境（还剩 ' + Game.chall.upgrades + ' 次）'
+      : '斩却精英，择一条进境';
     h += '<div class="pickTitle">专 属 · 精 进</div>'
-      + '<div class="pickSub"><b>' + UD.name + '</b> Lv.' + ultLevel(U) + '　—— 斩却精英，择一条进境</div>'
+      + '<div class="pickSub"><b>' + UD.name + '</b> Lv.' + ultLevel(U) + '　—— ' + subNote + '</div>'
       + '<div class="pickRow">';
     pk.list.forEach((p, i) => {
       const lv = ultPathLv(U, p.id);
@@ -2172,6 +2400,70 @@ function renderPickPanel() {
   });
 }
 
+/* Boss 挑战菜单：两级 —— 先择魔头、再择难度。
+   卡片动态生成（头目表取自 BOSS_KEYS），交互与 #pick 面板一致：
+   ←→ / 数字切换、Enter 确认、点卡片即选定、Esc 退一层。
+   玩家此时没有 Player 实例（没开局），所以这里不复用 renderPickPanel（它依赖 Game.player）。 */
+function renderChallMenu() {
+  const el = document.getElementById('chall');
+  if (!el) return;
+  const cm = Game && Game.challMenu;
+  if (!cm) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+  let h = '';
+  // 上一场的战果：挂一行，免得「我上次到底赢了没有」只能靠猜
+  const rr = Game.challResult;
+  if (rr) {
+    const rb = BOSS_DEF[rr.bossId], rd = CHALLENGE_DIFF[rr.diffIdx];
+    h += '<div class="challResult' + (rr.win ? ' win' : ' lose') + '">'
+      + (rr.win ? '◈ 斩 杀 成 功' : '◇ 道 消 身 殒')
+      + '　' + (rb ? rb.name : rr.bossId) + ' · ' + (rd ? rd.name : '?')
+      + '　费时 ' + rr.secs + ' 秒</div>';
+  }
+  if (cm.step === 'boss') {
+    h += '<div class="pickTitle">择 一 魔 头</div>'
+      + '<div class="pickSub">共 ' + BOSS_KEYS.length + ' 位　—— 越过前几层，直接开打</div>'
+      + '<div class="pickRow">';
+    BOSS_KEYS.forEach((k, i) => {
+      const b = BOSS_DEF[k];
+      h += '<div class="pickCard' + (i === cm.idx ? ' selB' : '') + '" data-i="' + i + '">'
+        + '<div class="nm">' + b.name + '</div>'
+        + '<div class="tag">' + b.en + '</div>'
+        + '<div class="lv">第 ' + (i + 1) + ' 层　基础血 ' + b.hp + '</div>'
+        + '<div class="dsc">' + (CHALL_BOSS_NOTE[k] || '') + '</div>'
+        + '</div>';
+    });
+    h += '</div><div class="pickTip"><span class="kbd">←</span><span class="kbd">→</span> 或 '
+      + '<span class="kbd">1</span>~<span class="kbd">5</span> 择魔头　<span class="kbd">Enter</span> 下一步　'
+      + '<span class="kbd">Esc</span> 回标题</div>';
+  } else {
+    const b = BOSS_DEF[cm.bossId] || BOSS_DEF[BOSS_KEYS[0]];
+    h += '<div class="pickTitle">择 难 度</div>'
+      + '<div class="pickSub">魔头 <b>' + b.name + '</b>　—— 难度决定配装与血量　·　挑战全程不写存档</div>'
+      + '<div class="pickRow wide">';
+    CHALLENGE_DIFF.forEach((x, i) => {
+      h += '<div class="pickCard' + (i === cm.idx ? ' selC' : '') + '" data-i="' + i + '">'
+        + '<div class="nm">' + x.name + '</div>'
+        + '<div class="tag">' + x.en + '</div>'
+        + '<div class="lv">法宝 ' + x.items + ' 件　·　功法 ' + x.skills + ' 个</div>'
+        + '<div class="dsc">专属技 <b>Lv.' + x.ultLv + '</b><br>'
+        + '魔头血量 <b>×' + x.bossMul.toFixed(1) + '</b><br>'
+        + '进境手选 ' + CHALL_UPGRADES + ' 次</div>'
+        + '</div>';
+    });
+    h += '</div><div class="pickTip"><span class="kbd">←</span><span class="kbd">→</span> 或 '
+      + '<span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span> 择难度　'
+      + '<span class="kbd">Enter</span> 开战　<span class="kbd">Esc</span> 返回上一步</div>';
+  }
+  el.innerHTML = h;
+  el.querySelectorAll('.pickCard').forEach(c => {
+    c.addEventListener('click', () => {
+      Game.challPick(+c.getAttribute('data-i'));
+      Game.challConfirm();                // 点卡片即选定，省一步
+    });
+  });
+}
+
 function updateOverlay() {
   if (!Game) return;
   const floorName = document.getElementById('floorName');
@@ -2179,7 +2471,19 @@ function updateOverlay() {
   const card = document.getElementById('card');
   const title = document.getElementById('title');
   const choose = document.getElementById('choose');
+  const chall = document.getElementById('chall');
   const st = document.getElementById('stats');
+  /* 挑战菜单：不画 HUD、也不显示楼层名 —— 底下垫的是标题画面的背景 */
+  if (Game.state === 'chall') {
+    title.style.display = 'none';
+    if (choose) choose.style.display = 'none';
+    if (chall) chall.style.display = 'flex';
+    renderChallMenu();
+    floorName.textContent = ''; hint.textContent = ''; card.style.display = 'none';
+    st.textContent = '';
+    return;
+  }
+  if (chall) chall.style.display = 'none';
   if (Game.state === 'title') {
     title.style.display = 'flex';
     if (choose) choose.style.display = 'none';

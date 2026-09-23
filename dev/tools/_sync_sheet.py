@@ -41,10 +41,10 @@ FILE_ID = "DTEtrQUFaQmtkamNM"
 SHEET_URL = "https://docs.qq.com/sheet/" + FILE_ID
 
 # 已有的 4 个子表（用户预建），其余按需新建
+# ⚠️ 待建的页签不再单独维护一份列表 —— 直接用 TABS 推导（见 main 的第 3 步）。
+#    曾经这里另有一份 NEW_TABS，加「Boss 挑战」时漏了它，同步直接报「缺少子表」。
 EXISTING = {"法宝": "BB08J2", "功法": "1zmi6r", "敌人": "3ril5k", "道具": "rpajz0"}
 RENAME = {"道具": "丹药"}
-NEW_TABS = ["精英妖物", "BOSS", "房间", "交互物", "经济掉落", "动态难度", "各层速览", "流派玩家",
-            "专属技能", "升级路线", "变更日志"]
 
 # 数据快照由 _export_resources.js 写在 dev/data/ 下（本脚本在 dev/tools/）
 D = json.load(open(os.path.join(HERE, "..", "data", "_resources.json"), encoding="utf-8"))
@@ -486,6 +486,39 @@ def tab_boss():
     return rows, [10, 14, 11, 9, 10, 10, 10, 13, 10, 9, 70]
 
 
+# ---------------------------------------------------------------- Boss 挑战
+def tab_challenge():
+    """Boss 挑战模式：三档难度的配装公式与头目血量倍率。
+
+    这张表既是玩法说明、也是调参入口 —— 三档的每一格都在
+    src/game.js 的 CHALLENGE_DIFF 里改，改完重跑导出即可。"""
+    C = D.get("challenge") or {}
+    head = ["难度", "英文", "标识", "随机法宝", "随机功法", "专属技等级", "头目血量倍率", "说明"]
+    rows = [head]
+    for t in C.get("tiers", []):
+        rows.append([
+            t["name"], t["en"], t["key"],
+            "%d 件" % t["items"], "%d 个" % t["skills"], "Lv.%d" % t["ultLv"],
+            "×%.1f" % t["bossMul"],
+            "随机法宝 = 3 × 系数、功法 = 1 × 系数、专属技等级 = 系数"
+        ])
+    rows.append([])
+    rows.append(["说明", "专属技的进境（升级路线）每档都给 %d 次三选一，全部由玩家手选；"
+                        "初始等级 = 1 + 各条路线等级之和，故开局先随机点亮「系数 - 1」条路线"
+                        % C.get("upgrades", 3)])
+    rows.append(["说明", "头目血量 = 基础血 × 层数系数 × 上表的难度倍率；层数系数按该头目原本镇守的层数取，"
+                        "所以「绝」档打第五层的烛龙是最硬的一局"])
+    rows.append(["说明", "配装全部走正常获取通道（give / addSkill），因此分流派文案与"
+                        "「同件法宝重复获得即进阶」这些规则自动生效"])
+    rows.append(["说明", "与真实进度完全隔离：挑战中不写存档、不动既有存档、阵亡也不销档；"
+                        "斩杀头目不发战利品、不开传送阵 —— 胜负都直接回选择菜单"])
+    rows.append([])
+    rows.append(["头目", "菜单题面"])
+    for b in C.get("bosses", []):
+        rows.append([b["cn"], b["note"]])
+    return rows, [12, 20, 10, 12, 12, 13, 15, 56]
+
+
 # ---------------------------------------------------------------- 房间
 def tab_room():
     f1 = D["floors"][0]; f3 = D["floors"][2]; f5 = D["floors"][4]
@@ -745,6 +778,23 @@ def tab_player():
 def tab_log():
     head = ["日期", "版本/改动", "涉及", "同步内容", "操作人"]
     rows = [head,
+            ["2026-09-22", "新增 Boss 挑战模式：跳过前几层，直接单挑某位尊者",
+             "目的：单独调试某位头目的行动，不必先走完每层流程。标题界面按 B 进入，两级菜单 —— "
+             "先择魔头（5 位，取自 BOSS_KEYS 的键序）、再择难度（险 / 危 / 绝）。"
+             "难度系数 d（1~3）同时决定「玩家拿到什么」与「头目有多厚」："
+             "随机法宝 3d 件 + 随机功法 d 个 + 专属技 Lv.d，头目血量再乘 1.0 / 1.6 / 2.4 倍 —— "
+             "于是三档各自是「那个阶段的典型对局」，而不是单纯的血多血少。"
+             "配装全部走正常获取通道（give / addSkill），所以分流派文案与"
+             "「同件法宝重复获得即进阶」这些规则自动生效，不必另写一份。"
+             "专属技的进境每档都给 3 次三选一，全部由玩家手选（初始等级 = 系数，"
+             "故开局先随机点亮「系数 - 1」条路线）。"
+             "与真实进度完全隔离：挑战中 saveGame 直接返回 false，不写档、不动既有档、阵亡不销档；"
+             "斩杀头目也不发战利品、不开传送阵，胜负都在 110 帧演出后直接回选择菜单，"
+             "并留下一条战果记录（胜负 / 头目 / 费时）。挑战中长按 R 是放弃并回菜单，"
+             "不会掉进普通开局的流派选择",
+             "新增「Boss 挑战」页签（三档配装公式与头目血量倍率）；导出脚本新增 challenge 段；"
+             "新增回归测试 _t_chall.js（T1~T8 共 38 条）与逐帧探针 _probe_chall.js；README 同步",
+             "AI"],
             ["2026-09-22", "三处「预警不足」：头目前摇 / 玄甲卫盾冲 / 横扫倒计时",
              "三个流派都通关之后暴露出的同一类问题：敌人在出手前不给读数。"
              "①头目冲刺原先在冷却归零那一帧直接以 8px/帧 冲出去，零预警、零反应窗口；"
@@ -982,7 +1032,8 @@ def tab_log():
 TABS = [
     ("法宝", tab_fabao), ("功法", tab_gongfa), ("专属技能", tab_ult), ("升级路线", tab_ultpath),
     ("丹药", tab_dan), ("敌人", tab_enemy),
-    ("精英妖物", tab_elite), ("BOSS", tab_boss), ("房间", tab_room), ("交互物", tab_props),
+    ("精英妖物", tab_elite), ("BOSS", tab_boss), ("Boss 挑战", tab_challenge),
+    ("房间", tab_room), ("交互物", tab_props),
     ("经济掉落", tab_econ), ("动态难度", tab_diff), ("各层速览", tab_floors),
     ("流派玩家", tab_player), ("变更日志", tab_log),
 ]
@@ -1002,8 +1053,8 @@ def main():
             ids[new] = ids.pop(old)
             print("  改名 %s → %s" % (old, new))
 
-    # 3) 补齐缺失的子表
-    for name in NEW_TABS:
+    # 3) 补齐缺失的子表（凡是 TABS 里要写、而云端还没有的，都自动建 —— 只认一处清单）
+    for name, _fn in TABS:
         if name in ids:
             continue
         res = tdoc_payload("add_sheet", {"name": name, "append_index": True})
