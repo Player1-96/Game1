@@ -73,13 +73,26 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   await page.waitForTimeout(150);
   ok('数字键 2 切到巨剑流', (await page.evaluate(() => window.Game.styleIdx)) === 1);
 
+  /* 选完流派要经过「风格地图」这一层。
+     第一期只有中式 ready → 面板**不弹**，直接开局并自动记录路径
+     （只有一个选项还给玩家弹窗＝空选择，见 `openStyleMenu` 里的说明）。
+     面板本身的三选一交互由 `_t_stylemap.js` 用注入的假风格表覆盖。 */
   await page.keyboard.press('Enter');
-  await page.waitForTimeout(80);
-  st = await page.evaluate(() => ({ s: window.Game.state, style: window.Game.style, hasP: !!window.Game.player }));
-  ok('Enter 确认 → 开局', st.s === 'play', 'state=' + st.s);
+  await page.waitForTimeout(160);
+  st = await page.evaluate(() => ({
+    s: window.Game.state, style: window.Game.style, hasP: !!window.Game.player,
+    path: window.Game.stylePath, seg: window.Game.seg,
+    spDisp: getComputedStyle(document.getElementById('stylePick')).display,
+    pool: STYLE_SYS.pickPool().length
+  }));
+  ok('测试前提：第一期只有 1 个可择风格', st.pool === 1, 'pool=' + st.pool);
+  ok('Enter 确认 → 开局（单选项不弹面板）', st.s === 'play', 'state=' + st.s);
   ok('流派已设为巨剑流', st.style === 'jujian', 'style=' + st.style);
   ok('出生房间与玩家已就绪', st.hasP);
+  ok('风格路径已自动记录第一段', Array.isArray(st.path) && st.path.length === 1 && st.seg === 0,
+     'path=' + (st.path || []).join('/') + ' seg=' + st.seg);
   ok('选择面板已隐藏', (await page.evaluate(() => getComputedStyle(document.getElementById('choose')).display)) === 'none');
+  ok('风格面板未显示（无空选择）', st.spDisp === 'none', 'display=' + st.spDisp);
 
   sec('T3  蓄力分段阈值');
   const chg = await page.evaluate(({ t1, t2, maxc }) => {
@@ -344,20 +357,27 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     const G = window.Game;
     let bad = null; const seq = [];
     try {
+      /* 层数已由 STYLE_SYS 决定（第一期 9 层 = 3 段 × 3 层），不能再写死 6 次循环。
+         另外每到一段首层会弹「择风格」面板（state 变 stylePick）——
+         这里按「默认选第一项」替玩家点掉，否则循环会卡住。
+         测试只关心「换层与通关流程不崩」，选哪个风格不影响这个结论。 */
       for (const style of ['feijian', 'jujian']) {
         G.newRun(style);
-        for (let d = 0; d < 6; d++) {
+        const need = STYLE_SYS.totalFloors + 1;
+        for (let d = 0; d < need; d++) {
           for (let i = 0; i < 40; i++) { G.update(); if (i % 4 === 0) G.draw(); }
           seq.push(style + ':' + G.depth);
           if (G.state === 'win') break;
           G.nextFloor();
+          /* 弹了风格面板就替玩家确认（默认高亮项） */
+          if (G.state === 'stylePick' && G.styleMenu) G.styleMenuConfirm();
         }
       }
     } catch (e) { bad = e.message; }
     return { bad, depth: G.depth, state: G.state, seq };
   });
   ok('两流派连续换层均不报错', depthRes.bad === null, depthRes.bad || depthRes.seq.join(' → '));
-  ok('走到第五层后通关', depthRes.state === 'win', 'state=' + depthRes.state + ' depth=' + depthRes.depth);
+  ok('走到最后一层后通关', depthRes.state === 'win', 'state=' + depthRes.state + ' depth=' + depthRes.depth);
 
   sec('T11  重开沿用当前流派');
   const rerun = await page.evaluate(() => {

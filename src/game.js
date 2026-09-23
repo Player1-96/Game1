@@ -341,10 +341,44 @@ function styleColor(style) {
   return PAL.jade;
 }
 
+/* ---------------- 风格地图（27 条路径） ----------------
+ *  用户需求（原话）：「一开始肯定就是让玩家三选一先，然后后面每五层选一次二选一」
+ *                   「我的意思是可以进入相同的风格，会出现中式-中式-中式的可能性」
+ *
+ *  于是：**每个节点都是完整三选一**（不是二选一），允许重复 → 3³ = 27 条路径。
+ *  ⚠️ 「允许重复」的必然后果：中式必须备齐 1~5 / 5~10 / 10~15 三套内容，
+ *     否则走「中-中-中」的玩家会在第二段遇到和第一段一模一样的层。
+ *     这正是 ROADMAP 说的「9 个内容包」的由来，也是第一期只做配色变体的原因。
+ *
+ *  第一期的范围：机制跑通 + 中式 3 段配色（零新美术）。
+ *  北欧 / 克苏鲁在 STYLE_DEF 里已留位（ready:false），三期填内容即可。
+ */
+const STYLE_PICK_SEL = ['selA', 'selB', 'selC'];
+
+/* 第几层之后弹「再选一次风格」。用户说「每五层」，但总层数要能装下 3 段，
+   所以这里用 STYLE_SEG_FLOORS 描述「每段几层」，改一个常量即可调全局。 */
+const STYLE_SEG_FLOORS = 3;          // 每段 3 层 → 9 层 3 段（可调成 5 → 15 层）
+
+/* 风格系统的全部可调参数 */
+const STYLE_SYS = {
+  segFloors: STYLE_SEG_FLOORS,
+  totalFloors: STYLE_SEG_FLOORS * 3,     // 9
+  /* 只在已就绪的风格里挑。未就绪的（北欧/克苏鲁）不出现，避免选中后没内容 */
+  pickPool() { return Object.keys(STYLE_DEF).filter(k => STYLE_DEF[k].ready); }
+};
+
+/* 某一层属于第几段（0-based）。第 1~3 层 → 0 段；4~6 层 → 1 段；7~9 层 → 2 段 */
+function segOfFloor(depth) {
+  return clamp(Math.floor((Math.max(1, depth) - 1) / STYLE_SYS.segFloors), 0, 2);
+}
+/* 某一层是不是「该弹选风格」的层（每段的首层，且不是第一层） */
+function isSegPickFloor(depth) {
+  return depth > 1 && (depth - 1) % STYLE_SYS.segFloors === 0;
+}
+
 /* ---------------- Boss 挑战模式 ----------------
  *  目的：单独调试某位头目的行动，不必先走完前几层。
  *
- *  难度系数 d（1~3）同时决定「玩家拿到什么」与「头目有多厚」：
  *  d 越大，给的 build 越接近后期，头目也按同样的进度加厚 ——
  *  于是三档各自是「那个阶段的典型对局」，而不是单纯「血更多 / 更少」。
  *
@@ -526,6 +560,21 @@ class GameCore {
     this.state = 'title';
     this.style = 'feijian';          // 流派：feijian（飞剑流）| jujian（巨剑流）| wujian（舞剑流）
     this.styleIdx = 0;               // 流派选择界面的高亮项
+
+    /* ---------------- 风格地图（27 条路径） ----------------
+     *  需求：开局三选一 + 之后每 5 层二选一，**允许重复** → 3 × 3 × 3 = 27 条。
+     *  「允许重复」不是漏洞，是用户明确要的（会出现「中-中-中」）。
+     *
+     *  stylePath 记录每一段选了什么风格；seg 是当前在第几段（0-based）。
+     *  ⚠️ 这两个字段要进存档 —— 否则读档回来风格就丢了（见 saveGame/load）。
+     *  ⚠️ 与「流派」（this.style，飞剑/巨剑/舞剑）是**两个正交维度**：
+     *     流派决定你怎么打，风格决定你在哪个世界打。命名上别混。
+     */
+    this.stylePath = ['cn'];
+    this.seg = 0;
+    /* 风格选择界面：复用挑战模式的三级菜单范式（面板 #stylePick）。
+     * step: 'first' 开局三选一 / 'next' 每 5 层的二选一。 */
+    this.styleMenu = null;
     this.input = input;
     this.acc = 0; this.last = 0;
     this.shakeAmt = 0; this.hurtFlash = 0;
@@ -575,6 +624,13 @@ class GameCore {
     this.chall = null;
     this.endless = null;
     this.depth = 1;
+    /* 风格路径重置为「只有第一段、暂定中式」。真正的选择发生在
+       `startStyleRun()`（开局三选一）或标题直接进时的默认值。
+       ⚠️ 不要在这里弹面板 —— newRun 会被「重开」「读档」等多处调用，
+          弹窗会把那些路径全打断。选择入口只在标题/重开那一处。 */
+    if (!this.stylePath || !this.stylePath.length) this.stylePath = ['cn'];
+    this.seg = 0;
+    this.applySegmentPalette();       // 按路径把色板 + 素材对齐，再生成第 1 层
     this.coins = 0; this.keys = 0; this.bombs = 0; this.kills = 0;
     this.time = 0;
     this.player = new Player(ROOM_W / 2, ROOM_H / 2 + 20);
@@ -669,6 +725,9 @@ class GameCore {
       localStorage.setItem(SAVE_KEY, JSON.stringify({
         v: SAVE_VER, at: Date.now(),
         style: this.style, depth: this.depth, seed: this.floor.seed,
+        /* 风格路径必须一起落盘 —— 否则读档回来色板会跳回一段，
+           玩家会看到「存档前后世界变了色」这种无从解释的现象。 */
+        stylePath: (this.stylePath || ['cn']).slice(), seg: this.seg || 0,
         coins: this.coins, keys: this.keys, bombs: this.bombs, kills: this.kills, time: this.time,
         coinReserve: this.coinReserve, eliteMult: this.eliteMult,
         roomKey: this.room ? this.room.key : null,
@@ -713,6 +772,12 @@ class GameCore {
     if (!d) return false;
     this.style = d.style;
     this.depth = d.depth;
+    /* 风格路径：老存档里没有这两个字段，回落到「只有一段中式」。
+       ⚠️ 必须在 newFloor **之前**设好并换色板 —— 房间的地砖是生成时按 PAL
+          画进位图的（renderBG），顺序反了会画出上一段的配色。 */
+    this.stylePath = Array.isArray(d.stylePath) && d.stylePath.length ? d.stylePath.slice() : ['cn'];
+    this.seg = typeof d.seg === 'number' ? d.seg : segOfFloor(d.depth);
+    this.applySegmentPalette();
     this.coins = d.coins || 0; this.keys = d.keys || 0; this.bombs = d.bombs || 0;
     this.kills = d.kills || 0; this.time = d.time || 0;
     this.paused = false; this.pick = null;
@@ -973,9 +1038,137 @@ class GameCore {
        所以显式拦住，免得将来某个改动意外走到这里。 */
     if (this.endless) return;
     this.depth++;
-    if (this.depth > 5) { this.state = 'win'; this.msg = '历经五重劫难，道心通明 —— 飞升成仙！'; this.clearSave(); updateOverlay(); return; }
+    /* 通关判定：总层数由 STYLE_SYS 决定（第一期 9 层 = 3 段 × 3 层）。
+       原来是写死的 5 层，扩层后必须跟着 STYLE_SYS 走，否则 6~9 层进不去。 */
+    if (this.depth > STYLE_SYS.totalFloors) {
+      const segs = this.stylePath.map(k => (STYLE_DEF[k] || {}).cn || k);
+      const tail = segs.length > 1 ? `　历遍「${segs.join('·')}」` : '';
+      this.state = 'win';
+      this.msg = `历尽${STYLE_SYS.totalFloors}重劫难${tail} —— 道心通明，飞升成仙！`;
+      this.clearSave();
+      updateOverlay();
+      return;
+    }
     this.player.hp = Math.min(this.player.maxHP, this.player.hp + 2);
+
+    /* 层段推进：每到一段的首层（第 4 / 7 层），先让玩家**重选风格**再进场。
+       与流派选择（#choose）走同一套「暂停 + 面板」形状：state 切到 'stylePick'，
+       逻辑停住，选完再 newFloor。
+       ⚠️ 顺序要紧：**先把 seg 推进到新段、换好色板与素材，再 newFloor** ——
+       否则新一层的房间会按旧色板的地砖画出来（错位且不报错）。 */
+    this.seg = segOfFloor(this.depth);
+    if (isSegPickFloor(this.depth)) {
+      this.openStyleMenu('next');
+      return;
+    }
+    /* 非选风格层：把色板对齐到「本层所属段」的当前风格，避免读档后色板错位 */
+    this.applySegmentPalette();
     this.newFloor(this.depth);
+  }
+
+  /* ---------------- 风格地图：选风格与层段推进 ----------------
+   *  27 条路径的机制落点。三条注意：
+   *  ① 换风格要**重建素材**（实测 122ms，见 buildSprites）。第一次遇到某风格会
+   *     有一次可感的卡顿 —— 所以选完菜单后立刻重建，让卡顿落在「面板消失」那一刻，
+   *     而不是落在战斗中途。
+   *  ② 色板 + 素材必须**一起换**，且换在 `newFloor` 之前（房间生成要读色板）。
+   *  ③ 「允许重复」→ 同一风格可能连续选三次，每次段号不同，色板也就不同。
+   */
+
+  /* 把色板与素材对齐到「当前风格 + 当前层所属段」 */
+  applySegmentPalette() {
+    const style = this.stylePath[this.seg] || 'cn';
+    const seg = this.seg % 3;
+    switchStyle(style, seg);
+    return style + '_' + seg;
+  }
+
+  /* 打开风格选择面板。step: 'first'（开局三选一）| 'next'（每段首层三选一） */
+  openStyleMenu(step) {
+    const pool = STYLE_SYS.pickPool();
+    if (!pool.length) {           // 兜底：一个都没就绪时别把玩家卡住
+      this.applySegmentPalette();
+      this.newFloor(this.depth);
+      return;
+    }
+    /* ⚠️ **只有一个可选项时不弹面板，直接采用**（2026-09-23 出图才发现的）。
+       第一期只有中式 ready，若照样弹「三选一」，对玩家就是每次开局 / 每段
+       被一个只有一张卡的面板拦一下 —— 有交互成本、没有任何选择。
+       「机制先立起来」的正确形态是：**机制在，但不给玩家制造空选择**。
+       三期把北欧填进来后，这里会自动恢复成真正的三选一。 */
+    if (pool.length === 1) {
+      const only = pool[0];
+      if (step === 'first') {
+        this.stylePath = [only];
+        this.seg = 0;
+      } else {
+        this.stylePath[this.seg] = only;
+      }
+      this.styleMenu = null;
+      this.state = 'play';
+      this.applySegmentPalette();
+      if (step === 'first') this.newRun(this.pendingRunStyle || this.style);
+      else this.newFloor(this.depth);
+      return;
+    }
+    const cur = this.stylePath[this.stylePath.length - 1];
+    this.styleMenu = {
+      step: step,
+      idx: Math.max(0, pool.indexOf(cur)),
+      sel: cur,
+      pool: pool,
+      /* 下一次要写入的路径位置：'next' 时是当前段号（覆盖待进入的那一段） */
+      slot: step === 'next' ? this.seg : 0
+    };
+    this.state = 'stylePick';
+    updateOverlay();
+  }
+
+  /* 面板导航（←→ / WASD 都行）。与挑战菜单同款，避免两套手感 */
+  styleMenuMove(d) {
+    const m = this.styleMenu;
+    if (!m || !m.pool.length) return;
+    m.idx = (m.idx + d + m.pool.length) % m.pool.length;
+    m.sel = m.pool[m.idx];
+    SFX.ensure();
+    updateOverlay();
+  }
+
+  /* 确认选择 */
+  styleMenuConfirm() {
+    const m = this.styleMenu;
+    if (!m) return;
+    const picked = m.sel;
+    /* 写入路径。'next' 时是**覆盖当前段**（该段还没开始，所以是赋值而非追加） */
+    if (m.step === 'first') {
+      this.stylePath = [picked];
+      this.seg = 0;
+    } else {
+      this.stylePath[this.seg] = picked;
+    }
+    this.styleMenu = null;
+    this.state = 'play';
+    if (m.step === 'first') {
+      /* 开局：走正常开局流程（newRun 会重置一切并进入第 1 层） */
+      this.newRun(this.pendingRunStyle || this.style);
+    } else {
+      this.applySegmentPalette();     // 先换色板 + 重建素材，再生成新楼层
+      this.newFloor(this.depth);
+    }
+    updateOverlay();
+  }
+
+  /* 返回（Esc / Backspace）：开局那一层不允许退（否则没得玩），
+     段间选择允许退回上一层重打（给「选错了」留一条路）。 */
+  styleMenuBack() {
+    const m = this.styleMenu;
+    if (!m) return;
+    if (m.step === 'first') return;      // 开局必选，不能空着走
+    this.styleMenu = null;
+    this.state = 'play';
+    this.depth--;                        // 退回上一层（那一层的门还开着）
+    this.newFloor(this.depth);
+    updateOverlay();
   }
 
   /* ---------------- Boss 挑战模式 ----------------
@@ -2124,9 +2317,9 @@ class GameCore {
   draw() {
     const g = this.g;
     g.clearRect(0, 0, 480, 320);
-    g.fillStyle = '#0a0812'; g.fillRect(0, 0, 480, 320);
+    g.fillStyle = PAL.edgeWarm; g.fillRect(0, 0, 480, 320);
     if (this.state === 'title' || this.state === 'choose' || this.state === 'chall'
-      || this.state === 'endlessEnd') { this.drawTitle(g); return; }
+      || this.state === 'stylePick' || this.state === 'endlessEnd') { this.drawTitle(g); return; }
 
     const sx = (Math.random() - 0.5) * this.shakeAmt, sy = (Math.random() - 0.5) * this.shakeAmt;
     g.save();
@@ -2334,8 +2527,8 @@ class GameCore {
 
   drawHUD(g) {
     // 顶栏
-    g.fillStyle = '#120e20'; g.fillRect(0, 0, 480, 32);
-    g.fillStyle = '#2a2340'; g.fillRect(0, 31, 480, 1);
+    g.fillStyle = PAL.ink; g.fillRect(0, 0, 480, 32);
+    g.fillStyle = PAL.wall; g.fillRect(0, 31, 480, 1);
     g.fillStyle = PAL.gold; g.globalAlpha = 0.35; g.fillRect(0, 30, 480, 1); g.globalAlpha = 1;
 
     const p = this.player;
@@ -2369,7 +2562,7 @@ class GameCore {
 
     /* 灵力条：紧贴心血下方，跟血量一起构成需要实时盯的资源区 */
     const mx0 = 8, my0 = 20, mw = 88, mh = 10;
-    g.fillStyle = '#161030'; g.fillRect(mx0, my0, mw, mh);
+    g.fillStyle = PAL.ink2; g.fillRect(mx0, my0, mw, mh);
     const mpk = clamp(p.mp / p.maxMP, 0, 1);
     g.fillStyle = mpk >= 1 ? PAL.cyan : '#3f8fd0';
     g.fillRect(mx0, my0, mw * mpk, mh);
@@ -2377,7 +2570,7 @@ class GameCore {
     // 每 10 点一道刻度，余光里也能估算够不够放一发
     g.fillStyle = 'rgba(8,6,18,0.4)';
     for (let i = 1; i < 10; i++) g.fillRect(mx0 + mw * i / 10 - 0.5, my0, 1, mh);
-    g.strokeStyle = '#4d4478'; g.lineWidth = 1; g.strokeRect(mx0 + 0.5, my0 + 0.5, mw - 1, mh - 1);
+    g.strokeStyle = PAL.wallHi; g.lineWidth = 1; g.strokeRect(mx0 + 0.5, my0 + 0.5, mw - 1, mh - 1);
     // 条内嵌一颗灵力珠：和地上掉的那种是同一个精灵，一眼对上号
     if (SPR.mana) g.drawImage(SPR.mana, mx0 + 1, my0 + 1, 8, 8);
     drawPixelText(g, '灵力 ' + Math.floor(p.mp) + '/' + p.maxMP, mx0 + mw + 5, my0 + 1, 1, PAL.cyan);
@@ -2399,8 +2592,8 @@ class GameCore {
     /* 舞剑流在连段窗口内可以无视冷却直接接招，所以这时候不能把格子画成「冷却中」——
        玩家盯着「14 秒」会以为接不上，而实际上完全接得上。窗口优先于冷却显示。 */
     const chainOpen = !!(p.ult && p.ult.style === 'wujian' && p.wjStage > 0 && p.wjChainT > 0);
-    g.fillStyle = '#1d1832'; g.fillRect(ux, uy, 24, 24);
-    g.strokeStyle = p.ult ? (chainOpen ? PAL.cyan : PAL.gold) : '#4d4478';
+    g.fillStyle = PAL.wallLo; g.fillRect(ux, uy, 24, 24);
+    g.strokeStyle = p.ult ? (chainOpen ? PAL.cyan : PAL.gold) : PAL.wallHi;
     g.lineWidth = 1; g.strokeRect(ux + 0.5, uy + 0.5, 23, 23);
     if (p.ult) {
       const UD = ULT_DEF[p.ult.style] || ULT_DEF.feijian;
@@ -2418,7 +2611,7 @@ class GameCore {
         // 舞剑流：右下角标出「下一段是第几段」，连招进行中一眼可辨
         if (p.ult.style === 'wujian') {
           drawPixelText(g, String(p.wjStage + 1), ux + 16, uy + 15, 1,
-            p.wjStage > 0 ? PAL.cyan : '#6b6490');
+            p.wjStage > 0 ? PAL.cyan : PAL.greyD);
         }
       }
       /* 击杀返还的瞬时反馈：冷却条缩掉一截的那一刻，用一道亮线 + 「−N 秒」标出来。
@@ -2439,7 +2632,7 @@ class GameCore {
         g.globalAlpha = 1;
       }
     } else {
-      drawPixelText(g, '空格', ux + 2, uy + 9, 1, '#4d4478');
+      drawPixelText(g, '空格', ux + 2, uy + 9, 1, PAL.wallHi);
     }
 
     /* 小技能槽（右下）：1/2/3 切换、Q 释放 */
@@ -2447,12 +2640,12 @@ class GameCore {
     for (let i = 0; i < SLOT_COUNT; i++) {
       const s = p.slots[i];
       const x = sx0 + i * 24, y = sy0, w = 21, h = 21;
-      g.fillStyle = '#1d1832'; g.fillRect(x, y, w, h);
-      g.strokeStyle = (i === p.slotIdx) ? PAL.gold : '#4d4478';
+      g.fillStyle = PAL.wallLo; g.fillRect(x, y, w, h);
+      g.strokeStyle = (i === p.slotIdx) ? PAL.gold : PAL.wallHi;
       g.lineWidth = (i === p.slotIdx) ? 2 : 1;
       g.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
       g.lineWidth = 1;
-      if (!s) { drawPixelText(g, String(i + 1), x + 7, y + 7, 1, '#4d4478'); continue; }
+      if (!s) { drawPixelText(g, String(i + 1), x + 7, y + 7, 1, PAL.wallHi); continue; }
       const ic = ITEM_ICONS[s.id];
       if (ic) g.drawImage(ic, x + 3, y + 3);
       drawPixelText(g, String(s.lv), x + w - 6, y + h - 7, 1, PAL.goldL);
@@ -2470,7 +2663,7 @@ class GameCore {
       }
       this.itemHits.push({ id: s.id, x: x, y: y, w: w, h: h, rank: s.lv - 1 });
     }
-    drawPixelText(g, 'Q', sx0 - 9, sy0 + 7, 1, '#6b6490');
+    drawPixelText(g, 'Q', sx0 - 9, sy0 + 7, 1, PAL.greyD);
 
     // 已获法宝（左下角）：同种堆叠成一层，右下角标 LvN
     let bx = 6, by = 320 - 22;
@@ -2642,7 +2835,7 @@ class GameCore {
     /* 底衬单独压得更淡 —— 地图网格里大部分格子是空的，真正挡住妖物的
        主要就是这层底衬，房间格本身只占少数位置。 */
     g.globalAlpha = 0.16 + 0.34 * hot;
-    g.fillStyle = '#0d0a18';
+    g.fillStyle = PAL.edgeWarm;
     g.fillRect(ox - 2, oy - 2, w + 4, size * (cell + gap) - gap + 8);
     g.globalAlpha = alpha;
     for (const r of f.rooms.values()) {
@@ -2650,14 +2843,14 @@ class GameCore {
       if (r.type === RT.SECRET && !r.secretFound && !r.visited) continue;
       const x = ox + r.gx * (cell + gap), y = oy + r.gy * (cell + gap);
       const col = {
-        start: PAL.jade, normal: '#5a5478', boss: PAL.red, treasure: PAL.gold,
-        shop: PAL.purple, secret: '#3fd68a', sacrifice: PAL.orange
-      }[r.type] || '#5a5478';
+        start: PAL.jade, normal: PAL.rune, boss: PAL.red, treasure: PAL.gold,
+        shop: PAL.purple, secret: PAL.moss, sacrifice: PAL.orange
+      }[r.type] || PAL.rune;
       g.fillStyle = r.visited ? col : '#332e4a';
       g.fillRect(x, y, cell, cell);
-      if (r.cleared && r.type !== RT.NORMAL) { g.fillStyle = '#0d0a18'; g.fillRect(x + 2, y + 2, cell - 4, cell - 4); }
+      if (r.cleared && r.type !== RT.NORMAL) { g.fillStyle = PAL.edgeWarm; g.fillRect(x + 2, y + 2, cell - 4, cell - 4); }
       // 门
-      g.fillStyle = r.visited ? '#8a83b0' : '#3a3550';
+      g.fillStyle = r.visited ? PAL.grey : PAL.stone;
       for (let d = 0; d < 4; d++) {
         if (!r.doors[d]) continue;
         if (r.doorHidden[d] && !r.doorOpen[d]) continue;
@@ -2673,7 +2866,7 @@ class GameCore {
     }
     // 外框：把「这是浮在最上层的 HUD、不是场景的一部分」这件事说清楚
     g.globalAlpha = Math.min(1, alpha + 0.3);
-    g.strokeStyle = '#5a5478'; g.lineWidth = 1;
+    g.strokeStyle = PAL.rune; g.lineWidth = 1;
     g.strokeRect(ox - 2.5, oy - 2.5, w + 5, size * (cell + gap) - gap + 9);
     g.restore();
   }
@@ -2687,17 +2880,17 @@ class GameCore {
        看/听起来都跟转阶段一样（2026-09-23 反馈「无限切换二阶段」）。 */
     const shifting = b.invuln > 0;
     const blink = shifting && Math.floor(b.invuln / 3) % 2 === 0;
-    g.fillStyle = '#0d0a18'; g.fillRect(x - 2, y - 2, w + 4, 10);
-    g.fillStyle = '#3a1220'; g.fillRect(x, y, w, 6);
+    g.fillStyle = PAL.edgeWarm; g.fillRect(x - 2, y - 2, w + 4, 10);
+    g.fillStyle = PAL.redD; g.fillRect(x, y, w, 6);
     g.fillStyle = blink ? '#ffffff' : PAL.red; g.fillRect(x, y, w * k, 6);
     g.fillStyle = blink ? '#ffffff' : PAL.redL; g.fillRect(x, y, w * k, 2);
     // 阶段刻度 66% / 33%：血条上标出两道线，「打到第几阶段」才有准确读数
-    g.fillStyle = '#0d0a18';
+    g.fillStyle = PAL.edgeWarm;
     for (const t of [0.66, 0.33]) g.fillRect(x + Math.round(w * t), y - 1, 1, 8);
     g.strokeStyle = PAL.gold; g.lineWidth = 1; g.strokeRect(x - 0.5, y - 0.5, w + 1, 7);
     if (shifting) {
       const s = 'PHASE ' + b.phase;
-      drawPixelText(g, s, Math.round(x + w / 2 - s.length * 3), y - 14, 1, '#8fdcf5');
+      drawPixelText(g, s, Math.round(x + w / 2 - s.length * 3), y - 14, 1, PAL.cyan);
     }
   }
 
@@ -2722,13 +2915,13 @@ class GameCore {
     const k = clamp(p.wjChargeT / WJ.charge, 0, 1);
     const col = p.wjFull ? PAL.gold : (p.wjStage > 0 ? PAL.cyan : PAL.jadeL);
     g.save();
-    g.fillStyle = '#0d0a18'; g.fillRect(x - 1, y - 1, w + 2, h + 2);
-    g.fillStyle = '#2a2340'; g.fillRect(x, y, w, h);
+    g.fillStyle = PAL.edgeWarm; g.fillRect(x - 1, y - 1, w + 2, h + 2);
+    g.fillStyle = PAL.wall; g.fillRect(x, y, w, h);
     if (p.wjCharging) {
-      g.fillStyle = p.wjChargeT >= WJ.chargeMin ? col : '#3a3358';
+      g.fillStyle = p.wjChargeT >= WJ.chargeMin ? col : PAL.stone;
       g.fillRect(x, y, Math.round(w * k), h);
       g.fillStyle = PAL.white; g.fillRect(x, y, Math.round(w * k), 1);
-      g.fillStyle = '#6b6390';
+      g.fillStyle = PAL.greyD;
       g.fillRect(x + Math.round(w * (WJ.chargeMin / WJ.charge)), y - 2, 1, h + 4);
       if (p.wjFull && Math.floor(this.tick / 5) % 2 === 0) {
         g.strokeStyle = PAL.goldL; g.lineWidth = 1;
@@ -2833,13 +3026,13 @@ class GameCore {
     const main = tier === 2 ? PAL.gold : (tier === 1 ? PAL.jade : PAL.grey);
     const hi = tier === 2 ? PAL.goldL : (tier === 1 ? PAL.jadeL : PAL.greyL);
     g.save();
-    g.fillStyle = '#0d0a18'; g.fillRect(x - 1, y - 1, w + 2, h + 2);
-    g.fillStyle = '#2a2340'; g.fillRect(x, y, w, h);
+    g.fillStyle = PAL.edgeWarm; g.fillRect(x - 1, y - 1, w + 2, h + 2);
+    g.fillStyle = PAL.wall; g.fillRect(x, y, w, h);
     const fw = Math.round(w * clamp(p.chargeT / CHARGE.max, 0, 1));
     g.fillStyle = main; g.fillRect(x, y, fw, h);
     g.fillStyle = hi; g.fillRect(x, y, fw, 1);
     // 段位刻度
-    g.fillStyle = '#100c1c';
+    g.fillStyle = PAL.ink;
     g.fillRect(x + Math.round(w * CHARGE.t1 / CHARGE.max), y, 1, h);
     g.fillRect(x + Math.round(w * CHARGE.t2 / CHARGE.max), y, 1, h);
     // 满蓄：边框闪烁
@@ -2857,8 +3050,8 @@ class GameCore {
     const x = Math.round(p.x - w / 2), y = Math.round(p.y - 27);
     const k = p.chargeCdMax > 0 ? clamp(1 - p.shootCd / p.chargeCdMax, 0, 1) : 0;
     g.save();
-    g.fillStyle = '#0d0a18'; g.fillRect(x - 1, y - 1, w + 2, h + 2);
-    g.fillStyle = '#2a2340'; g.fillRect(x, y, w, h);
+    g.fillStyle = PAL.edgeWarm; g.fillRect(x - 1, y - 1, w + 2, h + 2);
+    g.fillStyle = PAL.wall; g.fillRect(x, y, w, h);
     g.fillStyle = PAL.purpleD; g.fillRect(x, y, Math.round(w * k), h);
     g.fillStyle = PAL.purpleL; g.fillRect(x, y, Math.round(w * k), 1);
     g.restore();
@@ -2866,7 +3059,7 @@ class GameCore {
 
   drawTitle(g) {
     // 背景：法阵
-    g.fillStyle = '#0a0812'; g.fillRect(0, 0, 480, 320);
+    g.fillStyle = PAL.edgeWarm; g.fillRect(0, 0, 480, 320);
     g.save();
     g.translate(240, 160);
     for (let k = 0; k < 3; k++) {
@@ -3127,6 +3320,19 @@ function bindInput(canvas, game) {
       else if (k === 'arrowright') game.challPick((cur + 1) % n);
       else if (k >= '1' && k <= '9') { const i = +k - 1; if (i < n) game.challPick(i); }
       else if (k === 'enter' || k === ' ') game.challConfirm();
+    } else if (game.state === 'stylePick') {
+      /* 风格三选一：与挑战菜单同款键位（←→ / 数字切换、Enter 确认、Esc 退）
+         —— 玩家不必为「选风格」再学一套操作。 */
+      const sm = game.styleMenu;
+      if (!sm) return;
+      const n = sm.pool.length;
+      let d = 0;
+      if (k === 'arrowleft' || k === 'a') d = -1;
+      else if (k === 'arrowright' || k === 'd') d = 1;
+      if (d) game.styleMenuMove(d);
+      else if (k >= '1' && k <= '3') { const i = +k - 1; if (i < n) { sm.idx = i; sm.sel = sm.pool[i]; SFX.tone(660 + i * 110, 0.05, 'square', 0.09); updateOverlay(); } }
+      else if (k === 'enter' || k === ' ') { SFX.levelup(); game.styleMenuConfirm(); }
+      else if (k === 'escape' || k === 'backspace') game.styleMenuBack();
     } else if (game.state === 'choose') {
       const n = Math.max(1, PLAYABLE_STYLES.length);
       if (k === 'arrowleft') { game.styleIdx = (game.styleIdx + n - 1) % n; SFX.tone(660, 0.05, 'square', 0.09); }
@@ -3136,7 +3342,11 @@ function bindInput(canvas, game) {
         if (i < n) { game.styleIdx = i; SFX.tone(660 + i * 110, 0.05, 'square', 0.09); }
       } else if (k === 'enter' || k === ' ') {
         SFX.levelup();
-        game.newRun(PLAYABLE_STYLES[game.styleIdx] || PLAYABLE_STYLES[0]);
+        /* 选完流派立刻接「开局风格三选一」——27 条路径的第一段。
+           把流派先存进 pendingRunStyle：风格面板确认后才会真正 newRun，
+           否则 newRun 一跑就会盖掉当前 state，面板没机会显示。 */
+        game.pendingRunStyle = PLAYABLE_STYLES[game.styleIdx] || PLAYABLE_STYLES[0];
+        game.openStyleMenu('first');
       }
     }
   });
@@ -3245,6 +3455,92 @@ function renderPickPanel() {
    卡片动态生成（头目表取自 BOSS_KEYS），交互与 #pick 面板一致：
    ←→ / 数字切换、Enter 确认、点卡片即选定、Esc 退一层。
    玩家此时没有 Player 实例（没开局），所以这里不复用 renderPickPanel（它依赖 Game.player）。 */
+/* 风格三选一面板（#stylePick）—— 27 条路径的入口。
+ * 两个时机共用一套渲染：step='first'（开局）与 'next'（每段首层）。
+ * 卡片显示色板色块（用该风格该段的真实地板/主色画），
+ * 让玩家在选之前就看得到「这个世界长什么样」—— 这是比文字描述更有效的说明。
+ */
+function renderStyleMenu() {
+  const el = document.getElementById('stylePick');
+  if (!el) return;
+  const sm = Game && Game.styleMenu;
+  if (!sm) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+
+  const isFirst = sm.step === 'first';
+  const segIdx = isFirst ? 0 : Game.seg;               // 这一段将用第几套层段色板
+  const pathCN = (Game.stylePath || []).map(k => (STYLE_DEF[k] || {}).cn || k);
+
+  let h = '';
+  h += '<div class="pickTitle">' + (isFirst ? '择 一 方 天 地' : '再 择 前 路') + '</div>';
+  if (isFirst) {
+    h += '<div class="pickSub">共 ' + sm.pool.length + ' 种风格　—— 每 ' + STYLE_SYS.segFloors
+      + ' 层可再选一次，<b>同一风格可连选</b>（共 3 段 → 27 条路径）</div>';
+  } else {
+    h += '<div class="pickSub">第 <b>' + (Game.depth) + '</b> 层起进入第 <b>'
+      + ['一', '二', '三'][segIdx] + '</b> 段　—— 已走过「' + (pathCN.join(' · ') || '?')
+      + '」　·　再选一次</div>';
+  }
+  h += '<div class="pickRow">';
+
+  sm.pool.forEach((k, i) => {
+    const d = STYLE_DEF[k] || { name: k, cn: k, segs: [] };
+    /* 这一段实际会用到的色板（用于色块预览） */
+    const segKey = (d.segs[segIdx] || d.segs[0] || {});
+    const p = STYLE_PAL[segKey.key] || STYLE_PAL.cn_1;
+    const segName = segKey.cn || ('第' + (segIdx + 1) + '段');
+    const isCur = k === sm.sel;
+    h += '<div class="pickCard' + (i === sm.idx ? ' ' + (STYLE_PICK_SEL[i] || 'selA') : '') + '" data-i="' + i + '">'
+      // 色块：三格 —— 地板 / 主色 / 描边，一眼看出这一段的冷暖
+      + '<div class="swatch">'
+      + '<i style="background:' + p.floor + '"></i>'
+      + '<i style="background:' + p.jade + '"></i>'
+      + '<i style="background:' + p.gold + '"></i>'
+      + '<i style="background:' + p.red + '"></i>'
+      + '</div>'
+      + '<div class="nm">' + d.cn + '</div>'
+      + '<div class="tag">' + d.name + '</div>'
+      + '<div class="lv">' + segName + '　' + (segKey.desc || '') + '</div>'
+      + '<div class="dsc">' + (STYLE_NOTE[k] || '') + '</div>'
+      + '</div>';
+  });
+  h += '</div>';
+
+  /* 路径预览：把「选完之后会走成什么样」画出来 —— 27 条路径的心智模型
+     对玩家是抽象的，不如直接显示三段格子（已定 / 当前 / 待定）。 */
+  h += '<div class="pathRow">';
+  for (let s = 0; s < 3; s++) {
+    const fixed = isFirst ? (s === 0 ? sm.sel : null) : (Game.stylePath[s] || (s === segIdx ? sm.sel : null));
+    const cur = isFirst ? (s === 0) : (s === segIdx);
+    h += '<span class="pathSeg' + (cur ? ' cur' : '') + (fixed ? ' fixed' : '') + '">'
+      + (fixed ? ((STYLE_DEF[fixed] || {}).cn || fixed) : '?') + '</span>';
+    if (s < 2) h += '<span class="pathArr">›</span>';
+  }
+  h += '<span class="pathHint">已定 ' + STYLE_SYS.segFloors + ' 层 / 段</span></div>';
+
+  h += '<div class="pickTip"><span class="kbd">←</span><span class="kbd">→</span> 或 '
+    + '<span class="kbd">1</span>~<span class="kbd">3</span> 择风格　<span class="kbd">Enter</span> 定下'
+    + (isFirst ? '' : '　<span class="kbd">Esc</span> 退回上一层')
+    + '</div>';
+
+  el.innerHTML = h;
+  el.querySelectorAll('.pickCard').forEach(c => {
+    c.addEventListener('click', () => {
+      const i = +c.getAttribute('data-i');
+      const m = Game.styleMenu;
+      if (m) { m.idx = i; m.sel = m.pool[i]; }
+      Game.styleMenuConfirm();             // 点卡片即选定，省一步
+    });
+  });
+}
+
+/* 各风格的一句话说明（面板用）。北欧 / 克苏鲁在三期填内容时补这里 */
+const STYLE_NOTE = {
+  cn: '青玉为骨，朱金点睛 —— 符箓、剑修与丹火的故土',
+  nordic: '极北冰原与诸神黄昏（待启）',
+  cthulhu: '深海旧神与理智的边缘（待启）'
+};
+
 function renderChallMenu() {
   const el = document.getElementById('chall');
   if (!el) return;
@@ -3420,6 +3716,7 @@ function updateOverlay() {
   const choose = document.getElementById('choose');
   const chall = document.getElementById('chall');
   const endless = document.getElementById('endless');
+  const stylePickEl = document.getElementById('stylePick');
   const st = document.getElementById('stats');
   /* 无尽结算：底下垫的是标题背景，所以要把标题也藏掉，
      否则「九劫录」三个大字会和分数叠在一起。 */
@@ -3433,6 +3730,17 @@ function updateOverlay() {
     return;
   }
   if (endless) endless.style.display = 'none';
+  /* 风格三选一：与挑战菜单同样「垫标题背景、不画 HUD」 */
+  if (Game.state === 'stylePick') {
+    title.style.display = 'none';
+    if (choose) choose.style.display = 'none';
+    if (chall) chall.style.display = 'none';
+    renderStyleMenu();
+    floorName.textContent = ''; hint.textContent = ''; card.style.display = 'none';
+    st.textContent = '';
+    return;
+  }
+  if (stylePickEl) stylePickEl.style.display = 'none';
   /* 挑战菜单：不画 HUD、也不显示楼层名 —— 底下垫的是标题画面的背景 */
   if (Game.state === 'chall') {
     title.style.display = 'none';
@@ -3483,10 +3791,15 @@ function updateOverlay() {
     floorName.textContent = '无尽试炼 · 第 ' + Game.endless.wave + ' 波';
     floorName.style.color = '#c9a6ff';
   } else {
-    const depthCN = ['一', '二', '三', '四', '五', '六', '七'][Game.depth - 1] || Game.depth;
+    const depthCN = ['一', '二', '三', '四', '五', '六', '七', '八', '九'][Game.depth - 1] || Game.depth;
     const elKey = Game.room && Game.room.elite;
+    /* 风格地图：顶栏挂上「当前风格 · 第几段」——27 条路径的机制对玩家是隐形的，
+       不显示就等于没有。用简写（中/北/克 + 段号）避免挤占楼层名的宽度。 */
+    const sKey = (Game.stylePath || [])[Game.seg] || 'cn';
+    const sDef = STYLE_DEF[sKey] || {};
+    const sTag = sDef.cn ? (sDef.cn.charAt(0) + '·' + ['一', '二', '三'][Game.seg]) : '';
     floorName.textContent = '第' + depthCN + '层 · ' + (ROOM_LABEL[Game.room.type] || '石室')
-      + (elKey ? ' · 精英' : '');
+      + (elKey ? ' · 精英' : '') + (sTag ? '　' + sTag : '');
     floorName.style.color = elKey ? '#ff9d8a' : '';
   }
 

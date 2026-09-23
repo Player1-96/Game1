@@ -150,7 +150,7 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   for (const style of ['feijian', 'jujian', 'wujian']) {
     const r = await page.evaluate(st => {
       const G = window.Game;
-      let bad = null, frames = 0, maxDepth = 1;
+      let bad = null, frames = 0, maxDepth = 1, total = 0;
       try {
         G.newRun(st);
         for (let i = 0; i < 5000; i++) {
@@ -160,17 +160,24 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
           inp.keyShoot = Math.random() < 0.5; inp.keyAngle = Math.random() * Math.PI * 2;
           inp.mouseDown = false;
           if (i % 90 === 0) G.enemies.length = 0;
-          if (i > 0 && i % 700 === 0 && G.depth < 5 && G.state === 'play') G.nextFloor();
+          /* 推进到最后一层（层数由 STYLE_SYS 决定，别写死 5）。
+             每到一段首层会弹「择风格」面板 —— 替玩家点掉默认项，否则循环卡住。 */
+          if (i > 0 && i % 480 === 0 && G.depth < STYLE_SYS.totalFloors && G.state === 'play') {
+            G.nextFloor();
+            if (G.state === 'stylePick' && G.styleMenu) G.styleMenuConfirm();
+          }
           G.update(); frames++;
           if (i % 5 === 0) G.draw();
           maxDepth = Math.max(maxDepth, G.depth);
           if (G.state === 'win' || G.state === 'dead') break;
         }
+        total = STYLE_SYS.totalFloors;      // 从页面上下文带出来（Node 侧拿不到）
       } catch (e) { bad = e.message; }
-      return { bad, frames, maxDepth, state: G.state };
+      return { bad, frames, maxDepth, state: G.state, total };
     }, style);
     ok(`${style} 流程无异常`, r.bad === null, r.bad || `${r.frames} 帧 / ${r.maxDepth} 层 / ${r.state}`);
-    ok(`${style} 可推进到第 5 层`, r.maxDepth >= 5 || r.state === 'win', 'maxDepth=' + r.maxDepth);
+    ok(`${style} 可推进到最后一层`, r.maxDepth >= r.total || r.state === 'win',
+       'maxDepth=' + r.maxDepth + ' 目标=' + r.total);
   }
 
   sec('T7  舞剑流：近战挥砍 / 命中上限 / 蓄势折算');

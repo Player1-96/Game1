@@ -1520,7 +1520,7 @@ class Enemy {
         // 名号：先描一圈墨边，猩红/煞白等色压在血色地面上也读得清
         const tx = this.x - w / 2, ty = by - 9;
         for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-          drawPixelText(g2, this.elite.en, tx + ox, ty + oy, 1, '#140619');
+          drawPixelText(g2, this.elite.en, tx + ox, ty + oy, 1, PAL.edge);
         }
         drawPixelText(g2, this.elite.en, tx, ty, 1, this.elite.aura);
       }
@@ -1537,7 +1537,7 @@ class Enemy {
         for (const arc of arcs) {
           const bash = this.def.ai === 'shieldbash' && this.state >= 1 && this.state <= 3;
           g2.globalAlpha = 0.5;
-          g2.strokeStyle = '#1b2740'; g2.lineWidth = bash ? 7 : 5;
+          g2.strokeStyle = PAL.stoneLo; g2.lineWidth = bash ? 7 : 5;
           g2.beginPath(); g2.arc(this.x, this.y, sr, arc.a0, arc.a1); g2.stroke();
           // 挡下伤害的那几帧整片转白，一眼看出「这一下被吃了」
           /* 盾恒为青色 —— 它是「该从哪边打」的读数，不能因为起手就换色。

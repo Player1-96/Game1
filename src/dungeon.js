@@ -541,7 +541,7 @@ class Floor {
     // 精英窟：地面上刻一圈血色符阵，预告此处镇着厉物
     if (r.elite) {
       g.save();
-      g.globalAlpha = 0.3; g.strokeStyle = '#e05a62'; g.lineWidth = 1;
+      g.globalAlpha = 0.3; g.strokeStyle = PAL.red; g.lineWidth = 1;
       g.beginPath(); g.ellipse(ROOM_W / 2, ROOM_H / 2 + 8, 62, 30, 0, 0, Math.PI * 2); g.stroke();
       g.beginPath(); g.ellipse(ROOM_W / 2, ROOM_H / 2 + 8, 40, 19, 0, 0, Math.PI * 2); g.stroke();
       g.restore();
@@ -558,7 +558,7 @@ class Floor {
     for (let d = 0; d < 4; d++) {
       if (!r.doors[d]) continue;
       const pos = this.doorRect(d);
-      g.fillStyle = '#151125';
+      g.fillStyle = PAL.edge;
       g.fillRect(pos.x, pos.y, pos.w, pos.h);
     }
     // 墙内阴影

@@ -270,7 +270,7 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
           maxDepth = Math.max(maxDepth, G.depth);
           if (G.state === 'win') break;
           if (i % 200 === 0) G.enemies.length = 0;
-          if (i % 240 === 0 && G.depth < 5) G.nextFloor();   // 保证能推到第 5 层
+          if (i % 240 === 0 && G.depth < 5) G.nextFloor();   // 只推到第 5 层即可（本用例要的是中段样本）
         }
       } catch (e) { bad = e.message; }
       G.input.mouseDown = false;

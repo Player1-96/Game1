@@ -146,7 +146,7 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   for (const style of ['feijian', 'jujian']) {
     const r = await page.evaluate(st => {
       const G = window.Game;
-      let bad = null, frames = 0, maxDepth = 1, spawnHits = 0;
+      let bad = null, frames = 0, maxDepth = 1, spawnHits = 0, total = 0;
       try {
         G.newRun(st);
         const inp = window.input || (window.input = {});
@@ -161,9 +161,13 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
             window.input.keyAngle = Math.random() * Math.PI * 2;
             window.input.mouseDown = false;
           }
-          // 推进楼层：先尝试走传送阵，走不动就直接下层，保证覆盖到第 5 层与 Boss
+          // 推进楼层：先尝试走传送阵，走不动就直接下层，保证覆盖到最后一层与 Boss
           if (i % 90 === 0) G.enemies.length = 0;
-          if (i > 0 && i % 700 === 0 && G.depth < 5 && G.state === 'play') G.nextFloor();
+          /* 层数由 STYLE_SYS 决定；每到一段首层会弹择风格面板，替玩家点掉。 */
+          if (i > 0 && i % 480 === 0 && G.depth < STYLE_SYS.totalFloors && G.state === 'play') {
+            G.nextFloor();
+            if (G.state === 'stylePick' && G.styleMenu) G.styleMenuConfirm();
+          }
           if (G.room && G.room.cleared) {
             const pt = G.props.find(v => v.kind === 'portal');
             if (pt) { G.player.x = pt.x; G.player.y = pt.y; }
@@ -173,11 +177,13 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
           maxDepth = Math.max(maxDepth, G.depth);
           if (G.state === 'win' || G.state === 'dead') break;
         }
+        total = STYLE_SYS.totalFloors;     // 从页面上下文带出来
       } catch (e) { bad = e.message; }
-      return { bad, frames, maxDepth, spawnHits, state: G.state };
+      return { bad, frames, maxDepth, spawnHits, state: G.state, total };
     }, style);
     ok(`${style} 流程无异常`, r.bad === null, r.bad || `${r.frames} 帧 / 最深 ${r.maxDepth} 层 / state=${r.state}`);
-    ok(`${style} 可推进到第 5 层`, r.maxDepth >= 5 || r.state === 'win', 'maxDepth=' + r.maxDepth + ' state=' + r.state);
+    ok(`${style} 可推进到最后一层`, r.maxDepth >= r.total || r.state === 'win',
+       'maxDepth=' + r.maxDepth + ' 目标=' + r.total + ' state=' + r.state);
   }
 
   sec('T5  运行期无报错');

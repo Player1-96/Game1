@@ -101,7 +101,7 @@ const ITEM_DEFS = [
     } },
   { id: 'chiyan', name: '赤焰符', type: 'fabao', icon: 'flame', c1: PAL.fire, c2: PAL.gold,
     desc: '命中灼烧，持续掉血', apply: p => { p.stats.burn += 2; } },
-  { id: 'hanbing', name: '玄冰符', rare: true, type: 'fabao', icon: 'ice', c1: PAL.cyan, c2: '#bfeaff',
+  { id: 'hanbing', name: '玄冰符', rare: true, type: 'fabao', icon: 'ice', c1: PAL.cyan, c2: PAL.cyanD,
     desc: '命中冰封，妖物行动迟缓', func: true,
     apply: (p) => { p.stats.frost += 1; },
     up: ['寒气更盛：减速 55% → 62%，冰封持续 +35 帧',
@@ -114,7 +114,7 @@ const ITEM_DEFS = [
     desc: '受创后无敌时间延长', apply: p => { p.stats.iframe += 40; } },
   { id: 'juling', name: '聚灵阵', type: 'fabao', icon: 'coin', c1: PAL.jade, c2: PAL.jadeL,
     desc: '灵石掉落大幅增加', apply: p => { p.stats.greed += 2; } },
-  { id: 'qiankun', name: '乾坤袋', type: 'fabao', icon: 'bag', c1: '#a0754a', c2: PAL.gold,
+  { id: 'qiankun', name: '乾坤袋', type: 'fabao', icon: 'bag', c1: PAL.moss, c2: PAL.gold,
     desc: '气运 +3，开箱更易得好物', apply: p => { p.stats.luck += 3; } },
   { id: 'zhenhun', name: '镇魂铃', type: 'fabao', icon: 'bell', c1: PAL.gold, c2: PAL.goldD,
     desc: '飞剑击退大幅增强', apply: p => { p.stats.knockback += 2.2; },
@@ -329,14 +329,14 @@ function buildItemIcons() {
     if (d.icon === 'shield2') {
       // 护盾类图标单独绘制
       const p = new Px(16, 16);
-      p.rect(1, 1, 14, 14, ICON_BG); p.box(0, 0, 16, 16, '#3c3560'); p.box(1, 1, 14, 14, '#4d4478');
+      p.rect(1, 1, 14, 14, ICON_BG); p.box(0, 0, 16, 16, PAL.wall); p.box(1, 1, 14, 14, PAL.wallHi);
       p.rect(5, 2, 6, 1, d.c1); p.rect(3, 3, 10, 4, d.c1);
       p.rect(2, 7, 12, 3, d.c1); p.rect(4, 10, 8, 1, d.c1); p.rect(6, 11, 4, 1, d.c1);
       p.rect(4, 4, 2, 3, d.c2);
       ITEM_ICONS[d.id] = p.done();
     } else if (d.icon === 'ice') {
       const p = new Px(16, 16);
-      p.rect(1, 1, 14, 14, ICON_BG); p.box(0, 0, 16, 16, '#3c3560'); p.box(1, 1, 14, 14, '#4d4478');
+      p.rect(1, 1, 14, 14, ICON_BG); p.box(0, 0, 16, 16, PAL.wall); p.box(1, 1, 14, 14, PAL.wallHi);
       p.line(8, 2, 8, 14, d.c1, 2); p.line(3, 5, 13, 11, d.c2); p.line(13, 5, 3, 11, d.c2);
       p.set(7, 3, PAL.white); p.set(9, 13, PAL.white);
       ITEM_ICONS[d.id] = p.done();

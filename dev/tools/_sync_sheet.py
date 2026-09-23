@@ -617,6 +617,68 @@ def tab_endless():
     return rows, [26, 12, 12, 20, 12, 60]
 
 
+# ---------------------------------------------------------------- 风格地图
+def tab_stylemap():
+    """风格地图（27 条路径）：三个世界、每个世界的三段、每段的代表色。
+
+    ⚠️ 与「流派」（飞剑/巨剑/舞剑）不是一回事：这里是「一局要走过哪些天地」。
+    这张表既是玩法说明、也是调参入口 —— 段数 / 每段层数在 src/game.js 的
+    STYLE_SEG_FLOORS 里改，色板与风格表在 src/px.js 的 STYLE_PAL / STYLE_DEF 里改。"""
+    S = D.get("styleMap") or {}
+    segFloors = S.get("segFloors", 3)
+    total = S.get("totalFloors", 9)
+    paths = S.get("paths", 27)
+
+    rows = [["项", "值", "说明"]]
+    rows.append(["每段层数", "%d 层" % segFloors,
+                 "src/game.js 的 STYLE_SEG_FLOORS —— 改这一个常量即可改一局时长（5 → 15 层）"])
+    rows.append(["段数", "%d 段" % S.get("segCount", 3), "每段开头择一次风格"])
+    rows.append(["一局总层数", "%d 层" % total, "= 每段层数 × 段数"])
+    rows.append(["可选风格数", "%d 个（当前可用 %d 个）"
+                 % (len(S.get("worlds") or []), len(S.get("pool") or [])),
+                 "只有 ready:true 的进选择池；可用数为 1 时直接采用、不弹面板"])
+    rows.append(["路径总数", "%d 条" % paths,
+                 "每个节点都是完整 N 选 1 且允许重复 → N³；单一风格 3 条 / 两风格 18 条 / 三风格 6 条"])
+    rows.append(["开局", "三选一", "只有中式可用时跳过面板直接开局（不给玩家制造空选择）"])
+    rows.append(["段间", "每 %d 层再选一次" % segFloors, "第 1 层开局算第一次，之后在第 4 / 7 层弹面板"])
+    rows.append(["通关闭幕", "带出走过的路径", "如「历尽 9 重劫难　历遍『中式·中式·北欧』—— 道心通明，飞升成仙！」"])
+    rows.append([])
+
+    rows.append(["世界", "代号", "状态", "段", "段名", "意境", "代表色（墙 / 墙亮 / 苔 / 符）"])
+    for w in (S.get("worlds") or []):
+        segs = w.get("segs") or []
+        if not segs:
+            rows.append([w.get("name", ""), w.get("id", ""),
+                         "未开放（ready:false）", "—", "—", "占位：北欧第四期 / 克苏鲁第五期", "—"])
+            continue
+        for i, s in enumerate(segs):
+            rows.append([
+                w.get("name", "") if i == 0 else "",
+                w.get("id", "") if i == 0 else "",
+                "已开放" if (w.get("ready") and i == 0) else "",
+                "%d / %d" % (i + 1, len(segs)), s.get("cn", ""), s.get("desc", ""),
+                "%s / %s / %s / %s" % (s.get("wall", ""), s.get("wallHi", ""),
+                                       s.get("moss", ""), s.get("rune", ""))
+            ])
+    rows.append([])
+
+    rows.append(["说明", "三段的差异是纯配色（零新美术）：同一批素材按风格重建烘焙。"])
+    rows.append(["说明", "PAL 是 Proxy，指到 PAL_ACTIVE —— 全场 812 处 PAL.xxx 一个字没改，"
+                        "风险从「改错一处就静默配色错乱」降到「代理的 5 个 trap 写对就行」"])
+    rows.append(["说明", "素材是启动时烘焙的，换风格必须重建；实测整套烘焙约 122ms（7 帧多），"
+                        "所以按 style_seg 缓存（单套 107 张 canvas / 0.23MB，三套仅 0.7MB）"])
+    rows.append(["说明", "setStyle() 是唯一改 PAL_ACTIVE 的入口 —— buildSprites 的有参/无参两条分支都要走它，"
+                        "否则会出现「缓存的键是 cn_2、实际画的是 cn_1」这种不报错的错位"])
+    rows.append(["说明", "色板分层：环境色（地面/墙/门/宝箱/描边）收进色板；"
+                        "妖物固有色（血蝠永远是红的，那是辨识特征）故意不收；"
+                        "#fff / #000 / rgba(...,0.x) 遮罩不收。实测 182 处收敛到 30 处"])
+    rows.append(["说明", "色板必须换在 newFloor 之前 —— 房间地砖是生成时按 PAL 画进位图的，"
+                        "顺序反了会用旧配色开新层，且不报错（nextFloor 与 continueGame 两处都按此写）"])
+    rows.append(["说明", "存档落盘 stylePath（走过哪些风格）与 seg（第几段）；"
+                        "老存档缺字段时回落 stylePath=['cn']、seg=segOfFloor(depth)，按层数推导，观感正常"])
+    return rows, [20, 12, 12, 8, 14, 30, 30]
+
+
 # ---------------------------------------------------------------- 房间
 def tab_room():
     f1 = D["floors"][0]; f3 = D["floors"][2]; f5 = D["floors"][4]
@@ -876,6 +938,31 @@ def tab_player():
 def tab_log():
     head = ["日期", "版本/改动", "涉及", "同步内容", "操作人"]
     rows = [head,
+            ["2026-09-23", "新增「风格地图」（27 条路径）—— 一局走过哪些天地由玩家自己选",
+             "一局 9 层、每 3 层为一段、共 3 段；开局三选一，之后每段开头再择一次，"
+             "且允许重复选同一风格（所以「中式→中式→中式」是合法路径）→ 3³ = 27 条路径"
+             "（单一风格 3 条 / 两风格 18 条 / 三风格 6 条）。"
+             "本期为第二期：只做架构与中式 3 段（纯配色变体，零新美术），"
+             "青玉 / 赤铜 / 玄墨分别对应夜色青玉、暮色丹火、玄墨劫雷三套色板；"
+             "北欧与克苏鲁先占位（ready:false），第四/五期补内容后选择池自动扩到 2、3 个。"
+             "① PAL 从全局单例改成 Proxy 指到 PAL_ACTIVE —— 全场 812 处 PAL.xxx 一个字没改，"
+             "风险从「改错一处就静默配色错乱」降到「代理的 5 个 trap 写对就行」。"
+             "② 硬编码色 182 处收敛到 30 处，并定下分层判据：环境色收进色板、"
+             "妖物固有色（血蝠永远是红的，那是辨识特征）故意不收、中性色不收。"
+             "③ 素材是启动时烘焙的，换风格必须重建；先探针实测整套烘焙约 122ms（7 帧多），"
+             "故按 style_seg 缓存（单套 107 张 canvas / 0.23MB，三套仅 0.7MB）。"
+             "⚠ 落地时撞出两条硬约束：(a) setStyle() 必须是唯一改 PAL_ACTIVE 的入口 —— "
+             "buildSprites 的无参分支原先查缓存却没切色板，会出现「缓存的键是 cn_2、"
+             "实际画的是 cn_1」这种不报错的错位（探针抓出来的真 bug）；"
+             "(b) 池里只有 1 个风格时不弹面板 —— 第一期只有中式 ready，照弹「三选一」"
+             "等于每次开局被一个没有任何选择的面板拦一下（出图才发现），"
+             "「机制先立起来」的正确形态是机制在、但不给玩家制造空选择。",
+             "新增 src/px.js 的 PAL_KEYS / STYLE_PAL / STYLE_DEF / palOf / curPal / setStyle / pal "
+             "与 Proxy 化的 PAL；sprites.js 的 SPR_CACHE / buildSprites(style,seg) / switchStyle；"
+             "game.js 的 STYLE_SEG_FLOORS / STYLE_SYS / segOfFloor / isSegPickFloor / "
+             "applySegmentPalette / openStyleMenu / styleMenuMove|Confirm|Back / renderStyleMenu "
+             "与 nextFloor / saveGame / continueGame 的风格接点；index.html 的 #stylePick 面板与色块样式",
+             "崔亮"],
             ["2026-09-23", "新增「无尽试炼」（无限模式）—— 通关之后的终局玩法",
              "把通关 build 带进场，在一间封闭擂台里无限刷怪，直到被打死；"
              "结算看杀了多少只、活了多久、撑到第几波。标题界面按 K 进入。"
@@ -1204,6 +1291,7 @@ TABS = [
     ("丹药", tab_dan), ("敌人", tab_enemy),
     ("精英妖物", tab_elite), ("BOSS", tab_boss), ("Boss 挑战", tab_challenge),
     ("无尽试炼", tab_endless),
+    ("风格地图", tab_stylemap),
     ("房间", tab_room), ("交互物", tab_props),
     ("经济掉落", tab_econ), ("动态难度", tab_diff), ("各层速览", tab_floors),
     ("流派玩家", tab_player), ("变更日志", tab_log),

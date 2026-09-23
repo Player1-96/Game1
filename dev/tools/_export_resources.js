@@ -195,6 +195,32 @@ const PERK_CN = {
       }))
     };
 
+    /* ---------- 7b. 风格地图（STYLE_DEF / STYLE_PAL） ----------
+       ⚠️ 与上面的 `styles`（STYLES = 三大流派 飞剑/巨剑/舞剑）不是一回事：
+       这里是「风格地图」的三个世界（中式/北欧/克苏鲁），别混。
+       这张表既是玩法说明也是调参入口：段数 / 每段层数 / 色板全在这里看得见。 */
+    const styleMap = {
+      segFloors: STYLE_SEG_FLOORS,
+      segCount: STYLE_DEF.cn.segs.length || 3,
+      totalFloors: STYLE_SEG_FLOORS * 3,
+      paths: Math.pow(Object.keys(STYLE_DEF).length, 3),
+      pool: Object.keys(STYLE_DEF).filter(k => STYLE_DEF[k].ready),
+      worlds: Object.keys(STYLE_DEF).map(k => {
+        const d = STYLE_DEF[k];
+        return {
+          id: k, name: d.name, cn: d.cn, ready: !!d.ready,
+          segs: (d.segs || []).map((s, i) => ({
+            idx: i + 1, key: s.key, name: s.name, cn: s.cn, desc: s.desc,
+            // 该段的代表色（用于在表里直接看出配色走向）
+            wall: (STYLE_PAL[s.key] || {}).wall || '',
+            wallHi: (STYLE_PAL[s.key] || {}).wallHi || '',
+            moss: (STYLE_PAL[s.key] || {}).moss || '',
+            rune: (STYLE_PAL[s.key] || {}).rune || ''
+          }))
+        };
+      })
+    };
+
     /* ---------- 7. 流派与蓄力段位 ---------- */
     const styles = Object.keys(STYLES).map(k => ({
       id: k, name: STYLES[k].name, en: STYLES[k].en, tag: STYLES[k].tag, ready: !!STYLES[k].ready,
@@ -369,7 +395,7 @@ const PERK_CN = {
       SHIELD_DUR: SKILL_DEF.huti.dur             // 限时护盾（仅护体金光）的持续帧数
     };
 
-    return { player, items, enemies, elites, bosses, challenge, endless, styles, charge, shopPrices, pools, floors,
+    return { player, items, enemies, elites, bosses, challenge, endless, styles, styleMap, charge, shopPrices, pools, floors,
              diffParams, curve, lootCurve, skills, ults, ultPaths, skillConst };
   }, { ENEMY_CN, AI_CN, PERK_CN, ENEMY_NOTE, BOLT_CN, BOSS_GIMMICK });
 
@@ -381,7 +407,9 @@ const PERK_CN = {
     + ' / 丹药 ' + data.items.filter(i => i.type === 'dan').length
     + ' / 功法 ' + data.items.filter(i => i.type === 'gongfa').length
     + ' / 妖物 ' + data.enemies.length
-    + ' / 精英 ' + data.elites.length);
+    + ' / 精英 ' + data.elites.length
+    + ' / 风格 ' + data.styleMap.worlds.length + '（可用 ' + data.styleMap.pool.length
+    + '，' + data.styleMap.totalFloors + ' 层 / ' + data.styleMap.paths + ' 路径）');
   if (errs.length) console.log('  ⚠ 页面报错：' + errs.join(' | '));
   await Promise.race([browser.close(), new Promise(r => setTimeout(r, 3000))]);
   process.exit(0);

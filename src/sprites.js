@@ -324,7 +324,7 @@ function drawGuiXiu(frame) {
   p.rect(3, 13 + yb, 10, 4, R);
   p.rect(4, 16 + yb, 2, 1, RD); p.rect(10, 16 + yb, 2, 1, RD);
   p.set(7, 15 + yb, PAL.purple); p.set(8, 15 + yb, PAL.purple);  // 符光
-  return p.outline('#07050f').done();
+  return p.outline(PAL.edge).done();
 }
 
 /* 阴煞：跳跃，死亡分裂 */
@@ -409,7 +409,7 @@ function drawXuanGuang(frame) {
   // 环状符阵（四面各一颗符钉）
   p.ring(10, 10 + yb, 8, C);
   p.set(10, 1 + yb, C); p.set(10, 19, C); p.set(1, 10 + yb, C); p.set(19, 10 + yb, C);
-  return p.outline('#07050f').done();
+  return p.outline(PAL.edge).done();
 }
 
 /* 铁魄妖：玄铁铸的傀儡，射出的弹丸击不碎也反射不掉 */
@@ -429,7 +429,7 @@ function drawTieHun(frame) {
   p.set(8, 11 + yb, PAL.orange); p.set(9, 12 + yb, PAL.orange);
   p.rect(0, 9 + yb, 3, 5, S); p.rect(15, 9 + yb, 3, 5, S);
   p.rect(5, 16 + yb, 3, 2, SD); p.rect(10, 16 + yb, 3, 2, SD);
-  return p.outline('#07050f').done();
+  return p.outline(PAL.edge).done();
 }
 
 /* 蹦山魈：一蹦一跳，落点先亮圈 */
@@ -463,7 +463,7 @@ function drawXuanJia(frame) {
   for (let i = 0; i < 3; i++) p.rect(4, 9 + i * 2 + yb, 10, 1, AD);
   p.rect(0, 8 + yb, 3, 5, A); p.rect(15, 8 + yb, 3, 5, A);
   p.rect(5, 15 + yb, 3, 3, AD); p.rect(10, 15 + yb, 3, 3, AD);
-  return p.outline('#07050f').done();
+  return p.outline(PAL.edge).done();
 }
 
 /* 影魅：平时只剩一道影，贴近才现形 */
@@ -478,7 +478,7 @@ function drawYingMo(frame) {
   p.set(6, 6 + yb, F); p.set(9, 6 + yb, F);      // 幽火眼
   p.set(6, 13 + yb, CL); p.set(9, 13 + yb, CL);
   p.set(4, 16 + yb, C); p.set(11, 16 + yb, C);   // 飘散的影尾
-  return p.outline('#07050f').done();
+  return p.outline(PAL.edge).done();
 }
 
 /* ------------------------------------------------------------
@@ -509,7 +509,7 @@ function drawBossXueMo(frame) {
   // 胸纹
   p.rect(20, 26 + yb, 8, 8, PAL.red);
   p.set(24, 29 + yb, PAL.gold); p.set(24, 30 + yb, PAL.gold);
-  return p.outline('#0a0308').done();
+  return p.outline(PAL.edgeSoft).done();
 }
 
 function drawBossBaiGu(frame) {
@@ -532,7 +532,7 @@ function drawBossBaiGu(frame) {
   // 头顶骨冠
   p.line(18, 10 + yb, 14, 2 + yb, B); p.line(24, 9 + yb, 24, 1 + yb, B); p.line(30, 10 + yb, 34, 2 + yb, B);
   p.set(24, 4 + yb, PAL.purple);
-  return p.outline('#0a0812').done();
+  return p.outline(PAL.edgeWarm).done();
 }
 
 /* 裂煞魔尊：躯干自顶裂到腰，裂隙里透出红光 —— 它的术法也一样，会一分为二 */
@@ -559,7 +559,7 @@ function drawBossLieSha(frame) {
   p.rect(2, 25 + yb, 8, 4, C); p.rect(38, 25 + yb, 8, 4, C);
   p.line(8, 27 + yb, 2, 40 + yb, PAL.bone);      // 骨爪
   p.line(40, 27 + yb, 46, 40 + yb, PAL.bone);
-  return p.outline('#0a0308').done();
+  return p.outline(PAL.edgeSoft).done();
 }
 
 /* 轮回法王：背悬一座八辐法轮，前进不止、轮转不息 */
@@ -583,7 +583,7 @@ function drawBossLunHui(frame) {
   p.rect(4, 24 + yb, 13, 4, C); p.rect(31, 24 + yb, 13, 4, C);
   p.set(4, 25 + yb, G); p.set(43, 25 + yb, G);
   p.ell(24, 42 + yb, 15, 7, CD);                 // 下摆
-  return p.outline('#0a0812').done();
+  return p.outline(PAL.edgeWarm).done();
 }
 
 /* 烛龙：独眼竖瞳，闭眼时结出一层符文鳞罩，睁眼便横扫一道玄光 */
@@ -612,7 +612,7 @@ function drawBossZhuLong(frame) {
   p.line(38, 22 + yb, 46, 18 + yb, F);
   p.line(8, 42 + yb, 2, 48 + yb, PAL.bone);      // 爪
   p.line(40, 42 + yb, 46, 48 + yb, PAL.bone);
-  return p.outline('#0a0308').done();
+  return p.outline(PAL.edgeSoft).done();
 }
 
 /* ------------------------------------------------------------
@@ -697,7 +697,7 @@ function drawJuJian() {
  * ---------------------------------------------------------- */
 function drawRiftWave() {
   const p = new Px(24, 18);
-  const cols = [PAL.cyanD, PAL.cyan, '#bfeaff'];
+  const cols = [PAL.cyanD, PAL.cyan, PAL.cyan];
   for (let i = 0; i < 3; i++) {                 // 三层弧线叠出厚刃
     const c = cols[i];
     p.line(2 + i * 2, 1 + i * 2, 13 + i, 9, c);
@@ -750,7 +750,7 @@ function makeWallTile(seed) {
     const y = r * 8, off = (r % 2) * 8;
     for (let c = -1; c < 3; c++) {
       const x = c * 16 + off;
-      p.rect(x + 1, y + 1, 14, 6, rng() < 0.5 ? PAL.stone2 : '#443e60');
+      p.rect(x + 1, y + 1, 14, 6, rng() < 0.5 ? PAL.stone2 : PAL.wallHi);
     }
   }
   p.rect(0, 0, 32, 1, PAL.stoneHi);
@@ -783,17 +783,17 @@ function makeDoor(open, vertical) {
     if (vertical) { p.rect(0, 0, 2, H, PAL.stoneLo); p.rect(W - 2, 0, 2, H, PAL.stoneLo); }
     else { p.rect(0, 0, 2, H, PAL.stoneLo); p.rect(W - 2, 0, 2, H, PAL.stoneLo); }
   } else {
-    p.rect(0, 0, W, H, '#5a3f28');
-    p.rect(2, 2, W - 4, H - 4, '#6d4c30');
+    p.rect(0, 0, W, H, PAL.moss);
+    p.rect(2, 2, W - 4, H - 4, PAL.rune);
     // 木纹
     for (let i = 4; i < (vertical ? H : W) - 4; i += 5) {
-      if (vertical) p.rect(4, i, W - 8, 1, '#553a24'); else p.rect(i, 4, 1, H - 8, '#553a24');
+      if (vertical) p.rect(4, i, W - 8, 1, PAL.wallLo); else p.rect(i, 4, 1, H - 8, PAL.wallLo);
     }
     // 门环 + 镇门符
     p.disc(W / 2, H / 2, 3, PAL.goldD); p.ring(W / 2, H / 2, 3, PAL.gold);
     p.rect(W / 2 - 3, H / 2 - 8, 6, 7, PAL.gold);
     p.rect(W / 2 - 2, H / 2 - 7, 4, 5, PAL.red);
-    p.rect(0, 0, W, 1, '#8a6440'); p.rect(0, H - 1, W, 1, '#33210f');
+    p.rect(0, 0, W, 1, PAL.wallHi); p.rect(0, H - 1, W, 1, PAL.wallLo);
   }
   return p.done();
 }
@@ -810,7 +810,7 @@ function makeCrack(vertical) {
   // 裂缝
   if (vertical) {
     p.line(12, 6, 9, 18, PAL.ink); p.line(9, 18, 14, 28, PAL.ink); p.line(14, 28, 10, 36, PAL.ink);
-    p.line(13, 6, 15, 18, '#5d5578');
+    p.line(13, 6, 15, 18, PAL.rune);
   } else {
     p.line(6, 12, 18, 9, PAL.ink); p.line(18, 9, 28, 14, PAL.ink); p.line(28, 14, 36, 10, PAL.ink);
   }
@@ -824,17 +824,17 @@ function makeCrack(vertical) {
  * ---------------------------------------------------------- */
 function makeChest(open) {
   const p = new Px(24, 22);
-  p.rect(2, 8, 20, 12, '#6b4a2a');
-  p.rect(2, 8, 20, 2, '#8a6440');
-  p.rect(2, 18, 20, 2, '#4a3018');
+  p.rect(2, 8, 20, 12, PAL.moss);
+  p.rect(2, 8, 20, 2, PAL.wallHi);
+  p.rect(2, 18, 20, 2, PAL.wallLo);
   p.rect(11, 8, 2, 12, PAL.goldD);
   if (open) {
-    p.rect(3, 2, 18, 7, '#54381f');
+    p.rect(3, 2, 18, 7, PAL.rune);
     p.rect(4, 3, 16, 5, PAL.goldD);
     p.disc(12, 5, 2, PAL.gold);
   } else {
-    p.rect(2, 2, 20, 7, '#7b5630');
-    p.rect(2, 2, 20, 2, '#9a7448');
+    p.rect(2, 2, 20, 7, PAL.goldD);
+    p.rect(2, 2, 20, 2, PAL.gold);
     p.disc(12, 6, 2.4, PAL.gold);
     p.rect(10, 8, 4, 4, PAL.goldD);
   }
@@ -864,11 +864,11 @@ function makeAltar() {
 }
 function makeShopKeeper() {
   const p = new Px(20, 24);
-  p.rect(4, 2, 12, 4, '#7a4a2a');           // 斗笠
-  p.rect(2, 4, 16, 2, '#8f5a33');
+  p.rect(4, 2, 12, 4, PAL.moss);           // 斗笠
+  p.rect(2, 4, 16, 2, PAL.wallHi);
   p.rect(5, 6, 10, 8, PAL.skin);
   p.set(8, 9, PAL.ink); p.set(11, 9, PAL.ink);
-  p.rect(4, 14, 12, 8, '#5d3f6e');          // 长袍
+  p.rect(4, 14, 12, 8, PAL.purpleD);          // 长袍
   p.rect(4, 14, 12, 1, PAL.goldD);
   p.rect(1, 15, 4, 2, PAL.skin); p.rect(15, 15, 4, 2, PAL.skin);
   p.rect(6, 22, 3, 2, PAL.stoneLo); p.rect(11, 22, 3, 2, PAL.stoneLo);
@@ -885,9 +885,9 @@ function makeLantern() {
 }
 function makeIncense() {
   const p = new Px(16, 16);
-  p.rect(4, 10, 8, 5, '#4a4048');
-  p.rect(3, 9, 10, 2, '#6a5c64');
-  p.rect(5, 5, 6, 5, '#3a3038');
+  p.rect(4, 10, 8, 5, PAL.stoneLo);
+  p.rect(3, 9, 10, 2, PAL.stoneHi);
+  p.rect(5, 5, 6, 5, PAL.stone);
   p.line(8, 5, 8, 0, PAL.purpleL);
   p.disc(8, 3, 1, PAL.purpleL);
   return p.outline(PAL.ink).done();
@@ -908,13 +908,13 @@ function makeHeart(state) {   // 2 full, 1 half, 0 empty
     p.rect(5, 9, 2, 1, col);
   };
   if (state === 2) { draw(PAL.red); p.rect(3, 2, 2, 2, PAL.redL); }
-  else if (state === 1) { draw('#4a2a38'); p.rect(1, 2, 5, 3, PAL.red); p.rect(1, 5, 5, 1, PAL.red); p.rect(2, 6, 4, 1, PAL.red); p.rect(3, 7, 3, 1, PAL.red); p.rect(4, 8, 2, 1, PAL.red); p.rect(5, 9, 1, 1, PAL.red); }
-  else { draw('#3a2634'); }
+  else if (state === 1) { draw(PAL.redD); p.rect(1, 2, 5, 3, PAL.red); p.rect(1, 5, 5, 1, PAL.red); p.rect(2, 6, 4, 1, PAL.red); p.rect(3, 7, 3, 1, PAL.red); p.rect(4, 8, 2, 1, PAL.red); p.rect(5, 9, 1, 1, PAL.red); }
+  else { draw(PAL.greyD); }
   return p.outline(PAL.ink).done();
 }
 function makeShieldHeart(state) {  // 灵力护盾
   const p = new Px(12, 11);
-  const col = state ? PAL.jade : '#2c4a48';
+  const col = state ? PAL.jade : PAL.stoneLo;
   p.rect(4, 1, 4, 1, col); p.rect(2, 2, 8, 3, col); p.rect(1, 5, 10, 2, col);
   p.rect(2, 7, 8, 1, col); p.rect(4, 8, 4, 1, col); p.rect(5, 9, 2, 1, col);
   if (state) { p.rect(4, 3, 2, 2, PAL.jadeL); }
@@ -961,12 +961,12 @@ function makeBomb() {
 }
 
 /* 法宝图标：kind 决定形状，c1/c2 决定配色 */
-const ICON_BG = '#221d38';
+const ICON_BG = PAL.wallLo;
 function makeItemIcon(kind, c1, c2) {
   const p = new Px(16, 16);
   p.rect(1, 1, 14, 14, ICON_BG);
-  p.box(0, 0, 16, 16, '#3c3560');
-  p.box(1, 1, 14, 14, '#4d4478');
+  p.box(0, 0, 16, 16, PAL.wall);
+  p.box(1, 1, 14, 14, PAL.wallHi);
   const g = p.g;
   switch (kind) {
     case 'sword':   // 飞剑
@@ -1100,8 +1100,40 @@ function drawPixelText(g, text, x, y, scale, col) {
   return cx;
 }
 
-/* 初始化：把所有素材烘焙成 canvas 缓存 */
-function buildSprites() {
+/* 初始化：把所有素材烘焙成 canvas 缓存
+ *
+ * 风格可插拔：素材是**读 PAL 现画**的位图，所以换风格必须重建。
+ * 实测重建全部素材约 **122 ms**（7 帧多，见 `dev/probe/_probe_pal.js`）——
+ * 直接实时换会卡一下。但因为
+ *   ① 同种子重复绘制结果一致（探针⑤已验证）→ 缓存安全
+ *   ② 单份素材只有 107 张 canvas / 0.23 MB → 缓存极便宜
+ *   ③ 27 条路径最多出现 3 种风格
+ * 所以采用「**按风格 key 缓存烘焙结果**」：每个风格只烤一次，换回来直接命中。
+ *
+ * ⚠️ `buildSprites()` 不带参数时烤的是**当前激活色板**（`STYLE_CUR` / `STYLE_SEG`），
+ * 保持旧调用点（`boot()`）不用改。带 style 参数则先切色板再烤。
+ *
+ * ⚠️ **两条分支都必须走 `setStyle`**（2026-09-23 探针 P7 撞出来的）：
+ * 无参分支若直接读 `STYLE_CUR`/`STYLE_SEG` 去查缓存而不调 `setStyle`，
+ * 一旦外部（比如上一次 `buildSprites('cn', 2)`）已经把 `PAL_ACTIVE` 换成别的色板，
+ * 就会出现「缓存的键是 cn_2、实际画的是 cn_1 的色板」这种错位 —— 而它**不报错**，
+ * 只在画面上表现为「有的素材没跟着换色」。
+ * 让 `setStyle` 成为**唯一**改 `PAL_ACTIVE` 的入口，两边就不会再分叉。
+ */
+const SPR_CACHE = new Map();
+
+function buildSprites(style, seg) {
+  const st = style || STYLE_CUR;
+  const sg = style ? (seg | 0) : STYLE_SEG;
+  const key = st + '_' + sg;
+  setStyle(st, sg);                     // 先保证色板与 key 一致，再查缓存
+  const hit = SPR_CACHE.get(key);
+  if (hit) {
+    for (const k of Object.keys(SPR)) delete SPR[k];
+    Object.assign(SPR, hit);
+    return key;
+  }
+
   SPR.player = {
     down: [drawTaoist('down', 0), drawTaoist('down', 1)],
     up: [drawTaoist('up', 0), drawTaoist('up', 1)],
@@ -1153,11 +1185,11 @@ function buildSprites() {
   SPR.riftwave = drawRiftWave();
   SPR.bolt = {
     blood: drawBolt(PAL.red, PAL.redD, 'orb'),
-    talisman: drawBolt(PAL.gold, '#e8d9a8', 'talisman'),
+    talisman: drawBolt(PAL.gold, PAL.goldL, 'talisman'),
     flame: drawBolt(PAL.purple, PAL.fire, 'flame'),
-    ice: drawBolt(PAL.cyan, '#bfeaff', 'ice'),
+    ice: drawBolt(PAL.cyan, PAL.cyanD, 'ice'),
     orb: drawBolt(PAL.green, PAL.greenD, 'orb'),
-    iron: drawBolt('#6b6788', '#38344e', 'iron')
+    iron: drawBolt(PAL.greyD, PAL.stoneLo, 'iron')
   };
   SPR.floor = [];
   for (let i = 0; i < 5; i++) SPR.floor.push(makeFloorTile(1000 + i * 37));
@@ -1178,4 +1210,23 @@ function buildSprites() {
   SPR.mana = makeMana();
   SPR.key = makeKey();
   SPR.bomb = makeBomb();
+
+  /* 烤完入缓存。存的是 SPR 引用的一份深拷贝（数组也复制，避免外部改动串味） */
+  const snap = {};
+  for (const k of Object.keys(SPR)) {
+    const v = SPR[k];
+    snap[k] = Array.isArray(v) ? v.slice() : (v && typeof v === 'object' && !(v instanceof HTMLCanvasElement))
+      ? Object.fromEntries(Object.entries(v).map(([kk, vv]) => [kk, Array.isArray(vv) ? vv.slice() : vv]))
+      : v;
+  }
+  SPR_CACHE.set(key, snap);
+  return key;
+}
+
+/* 换风格：切色板 + 命中/重建烘焙。返回是否为缓存命中（用于断言与性能观测） */
+function switchStyle(style, seg) {
+  const key = style + '_' + (seg | 0);
+  const hit = SPR_CACHE.has(key);
+  buildSprites(style, seg);
+  return hit;
 }
