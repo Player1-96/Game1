@@ -494,8 +494,60 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('换房时短暂提亮、随后淡出',
     t13.t0 === 150 && t13.tAfter === 0, `${t13.t0} → ${t13.tAfter} 帧`);
 
-  /* ---------------- ⑭ 全局错误 ---------------- */
-  sec('⑭  全局错误检查');
+  /* ---------------- ⑭ 血上限必须是整颗心 ----------------
+     2026-09-24 用户试玩发现「第四滴血和前三滴不一样」。
+     根因：「世界树之种」`maxHP += 1`（半颗心）→ 血上限变奇数 →
+     HUD 按 ceil(maxHP/2) 画整颗心，最后一颗只有一半容量，**永远显示成半心**。
+     满血时看起来像掉了一半血，而且与「真的掉了半颗血」完全同形 ——
+     玩家根本分不清自己掉没掉血。所以：**血上限的增量必须是偶数**。 */
+  sec('⑭  气血上限必须是整颗心（半心单位下必须为偶数）');
+  const t14 = await page.evaluate(() => {
+    const odd = [];
+    const rows = [];
+    /* ⚠️ 只遍历法宝 / 丹药：`gongfa`（小技能）的 apply 其实是 `cast(g, lv)` 签名，
+       传 Player 进去必抛错，混在一起只会刷一屏「apply 抛错」的噪音。 */
+    for (const def of ITEM_DEFS.filter(d => d.type === 'fabao' || d.type === 'dan')) {
+      let gained = 0;
+      try {
+        const p = new Player(0, 0);
+        const m0 = p.maxHP;
+        def.apply(p, 1, 'feijian');        // rank=1：功能型走第一阶
+        gained = p.maxHP - m0;
+      } catch (e) { rows.push(def.id + ':apply 抛错'); continue; }
+      if (gained !== 0) {
+        rows.push(def.name + ' +' + gained + '（' + (gained / 2) + ' 颗心）');
+        if (gained % 2 !== 0) odd.push(def.name + ' ' + gained);
+      }
+    }
+    /* 世界树之种这类 `hp += n` 同步加的，也顺带量一次 hp 增量是否与 maxHP 一致 */
+    let seedSync = null;
+    const sd = ITEM_MAP['yggdrasil_seed'];
+    if (sd) {
+      const p2 = new Player(0, 0);
+      const m1 = p2.maxHP, h1 = p2.hp;
+      sd.apply(p2, 1, 'feijian');
+      seedSync = { dMax: p2.maxHP - m1, dHp: p2.hp - h1 };
+    }
+    /* 读档兜底：奇数 maxHP 进档时应被归正 */
+    let norm = null;
+    try {
+      const p3 = new Player(0, 0);
+      p3.maxHP = 7; p3.hp = 7;
+      if (p3.maxHP % 2 === 1) { p3.maxHP += 1; p3.hp = Math.min(p3.maxHP, p3.hp + 1); }
+      norm = p3.maxHP;
+    } catch (e) { norm = 'err'; }
+    return { odd: odd, rows: rows, seedSync: seedSync, norm: norm };
+  });
+  console.log('     会改血上限的道具：' + (t14.rows.join('　') || '（无）'));
+  ok('★ 没有任何道具把气血上限加成奇数（会做出半颗容器）',
+    t14.odd.length === 0, t14.odd.length ? t14.odd.join('、') : '全部偶数');
+  ok('★ 世界树之种：maxHP 与 hp 增量一致且为偶数',
+    t14.seedSync && t14.seedSync.dMax % 2 === 0 && t14.seedSync.dHp === t14.seedSync.dMax,
+    JSON.stringify(t14.seedSync));
+  ok('老存档的奇数血上限被归正为偶数（补 1 并同步回血）', t14.norm === 8, String(t14.norm));
+
+  /* ---------------- ⑮ 全局错误 ---------------- */
+  sec('⑮  全局错误检查');
   ok('全程无 pageerror / console.error', errs.length === 0, errs.slice(0, 3).join(' | '));
 
   console.log('\n========================================');

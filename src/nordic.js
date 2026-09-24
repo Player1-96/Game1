@@ -311,7 +311,9 @@ const NORDIC_ITEMS = [
     apply: p => { p.stats.greed += 2; p.stats.luck += 1; } },
   { id: 'idunn_apple', name: '伊登之苹果', type: 'fabao', world: 'nordic', icon: 'apple',
     c1: NORD.moss, c2: NORD.berylL,
-    desc: '气血上限 +2，并立刻回满',
+    /* ⚠️ 文案单位是「颗心」（与中式的洗髓丹同一口径：`+= 4` 写「+2」），
+       不是内部的半心单位。写错单位玩家会把 1 颗心当成 2 颗。 */
+    desc: '气血上限 +1，并立刻回满',
     apply: p => { p.maxHP += 2; p.hp = p.maxHP; } },
   { id: 'mimir_well', name: '密米尔之泉', type: 'fabao', world: 'nordic', icon: 'rune',
     c1: NORD.ice, c2: NORD.runic,
@@ -333,8 +335,14 @@ const NORDIC_ITEMS = [
     apply: p => { p.addShield(2); p.stats.speed *= 1.03; } },
   { id: 'yggdrasil_seed', name: '世界树之种', rare: true, type: 'fabao', world: 'nordic', icon: 'tree',
     c1: NORD.moss, c2: NORD.amberL,
+    /* ⚠️ 这里原来是 `maxHP += 1` —— **半颗心的血上限**。
+       血上限的内部单位是半心，而 HUD 按 `ceil(maxHP/2)` 画整颗心，
+       于是「3 颗整心 + 1 颗只有一半容量的心」会**永远显示成半心**：
+       满血时看起来就像掉了一半血，而且与「真的掉了半颗血」完全同形。
+       2026-09-24 用户试玩就是这么发现「第四滴血和前三滴不一样」的。
+       → 血上限一律给偶数（整颗容器），这条有断言钉着（`_t_audit.js`）。 */
     desc: '每清一室回复 1 点气血，气血上限 +1',
-    apply: p => { p.stats.regen += 1; p.maxHP += 1; p.hp += 1; } },
+    apply: p => { p.stats.regen += 1; p.maxHP += 2; p.hp += 2; } },
 
   /* ---------- 秘药（即时生效） ---------- */
   { id: 'mead', name: '蜜酒', type: 'dan', world: 'nordic', icon: 'horn',
@@ -347,7 +355,7 @@ const NORDIC_ITEMS = [
     apply: p => { p.addShield(2); } },
   { id: 'einherjar_blood', name: '英灵之血', type: 'dan', world: 'nordic', icon: 'pill',
     c1: NORD.blood, c2: NORD.ember,
-    desc: '气血上限 +2，并回满',
+    desc: '气血上限 +1，并回满',
     apply: p => { p.maxHP += 2; p.hp = p.maxHP; } }
 ];
 

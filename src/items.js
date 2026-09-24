@@ -190,6 +190,11 @@ const ITEM_DEFS = [
      现改用丹药专属的 pill 形状，并取灵力珠同款的青色调，双重区分。 */
   { id: 'lingdan', name: '灵力丹', type: 'dan', icon: 'pill', c1: PAL.cyan, c2: PAL.jadeL,
     desc: '立即获得 2 点常驻护盾', apply: p => { p.addShield(2); } },
+  /* ⚠️ 血量单位的换算：内部 `maxHP` / `hp` 一律是**半颗心**（默认 6 = 3 颗心），
+     而 desc 里的数字是**颗心** —— 所以 `+= 4` 写「+2」、「heal(2)」写「+1」。
+     北欧那批道具曾按半心单位写文案（`+= 2` 写「+2」），数值没变但玩家会多算一倍。
+     `maxHP` 的增量**必须是偶数**：奇数会做出「半颗容器」，满血时显示成半颗心，
+     和「真的掉了半颗血」同形（`_t_audit.js` 有断言钉着）。 */
   { id: 'xisui', name: '洗髓丹', type: 'dan', icon: 'pill', c1: PAL.gold, c2: PAL.goldL,
     desc: '气血上限 +2，并回满', apply: p => { p.maxHP += 4; p.hp = p.maxHP; } },
   { id: 'jinchuang', name: '金疮药', type: 'dan', icon: 'pill', c1: PAL.orange, c2: PAL.white,

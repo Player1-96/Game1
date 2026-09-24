@@ -832,6 +832,11 @@ class GameCore {
     this.eliteMult = d.eliteMult || 1;
     const p = this.player, sp = d.player;
     p.maxHP = sp.maxHP; p.hp = sp.hp;
+    /* 血上限必须是偶数（内部单位是半颗心）—— 奇数会做出「半颗容器」：
+       HUD 按 `ceil(maxHP/2)` 画整颗心，最后那颗只有一半容量，**永远显示成半心**，
+       满血时看着像掉了一半血（2026-09-24 用户就是这样发现问题的）。
+       老存档可能存着奇数（旧版「世界树之种」的 `maxHP += 1` 留下的），读档时归正。 */
+    if (p.maxHP % 2 === 1) { p.maxHP += 1; p.hp = Math.min(p.maxHP, p.hp + 1); }
     p.mp = sp.mp; p.maxMP = sp.maxMP;
     p.shield = sp.shield || 0; p.tShield = sp.tShield || 0; p.shieldT = sp.shieldT || 0;
     p.soulBuff = sp.soulBuff || 0;
