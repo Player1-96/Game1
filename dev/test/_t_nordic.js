@@ -588,6 +588,85 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   /* ---------------------------------------------------------------
    *  T12 运行期无报错
    * ------------------------------------------------------------- */
+  /* ---------------------------------------------------------------
+   *  T12bis 弗雷之剑 vs 混元珠
+   *  两件都是「不用瞄准」，曾经弗雷之剑是 `stats.homing += …`，
+   *  和混元珠数值只差 0.01 —— 等于同一件法宝换了个名字。
+   *  现在弗雷之剑走 reAim（直飞 + 半空折一次），这里把**行为形状**钉死：
+   *    混元珠 = 从第 1 帧起每帧都微调角度（一路黏着）
+   *    弗雷之剑 = 前 RE_AIM_DELAY 帧角度纹丝不动（直飞），之后才折
+   * ------------------------------------------------------------- */
+  sec('T12b 弗雷之剑 vs 混元珠：同为「不用瞄准」，行为形状必须不同');
+  const t12b = await page.evaluate(() => {
+    const G = window.Game;
+    /* 射一发、逐帧记录速度角度。敌人摆在侧方，正上方飞是打不到的 ——
+       只有「会拐弯」的剑才够得着。 */
+    const run = (itemId) => {
+      G.newRun('feijian');
+      G.stylePath = ['cn']; G.seg = 0; G.applySegmentPalette();
+      const p = G.player;
+      p.give(itemId, G);
+      G.newFloor(1);
+      G.state = 'play';
+      G.enemies.length = 0; G.bullets.length = 0;
+      p.x = ROOM_W / 2; p.y = ROOM_H / 2 + 90;
+      /* ⚠️ 距离要压在射程内：life = range/shotSpeed ≈ 33 帧，而「直飞 14 帧 + 折 8 帧」
+         已经花掉 22 帧 —— 敌人摆到 150px 外的话剑是先飞完了才拐到，测不出命中。
+         摆在斜上前方：直飞时横向差 55px（> 剑半径），打不到；折过去才够得着。 */
+      const e = new Enemy('xiesui', p.x + 55, p.y - 95, 1);
+      e.spawnT = 0; e.speed = 0; e.maxHp = 99999; e.hp = 99999; e.touch = 0; e.cd = 999999;
+      G.enemies.push(e);
+      p.shootCd = 0;
+      STYLES.feijian.attack(p, G, { shooting: true, aiming: true, aimAngle: -Math.PI / 2 });
+      const b = G.bullets[0];
+      if (!b) return { err: '没射出子弹' };
+      const reAim0 = b.reAim;              // **发射时**的次数，循环后就读不到了
+      const angs = [];
+      for (let f = 0; f < 46 && !b.dead; f++) {
+        G.update();
+        angs.push(+Math.atan2(b.vy, b.vx).toFixed(4));
+      }
+      return {
+        homing: b.homing, reAim0: reAim0, reAimEnd: b.reAim,
+        angs: angs, hit: b.hit.size, dead: b.dead
+      };
+    };
+    const turned = (a, i) => Math.abs(a[i] - a[0]) > 0.02;
+    const freyr = run('freyr_sword');
+    const hun = run('hunyuan');
+    const statOf = (id) => {
+      const q = new Player(0, 0);
+      ITEM_MAP[id].apply(q, 0, 'feijian');
+      return { homing: +q.stats.homing.toFixed(3), reAim: q.stats.reAim };
+    };
+    return {
+      freyr: freyr, hun: hun,
+      sFreyr: statOf('freyr_sword'), sHun: statOf('hunyuan'),
+      freyrEarlyTurn: freyr.angs ? turned(freyr.angs, 5) : null,   // 第 6 帧就转弯？
+      hunEarlyTurn: hun.angs ? turned(hun.angs, 5) : null,
+      freyrDelay: RE_AIM_DELAY
+    };
+  });
+  console.log('     属性：弗雷之剑 homing=' + t12b.sFreyr.homing + ' reAim=' + t12b.sFreyr.reAim
+    + '　混元珠 homing=' + t12b.sHun.homing + ' reAim=' + t12b.sHun.reAim);
+  console.log('     弗雷之剑角度：' + (t12b.freyr.angs || []).slice(0, 6).join(' → ')
+    + ' …（14 帧后）' + (t12b.freyr.angs || []).slice(14, 18).join(' → '));
+  console.log('     混元珠角度：' + (t12b.hun.angs || []).slice(0, 6).join(' → '));
+  ok('★ 弗雷之剑**不给** homing（那是混元珠的机制）',
+    t12b.sFreyr.homing === 0 && t12b.sFreyr.reAim === 1, JSON.stringify(t12b.sFreyr));
+  ok('★ 混元珠仍是 homing、不带 reAim',
+    t12b.sHun.homing > 0 && t12b.sHun.reAim === 0, JSON.stringify(t12b.sHun));
+  ok('弗雷之剑：前 14 帧**直飞**（角度不动）—— 这是它与制导的分水岭',
+    t12b.freyrEarlyTurn === false, '第 6 帧已转向=' + t12b.freyrEarlyTurn);
+  ok('混元珠：第 6 帧就在微调（制导从第一帧起就跟着走）',
+    t12b.hunEarlyTurn === true, '第 6 帧已转向=' + t12b.hunEarlyTurn);
+  ok('★ 弗雷之剑折完之后真的转了、且够到了侧方的妖物',
+    t12b.freyr.reAimEnd === 0 && t12b.freyr.hit >= 1,
+    'reAim 余 ' + t12b.freyr.reAimEnd + '　命中 ' + t12b.freyr.hit);
+  ok('一阶只折一次（reAim 从 1 扣到 0）',
+    t12b.freyr.reAim0 === 1 && t12b.freyr.reAimEnd === 0,
+    t12b.freyr.reAim0 + ' → ' + t12b.freyr.reAimEnd);
+
   sec('T12  全局错误检查');
   ok('全程无 pageerror / console.error', errs.length === 0, errs.slice(0, 4).join(' | '));
 

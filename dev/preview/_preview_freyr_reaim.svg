@@ -1,0 +1,16 @@
+<svg viewBox="0 0 620 420" width="100%" xmlns="http://www.w3.org/2000/svg">
+<rect x="30" y="30" width="560" height="360" fill="#12101f" stroke="#2e2748" stroke-width="1"/>
+<polyline points="310.0,297.3 310.0,290.1 310.0,282.9 310.0,275.7 310.0,268.5 310.0,261.3 310.0,254.1 310.0,246.9 310.0,239.7 310.0,232.5 310.0,225.3 310.0,218.1 310.0,210.9 310.0,203.7 310.0,196.5 310.0,189.3 310.0,182.1 310.0,174.9 310.0,167.7 310.0,160.5 310.0,153.3 310.0,146.1 310.0,138.9 310.0,131.7 310.0,124.5 310.0,117.3 310.0,110.1 310.0,102.9 310.0,95.7 310.0,88.5 310.0,81.3 310.0,74.1 310.0,66.9" fill="none" stroke="#7f8b9e" stroke-width="2" stroke-linejoin="round"/>
+<polyline points="311.0,297.4 313.1,290.4 316.2,283.9 320.1,277.7 324.9,272.3 330.5,267.5 336.7,263.4 343.4,260.3 350.5,258.1 357.8,256.9 365.3,256.7 372.8,257.5 380.2,258.3 387.6,259.2 395.1,260.0 402.4,260.9 409.9,261.6 417.2,262.5 424.7,263.3 432.0,264.2 439.5,265.0" fill="none" stroke="#5fd6b0" stroke-width="2" stroke-linejoin="round"/>
+<polyline points="310.0,297.3 310.0,290.1 310.0,282.9 310.0,275.7 310.0,268.5 310.0,261.3 310.0,254.1 310.0,246.9 310.0,239.7 310.0,232.5 310.0,225.3 310.0,218.1 310.0,210.9 312.2,204.0 316.4,198.1 322.3,193.6 329.3,191.0 336.7,190.5 344.0,192.1 350.4,195.7 356.4,200.0 362.4,204.3 368.4,208.5 374.5,212.8 380.5,217.1 386.5,221.4 392.5,225.5 398.5,229.8 404.6,234.1 410.6,238.3 416.6,242.6 422.6,246.9 428.6,251.2 434.7,255.4 440.7,259.6" fill="none" stroke="#ffcc55" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="NaN" cy="NaN" r="6" fill="none" stroke="#e8e6f5" stroke-width="2"/>
+<circle cx="NaN" cy="NaN" r="8" fill="none" stroke="#e0525f" stroke-width="2"/>
+<circle cx="NaN" cy="NaN" r="3" fill="#e0525f"/>
+<text x="NaN" y="NaN" font-family="sans-serif" font-size="12" fill="#c9c4e0">玩家</text>
+<text x="NaN" y="NaN" font-family="sans-serif" font-size="12" fill="#ff9d8a">妖物</text>
+<text x="40" y="20" font-family="sans-serif" font-size="13" fill="#8fd8c4">同朝正上方射出，妖物在右前方</text>
+<g font-family="sans-serif" font-size="12">
+<rect x="38" y="358" width="10" height="10" fill="#7f8b9e"/><text x="54" y="367" fill="#c9c4e0">普通飞剑（直）</text>
+<rect x="160" y="358" width="10" height="10" fill="#5fd6b0"/><text x="176" y="367" fill="#c9c4e0">混元珠 · homing（弯，一路黏着）</text>
+<rect x="370" y="358" width="10" height="10" fill="#ffcc55"/><text x="386" y="367" fill="#c9c4e0">弗雷之剑 · reAim（折一道）</text>
+</g></svg>

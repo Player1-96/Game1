@@ -296,6 +296,13 @@ class DamageNum {
 /* ------------------------------------------------------------
  *  飞剑 / 术法
  * ---------------------------------------------------------- */
+/* 「重新转向」（弗雷之剑）的三个常量
+   —— DELAY 之前是**直飞**（不追），所以前 0.23 秒它和普通飞剑一样；
+      到点后才允许折，折的过程最多 FRAMES 帧，一次性大幅转向。 */
+const RE_AIM_DELAY = 14;      // 直飞多少帧后才允许折返（≈0.23 秒）
+const RE_AIM_FRAMES = 8;      // 一次折返最多持续多少帧
+const RE_AIM_RANGE = 190;     // 折返时的索敌范围
+
 class Bullet {
   constructor(x, y, vx, vy, opt) {
     this.x = x; this.y = y; this.vx = vx; this.vy = vy;
@@ -305,6 +312,13 @@ class Bullet {
     this.life = opt.life || 150;
     this.pierce = opt.pierce || 0;
     this.homing = opt.homing || 0;
+    /* 重新转向（弗雷之剑）：直飞一段后猛地折向妖物。
+       reAim = 还能折几次；reAiming = 这一次折返还剩几帧；reAimFlash = 折返的光效计时。 */
+    this.reAim = opt.reAim || 0;
+    this.reAimArc = opt.reAimArc || 0.30;
+    this.reAiming = 0;
+    this.reAimT = 0;
+    this.reAimFlash = 0;
     this.knockback = opt.knockback || 0;
     this.burn = opt.burn || 0;
     this.frost = opt.frost || 0;
@@ -340,6 +354,40 @@ class Bullet {
       g.splitBullet(this);
       return;
     }
+    /* 重新转向（弗雷之剑）—— 与下面 `homing` 是**两种手感**，别写成一个东西：
+       homing 是每帧微调、一路黏着目标（制导）；reAim 是直飞一段后**猛地折一次**（回身再斩）。
+       触发时机：飞出 RE_AIM_DELAY 帧之后，若索敌范围内还有没打过的妖物，就折一次。
+       视觉：拐点炸一簇金光 + 一圈扩散的金环，读数是「这一剑拐了」。 */
+    if (this.reAim > 0 && this.friendly) {
+      this.reAimT++;
+      if (!this.reAiming && this.reAimT >= RE_AIM_DELAY) {
+        const t = g.nearestEnemy(this.x, this.y, RE_AIM_RANGE, this.hit);
+        if (t) {
+          this.reAim--;
+          this.reAiming = RE_AIM_FRAMES;
+          this.reAimFlash = 10;
+          this.reAimT = 0;
+          g.burst(this.x, this.y, 7, PAL.goldL);
+          if (SFX.tone) SFX.tone(880, 0.05, 'triangle', 0.05);
+        }
+      }
+    }
+    if (this.reAiming > 0) {
+      const t = g.nearestEnemy(this.x, this.y, RE_AIM_RANGE, this.hit);
+      if (t) {
+        const a = Math.atan2(t.y - this.y, t.x - this.x);
+        const cur = Math.atan2(this.vy, this.vx);
+        let d = a - cur;
+        while (d > Math.PI) d -= Math.PI * 2;
+        while (d < -Math.PI) d += Math.PI * 2;
+        const na = cur + clamp(d, -this.reAimArc, this.reAimArc);
+        const sp = Math.hypot(this.vx, this.vy);
+        this.vx = Math.cos(na) * sp; this.vy = Math.sin(na) * sp;
+      }
+      this.reAiming--;
+    }
+    if (this.reAimFlash > 0) this.reAimFlash--;
+
     if (this.homing > 0 && this.friendly) {
       // 只追「还没打过」的目标：否则飞剑会绕着已命中的妖物打转，看着像空转却不掉血
       const R = (g.player && g.player.stats.homingRange) || 220;
@@ -428,6 +476,19 @@ class Bullet {
       g2.globalAlpha = 0.65;
       g2.strokeStyle = PAL.cyan; g2.lineWidth = 1;
       g2.beginPath(); g2.arc(this.x, this.y, this.r * 1.6 * k, 0, Math.PI * 2); g2.stroke();
+      g2.restore();
+    }
+    /* 折返的读数：拐点上一圈向外扩散的金环 + 剑体描一层金边。
+       没有它，玩家只会看到剑「莫名其妙拐了个弯」，看不出这是一件法宝在起作用。 */
+    if (this.reAimFlash > 0) {
+      const k = this.reAimFlash / 10;                 // 1 → 0
+      g2.save();
+      g2.globalAlpha = k * 0.75;
+      g2.strokeStyle = PAL.goldL; g2.lineWidth = 2;
+      g2.beginPath(); g2.arc(this.x, this.y, this.r + 3 + (1 - k) * 15, 0, Math.PI * 2); g2.stroke();
+      g2.globalAlpha = k * 0.5;
+      g2.strokeStyle = PAL.gold; g2.lineWidth = 1;
+      g2.beginPath(); g2.arc(this.x, this.y, this.r + (1 - k) * 8, 0, Math.PI * 2); g2.stroke();
       g2.restore();
     }
     if (this.kind === 'sword' || this.kind === 'jujian' || this.kind === 'rift') {
@@ -2170,6 +2231,12 @@ function baseStats() {
   return {
     damage: 3.5, fireRate: 2.6, speed: 2.35, shotSpeed: 6.4, range: 210,
     pierce: 0, spread: 0, homing: 0, homingRange: 220, knockback: 0.8, luck: 0,
+    /* reAim = 射出后可「重新转向」的次数（弗雷之剑）。
+       ⚠️ 它和 homing 是**两种手感**，别混为一谈：
+         homing（混元珠）= 每帧微调、一路黏着目标，像制导；
+         reAim（弗雷之剑）= 直着飞出去，飞出一段后**猛地折一次**，像回身再斩。
+       ⚠️ 不加进 STAT_KEYS：舞剑流是近战没有飞剑，写进契约会逼它在 use 里造一条假说明。 */
+    reAim: 0, reAimArc: 0.30,
     burn: 0, frost: 0, chain: 0, iframe: 62, greed: 0, crit: 0,
     poison: 0, regen: 0, soul: 0, deflect: 0, reflect: 0, fly: false, mpRegen: MP_REGEN,
     fus: {}
@@ -2906,6 +2973,7 @@ const STYLES = {
             friendly: true, dmg: (s.damage + dmgBonus) * (1 + (pl.buffs.dmgMul || 0)), r: STYLES.feijian.consts.r,
             life: Math.round(s.range / s.shotSpeed),
             pierce: s.pierce, homing: s.homing, knockback: s.knockback,
+            reAim: s.reAim, reAimArc: s.reAimArc,
             burn: s.burn, frost: s.frost, chain: s.chain,
             crit: Math.random() < s.crit, deflect: s.deflect,
             fus: s.fus,
@@ -3008,6 +3076,7 @@ const STYLES = {
           life: Math.round(T.life * (0.8 + s.range / 700)),
           pierce: T.pierce + s.pierce,
           homing: s.homing, knockback: s.knockback + tier * 1.2,
+          reAim: s.reAim, reAimArc: s.reAimArc,
           burn: s.burn, frost: s.frost, chain: s.chain,
           crit: Math.random() < s.crit, deflect: s.deflect,
           kind: 'jujian', sprite: SPR.jujian, scale: T.scale

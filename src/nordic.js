@@ -301,10 +301,21 @@ const NORDIC_ITEMS = [
     apply: p => { p.stats.pierce += 3; } },
   { id: 'freyr_sword', name: '弗雷之剑', rare: true, type: 'fabao', world: 'nordic', icon: 'sword',
     c1: NORD.ice, c2: NORD.berylL,
-    desc: '刃光自行飞向妖物，不必瞄准',
+    /* ⚠️ 这一件原先是 `stats.homing += …` —— 跟中式「混元珠」几乎是同一件东西
+       （数值只差 0.01），北欧玩家拿到手只会觉得「换了个名字」。
+       2026-09-24 用户指出重叠并给了方向：「射出去之后可以重新转向一次」。
+       → 改成 reAim：**不给 homing**。
+         · 混元珠 = 一路微调、黏着目标（制导）
+         · 弗雷之剑 = 直着飞出去，飞出 0.23 秒后若前方有妖物，**猛地折一次**（回身再斩）
+       两者都是「不用瞄」，但**行为形状完全不同**：一条是贴着走的曲线，一条是折了一道的直线。 */
+    desc: '刃光直飞而出，途中自行折向妖物一次',
     func: true,
-    apply: (p, rank) => { p.stats.homing += (rank > 0 ? 0.09 : 0.13); if (rank >= 2) p.stats.homingRange += 60; },
-    up: ['自行追敌更疾（转向累计 0.22）', '如影随形（转向累计 0.31，索敌范围 +60）'] },
+    apply: (p, rank) => {
+      // 一阶折 1 次，二阶起「回身再斩」折 2 次，三阶再折得更急
+      p.stats.reAim = Math.max(p.stats.reAim, rank >= 1 ? 2 : 1);
+      if (rank >= 2) p.stats.reAimArc = Math.max(p.stats.reAimArc, 0.44);
+    },
+    up: ['回身再斩：射出后可折返 2 次', '折得更急（转向 +47%）'] },
   { id: 'draupnir', name: '德罗普尼尔', type: 'fabao', world: 'nordic', icon: 'ring',
     c1: NORD.amber, c2: NORD.amberD,
     desc: '每九夜自生八枚 —— 灵石掉落 +2、气运 +1',
