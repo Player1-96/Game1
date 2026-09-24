@@ -71,7 +71,9 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   });
   console.log('    配方 ' + t1.n + ' 条；道具总数 ' + t1.itemCount + '；随机法宝池 ' + t1.poolCount);
   t1.rows.forEach(r => console.log('      ' + r.a + ' + ' + r.b + ' → ' + r.id));
-  ok('配方数在 10~24 之间', t1.n >= 10 && t1.n <= 24, String(t1.n));
+  /* 第三批（北欧内部 4 + 跨世界 5）之后是 25 条。上限放宽到 40 ——
+     这条断言的本意是「别做组合爆炸」，不是卡死一个数字。 */
+  ok('配方数在 10~40 之间（防组合爆炸）', t1.n >= 10 && t1.n <= 40, String(t1.n));
   ok('每条配方的两件材料都存在于道具表', t1.rows.every(r => r.aOk && r.bOk));
   ok('每条配方的产物都存在于道具表', t1.rows.every(r => r.outOk));
   ok('产物都是法宝且带 fusion 标记', t1.rows.every(r => r.outFabao && r.outFusion));
@@ -607,6 +609,62 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   /* ---------------------------------------------------------------
    *  T10 运行期无报错
    * ------------------------------------------------------------- */
+  /* ---------------------------------------------------------------
+   *  T9c 第三批：北欧内部 4 条 + 跨世界 5 条
+   *  用户 2026-09-24：「中式和北欧的神器可以融合吗？如果不行乐趣会少很多」。
+   *  做之前查过两件事：
+   *   ① 融合阵**不分世界**生成（dungeon.js 里没有 world 判断）→ 北欧局也有阵；
+   *   ② 但前两批配方材料全是中式法宝 → **全北欧路径的阵是纯摆设**（凑不齐）。
+   *  所以这一批必须同时补「北欧内部」和「跨世界」两组。
+   * ------------------------------------------------------------- */
+  sec('T9c 跨世界融合：中式 × 北欧 + 北欧内部');
+  const t9c = await page.evaluate(() => {
+    const w = d => d.world || 'cn';
+    const NEW = ['thor_plate', 'wolf_spear', 'wisdom_ring', 'world_shade',
+                 'cross_thunder', 'twin_blade', 'aegis_wall', 'endless_wealth', 'frost_seed'];
+    const rows = NEW.map(id => {
+      const rec = FUSION_DEF.filter(r => r.id === id)[0];
+      if (!rec) return { id: id, missing: true };
+      const A = ITEM_MAP[rec.a], B = ITEM_MAP[rec.b], O = ITEM_MAP[rec.id];
+      /* 配方不能是死的：材料必须真的能在「它所属的那个世界」的池子里抽到 */
+      const aInPool = poolByType('fabao', w(A)).indexOf(rec.a) >= 0;
+      const bInPool = poolByType('fabao', w(B)).indexOf(rec.b) >= 0;
+      /* 产物本身绝不能进随机池（否则金匣能直接开出「混血」产物，独占性没了） */
+      const outInPool = poolByType('fabao', w(O)).indexOf(rec.id) >= 0;
+      return { id: id, name: O.name, kind: w(A) + '×' + w(B),
+               a: A.name, b: B.name, aInPool: aInPool, bInPool: bInPool, outInPool: outInPool };
+    });
+    /* 七个新机制要在钩子里真的找得到（写了键名却没接线 = 玩家的法宝是哑的） */
+    const mechKeys = ['shieldShock', 'pinCrit', 'mpOnKill', 'hurtRegen',
+                      'chainPin', 'coinOnHit', 'frostSpread', 'foldCrit'];
+    const hookSrc = [Fusion.onHit, Fusion.onHurt, Fusion.onShieldBreak,
+                     Fusion.onKill, Fusion.tick, Fusion.aimMul].map(f => f.toString()).join('\n');
+    const unwired = mechKeys.filter(k => hookSrc.indexOf(k) < 0);
+    /* 图鉴自动收录：新增产物应当都在 FUSION_ITEMS 里、且 count 跟着涨 */
+    return { rows: rows, total: FUSION_DEF.length, unwired: unwired,
+             codexTotal: (typeof FUSION_ITEMS !== 'undefined' ? FUSION_ITEMS.length : 0) };
+  });
+  t9c.rows.forEach(r => console.log('      ' + (r.name || r.id) + '  [' + r.kind + ']  '
+    + r.a + ' + ' + r.b));
+  ok('第三批 9 条配方都登记齐全（4 北欧内部 + 5 跨世界）',
+    t9c.rows.every(r => !r.missing) && t9c.rows.length === 9,
+    t9c.rows.filter(r => r.missing).map(r => r.id).join(',') || '9/9');
+  ok('★ 跨世界 5 条确实是「中式 × 北欧」（不是又一批中式内部配方）',
+    t9c.rows.filter(r => r.kind === 'cn×nordic').length === 5,
+    t9c.rows.filter(r => r.kind === 'cn×nordic').length + ' 条');
+  ok('★ 北欧内部 4 条确实是「北欧 × 北欧」（补上全北欧路径没融合可用的洞）',
+    t9c.rows.filter(r => r.kind === 'nordic×nordic').length === 4,
+    t9c.rows.filter(r => r.kind === 'nordic×nordic').length + ' 条');
+  ok('★ 每条配方的材料都真能在它所属世界的池子里抽到（配方不是死的）',
+    t9c.rows.every(r => r.aInPool && r.bInPool),
+    t9c.rows.filter(r => !(r.aInPool && r.bInPool)).map(r => r.name).join('、') || '全部可达');
+  ok('融合产物不进随机池（混血法宝只能靠融出来）',
+    t9c.rows.every(r => !r.outInPool));
+  ok('★ 7 个新机制都真的接到钩子上了（没接线的话法宝是哑的）',
+    t9c.unwired.length === 0, t9c.unwired.join(',') || '全部接线');
+  ok('产物总数 = 配方总数（一条配一条产物，图鉴会跟着涨）',
+    t9c.codexTotal === t9c.total, t9c.codexTotal + ' / ' + t9c.total);
+
   sec('T10  运行期无报错');
   ok('没有页面错误', errs.length === 0, errs.slice(0, 3).join(' | '));
 

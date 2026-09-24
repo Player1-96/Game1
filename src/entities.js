@@ -320,6 +320,7 @@ class Bullet {
     this.reAiming = 0;
     this.reAimT = 0;
     this.reAimFlash = 0;
+    this.folded = false;      // 已经折返过一次（双生剑的「回身一击」靠它判暴击）
     this.knockback = opt.knockback || 0;
     this.burn = opt.burn || 0;
     this.frost = opt.frost || 0;
@@ -385,7 +386,7 @@ class Bullet {
         const sp = Math.hypot(this.vx, this.vy);
         this.vx = Math.cos(na) * sp; this.vy = Math.sin(na) * sp;
       }
-      this.reAiming--;
+      if (--this.reAiming === 0) this.folded = true;
     }
     if (this.reAimFlash > 0) this.reAimFlash--;
 
@@ -426,7 +427,10 @@ class Bullet {
         this.hit.add(e);
         /* 贯灵梭（融合）：每多穿透一个目标，这一击更重一分 ——
            第 n 个目标吃 ×(1 + (n-1)×ramp)。hit 已含本目标，所以 size 就是 n。 */
-        let dmg = this.dmg * (this.crit ? 2 : 1) * Fusion.rampMul(this, this.hit.size);
+        /* `Fusion.aimMul` 必须在 hurt() **之前**乘上去（狼神之枪「对钉住的目标必暴击」）
+           —— 挂在 onHit 里改 crit 已经晚了，那时这一击早结算完了。 */
+        let dmg = this.dmg * (this.crit ? 2 : 1) * Fusion.rampMul(this, this.hit.size)
+          * Fusion.aimMul(this, e);
         e.hurt(dmg, g, this);
         if (this.knockback) {
           const a = Math.atan2(e.y - this.y, e.x - this.x);

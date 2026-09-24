@@ -199,6 +199,105 @@ const FUSION_ITEMS = [
     apply: p => {
       p.stats.spread += 2; p.stats.fireRate *= 1.35;
       p.stats.fus.wildArc = 1;
+    } },
+
+  /* ══════════════════════════════════════════════════════════════
+   *  第三批 · 北欧内部（4 件）
+   *  北美那片没有「融合阵凑不齐材料」的死角：这四件就是全北欧路径的融合目标。
+   * ══════════════════════════════════════════════════════════════ */
+  { id: 'thor_plate', name: '雷神战铠', type: 'fabao', fusion: true, icon: 'fused',
+    c1: NORD.amberL, c2: NORD.iceL,
+    desc: '护盾被击破的那一下炸出雷环，把围上来的妖物一起震钉在原地',
+    apply: p => {
+      p.stats.chain += 1.5; p.stats.knockback += 2.0;
+      p.addShield(4);
+      p.stats.shieldRegen = (p.stats.shieldRegen || 0) + 1;
+      p.stats.fus.shieldShock = 1;
+    } },
+
+  { id: 'wolf_spear', name: '狼神之枪', type: 'fabao', fusion: true, icon: 'fused',
+    c1: NORD.blood, c2: NORD.amberL,
+    desc: '被钉住的妖物无处可躲 —— 对它们出手必定暴击',
+    apply: p => {
+      p.stats.pierce += 3;
+      p.stats.pin = Math.max(p.stats.pin || 0, 22);
+      p.stats.speed *= 1.20; p.stats.crit += 0.18;
+      p.stats.fus.pinCrit = 1;
+    } },
+
+  { id: 'wisdom_ring', name: '智慧之环', type: 'fabao', fusion: true, icon: 'fused',
+    c1: NORD.runic, c2: NORD.moss,
+    desc: '每斩杀一个妖物便从智慧之泉汲回灵力，战斗续航不再看脸',
+    apply: p => {
+      p.stats.luck += 3.5; p.stats.greed += 2; p.stats.mpRegen += 1.5;
+      p.stats.fus.mpOnKill = 4;
+    } },
+
+  { id: 'world_shade', name: '世界树之荫', type: 'fabao', fusion: true, icon: 'fused',
+    c1: NORD.moss, c2: NORD.iceL,
+    desc: '受创之后世界树的根须会替你缓缓愈合（2 秒内持续回血）',
+    apply: p => {
+      p.stats.speed *= 1.30; p.stats.iframe += 30; p.stats.regen += 1.5;
+      p.maxHP += 2; p.hp = p.maxHP;
+      p.stats.layerHeal = true;
+      p.stats.fus.hurtRegen = 1;
+    } },
+
+  /* ══════════════════════════════════════════════════════════════
+   *  第三批 · 跨世界（5 件）：中式 × 北欧
+   *  配色刻意一半用中式色、一半用北欧色 —— 图标本身就是「两界交织」的读数。
+   * ══════════════════════════════════════════════════════════════ */
+  { id: 'cross_thunder', name: '两界雷劫', type: 'fabao', fusion: true, icon: 'fused',
+    c1: PAL.cyan, c2: NORD.amberL,
+    desc: '中土的引雷符与北欧的雷神锤共鸣：雷光炸开之处，妖物一起被钉住',
+    apply: p => {
+      p.stats.chain += 2.5; p.stats.knockback += 1.5;
+      p.stats.pin = Math.max(p.stats.pin || 0, 12);
+      p.stats.fus.chainPin = 1;
+    } },
+
+  { id: 'twin_blade', name: '双生剑', type: 'fabao', fusion: true, icon: 'fused',
+    c1: PAL.jadeL, c2: NORD.iceL,
+    desc: '一剑两种制导：出手就追着妖物走，飞出一程再折一次 —— 而折返之后的那一击必定暴击',
+    apply: p => {
+      p.stats.homing += 0.17; p.stats.homingRange += 30;
+      p.stats.reAim = Math.max(p.stats.reAim || 0, 1);
+      p.stats.reAimArc = Math.max(p.stats.reAimArc || 0, 0.34);
+      /* 光把两件的属性拼起来不算融合（会被 T2 的「必须注入机制」拦下）。
+         折返那一刻起，这一发标记为「回身一击」—— 命中必暴击。 */
+      p.stats.fus.foldCrit = 1;
+    } },
+
+  { id: 'aegis_wall', name: '不破壁垒', type: 'fabao', fusion: true, icon: 'shield2',
+    c1: PAL.jade, c2: NORD.iron,
+    desc: '太虚的护体灵光披上巨人的重甲：护盾上限 5 格，受创后 '
+      + (FUS_SHIELD.gapBig / 60) + ' 秒无伤即补回',
+    apply: p => {
+      /* ⚠️ 上限必须给到 5：材料之和是 约顿铠 3 + 太虚护盾 2 ——
+         少一格就踩「融合不许变弱」（T2b）。 */
+      p.shieldCap = 5; p.shieldGap = FUS_SHIELD.gapBig;
+      if (p.shield < p.shieldCap) p.shield = p.shieldCap;
+      p.shieldReviveT = -1;
+      p.stats.shieldRegen = (p.stats.shieldRegen || 0) + 1;
+      p.stats.fus.shieldWall = 1;
+    } },
+
+  { id: 'endless_wealth', name: '无尽财源', type: 'fabao', fusion: true, icon: 'fused',
+    c1: PAL.gold, c2: NORD.amber,
+    desc: '中土的聚灵阵套上北欧的自生之戒：命中妖物也会迸出灵石',
+    apply: p => {
+      p.stats.greed += 4.5; p.stats.luck += 1.5;
+      p.stats.fus.coinOnHit = 1;
+    } },
+
+  { id: 'frost_seed', name: '霜华之种', type: 'fabao', fusion: true, icon: 'fused',
+    c1: PAL.cyan, c2: NORD.moss,
+    desc: '世界树的种子吸饱了玄冰之气：被冰封的妖物把寒气传给近旁的同类',
+    apply: p => {
+      p.stats.frost += 1.5; p.stats.regen += 1;
+      p.maxHP += 2; p.hp = p.maxHP;
+      p.stats.layerHeal = true;
+      p.stats.fus.frostSpread = 1;
     } }
 ];
 
@@ -229,7 +328,36 @@ const FUSION_DEF = [
   { id: 'fendu',       a: 'chiyan',   b: 'shidu'    },   // 毒 → 火海
   { id: 'taixujing',   a: 'taixu',    b: 'xuanyuan' },   // 击落 → 补盾
   { id: 'jubaopen',    a: 'qiankun',  b: 'juling'   },   // 灵石 → 钥匙
-  { id: 'luanpifeng',  a: 'yujian',   b: 'lingxi'   }    // 固定扇形 → 乱弧
+  { id: 'luanpifeng',  a: 'yujian',   b: 'lingxi'   },   // 固定扇形 → 乱弧
+
+  /* ==========================================================================
+   *  第三批（2026-09-24）：北欧内部 4 条 + 跨世界 5 条
+   *
+   *  为什么非要有这两组：
+   *  · 融合阵是**不分世界**生成的（`dungeon.js` 里没有 world 判断），
+   *    但前两批 16 条配方的材料**全是中式法宝** —— 全北欧路径的玩家一路都能
+   *    看到融合阵，却永远凑不齐材料，那个阵就是纯摆设。
+   *    → **北欧内部这 4 条**补的就是这个洞。
+   *  · 一局走「中式 → 北欧」时，玩家手里**天然同时握着两界法宝**
+   *    （每段的道具池按该段的世界掉落）。**跨世界这 5 条**把这件事变成机制：
+   *    混血产物成了混合路径**独占**的东西 —— 这是「你走过哪些天地」最实在的回报，
+   *    也让开局那次三选一从「配色不同」升级成「手上能凑出什么」。
+   *
+   *  ⚠️ 数值一律按「产物逐字段 ≥ 两件材料之和」（T2b 不变式）写，
+   *     少一格就会红。融合吃掉的是两件法宝，净亏一次玩家就再也不敢融了。
+   * ========================================================================== */
+  /* --- 北欧内部 --- */
+  { id: 'thor_plate',   a: 'mjolnir',       b: 'jotun_plate'    },
+  { id: 'wolf_spear',   a: 'gungnir',       b: 'fenrir_fang'    },
+  { id: 'wisdom_ring',  a: 'draupnir',      b: 'mimir_well'     },
+  { id: 'world_shade',  a: 'raven_cloak',   b: 'yggdrasil_seed' },
+
+  /* --- 跨世界（中式 × 北欧）--- */
+  { id: 'cross_thunder',  a: 'leifu',   b: 'mjolnir'        },
+  { id: 'twin_blade',     a: 'hunyuan', b: 'freyr_sword'    },
+  { id: 'aegis_wall',     a: 'taixu',   b: 'jotun_plate'    },
+  { id: 'endless_wealth', a: 'juling',  b: 'draupnir'       },
+  { id: 'frost_seed',     a: 'hanbing', b: 'yggdrasil_seed' }
 ];
 
 /* ---------- 图鉴（跨局永久解锁）----------
@@ -348,6 +476,25 @@ const Fusion = {
   /* 每帧的限流计时。由 Player.update 的逐帧计时区调用。 */
   tick(pl) {
     if (pl._deflectShieldCd > 0) pl._deflectShieldCd--;
+    /* 世界树之荫：受创后 2 秒内每 40 帧回 1 点（半颗心）。
+       一共 3 次 = 1.5 颗心 —— 是「挨打之后的补偿」，不是「回血甲」。 */
+    if (pl._hurtRegenT > 0) {
+      pl._hurtRegenT--;
+      if (pl._hurtRegenT % 40 === 0) pl.heal(1);
+    }
+  },
+
+  /* 对「已被钉住」的目标出手的倍率（狼神之枪）。
+     放在**伤害结算之前**才能真的叫「必定暴击」—— 挂在 onHit 里改已经晚了，
+     那时 hurt() 早把这一击结完了。 */
+  aimMul(b, e) {
+    const F = b && b.fus;
+    if (!F) return 1;
+    /* 狼神之枪：对「已被钉住」的目标出手必暴击（钉住了就无处可躲） */
+    if (F.pinCrit && e && e.pin > 0) return 2;
+    /* 双生剑：折返之后的那一发必暴击（回身一剑，正中要害） */
+    if (F.foldCrit && b.folded) return 2;
+    return 1;
   },
   /* 飞剑命中一个妖物。在 e.hurt() 之后调用（此时 b.hit 已含本目标）。
      b.fus 是发射时从 stats.fus 抄到弹上的机制表。 */
@@ -371,6 +518,31 @@ const Fusion = {
       g.burst(e.x, e.y, 24, PAL.orange);
       g.shake(4);
       SFX.thunder();
+    }
+
+    /* 两界雷劫：雷光炸开，范围内的妖物一起被钉住（中式引雷 × 北欧钉住） */
+    if (F.chainPin && b.chain > 0) {
+      for (const o of g.enemies) {
+        if (o.dead) continue;
+        if (Math.hypot(o.x - e.x, o.y - e.y) < 70) o.pin = Math.max(o.pin, 18);
+      }
+      g.burst(e.x, e.y, 10, PAL.goldL);
+    }
+
+    /* 无尽财源：命中就有机会迸出灵石（战斗中赚钱，与聚灵阵的「清房结算」不同） */
+    if (F.coinOnHit && Math.random() < 0.28) {
+      g.dropPickup('coin', e.x + (Math.random() * 16 - 8), e.y, 1);
+    }
+
+    /* 霜华之种：冰封会传染给近旁的同类（一圈霜花铺开的读数） */
+    if (F.frostSpread && e.frost > 0) {
+      for (const o of g.enemies) {
+        if (o.dead || o === e) continue;
+        if (Math.hypot(o.x - e.x, o.y - e.y) < 64) {
+          o.frost = Math.max(o.frost, 60);
+          g.burst(o.x, o.y, 3, PAL.cyan);
+        }
+      }
     }
 
     /* 雷火焚天：命中即点燃（不需要暴击） */
@@ -402,7 +574,10 @@ const Fusion = {
      半径给到 52 就够把贴上来的妖物推开。 */
   onHurt(pl, g) {
     const F = pl.stats.fus;
-    if (!F || !F.revenge) return;
+    if (!F) return;
+    /* 世界树之荫：挨打之后开始回血（时间到自然停，不需要额外清理） */
+    if (F.hurtRegen) pl._hurtRegenT = 120;
+    if (!F.revenge) return;
     g.hazards.push(new Hazard(pl.x, pl.y, 52, 0, 18, 10, PAL.goldL, true));
     g.burst(pl.x, pl.y, 22, PAL.goldL);
     g.shake(5);
@@ -472,7 +647,22 @@ const Fusion = {
   /* 护盾被击破的那一下（盾从 0→破）。把这份冲击还回去。 */
   onShieldBreak(pl, g) {
     const F = pl.stats.fus;
-    if (!F || !F.shieldBreak) return;
+    if (!F) return;
+    /* 雷神战铠：盾碎的那一下炸出雷环，范围内的妖物一起被震钉住 ——
+       「厚甲」与「控场」的合体，和太虚羽衣（把冲击化作环形剑气）是两种还手方式。 */
+    if (F.shieldShock) {
+      g.hazards.push(new Hazard(pl.x, pl.y, 66, 0, 12, 10, PAL.goldL, true));
+      for (const e of g.enemies) {
+        if (e.dead) continue;
+        if (Math.hypot(e.x - pl.x, e.y - pl.y) < 84) {
+          e.pin = Math.max(e.pin, 16);
+          g.zaps.push({ x1: pl.x, y1: pl.y, x2: e.x, y2: e.y, life: 10 });
+        }
+      }
+      g.burst(pl.x, pl.y, 24, PAL.goldL);
+      g.shake(7); SFX.thunder();
+    }
+    if (!F.shieldBreak) return;
     const r = 74;
     g.hazards.push(new Hazard(pl.x, pl.y, r, 0, 12, 12, PAL.jadeL, true));
     g.burst(pl.x, pl.y, 28, PAL.jadeL);
@@ -493,6 +683,10 @@ const Fusion = {
       g.hazards.push(new Hazard(e.x, e.y, 40 + k * 8, 0, 120 + k * 30, 1.6 + k * 0.5, PAL.fire, true));
       g.burst(e.x, e.y, 16, PAL.orange);
     }
+
+    /* 智慧之环：斩杀即汲回灵力 —— 放在 soulShot 的 early return **之前**，
+       否则没带摄魂铃的玩家永远吃不到这条。小杂兵也算（它就是靠数量回灵的）。 */
+    if (F.mpOnKill) pl.mp = Math.min(pl.maxMP, pl.mp + F.mpOnKill);
 
     if (!F.soulShot) return;
     if (e.small) return;                          // 随从/魂火之类的小杂兵不触发，免得刷屏
