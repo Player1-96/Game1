@@ -82,6 +82,16 @@ function runProgress(depth) {
   return clamp((Math.max(1, depth) - 1) / (SEG_TOTAL_FLOORS - 1), 0, 1);
 }
 
+/* 融合阵的出现概率（每层至多一座）。
+   段末（Boss 层）**必出**，且落在普通石室里 —— 也就是 Boss 房之前，
+   让玩家带着刚融出来的法宝去打 Boss：这是整层最需要战力跃升的点。
+   其余层按此概率。稀缺性就是取舍的来源（手里攒着三对可融的只能挑一对）。 */
+const FORGE_CHANCE = 0.33;
+/* 出现过融合阵的层数一览（供文档 / 探针推导，不参与判定） */
+function forgeFloorChance(depth) {
+  return isSegLastFloor(depth) ? 1 : FORGE_CHANCE;
+}
+
 /* 难度封顶：随段放宽的三档。
    原先固定 DIFF_MAX = 3.0 —— 那是给 5 层制定的，实测战力到 12 就撞顶，
    15 层制下后 5 层难度**完全不动**。改成段末逐段放宽，让后期仍有压力。 */
@@ -552,6 +562,23 @@ class Floor {
           r.obstacles.push({ x: p.x, y: p.y, w: 28, h: 28, kind: 'rock' });
         }
         if (rng() < 0.3) r.props.push({ kind: 'lantern', x: 60 + rng() * (ROOM_W - 120), y: 70 });
+
+        /* 融合阵（第 3 期）：每层至多一座。
+           ⚠️ **骰子必须按「层」掷一次，不能按房掷**（踩过）：
+              原先写成 `rng() < forgeFloorChance(depth)` 放在每个普通房里，
+              一层 5 个普通房就等于掷 5 次，实际出现率 1-0.67^5 ≈ 87%，
+              远高于设计的 33% —— 稀缺性直接没了。
+              `_forgeRoll` 缓存本层的判定结果，第一个普通房掷定，之后照办。
+           ⚠️ 放在石柱之后 —— safeSpot() 走 blockedIn()，会把石柱算进遮挡，
+              所以阵图不会压在柱子上。精英窟在上面就 break 了，不会落到这里。 */
+        if (this._forgeRoll === undefined) {
+          this._forgeRoll = isSegLastFloor(depth) || rng() < FORGE_CHANCE;
+        }
+        if (this._forgeRoll && !this._forgePlaced) {
+          const fp = safeSpot();
+          r.props.push({ kind: 'forge', x: fp.x, y: fp.y });
+          this._forgePlaced = true;
+        }
         break;
       }
       case RT.TREASURE: {

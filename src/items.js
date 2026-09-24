@@ -215,7 +215,13 @@ const ITEM_DEFS = [
   { id: 'qinlong', name: '擒龙手', type: 'gongfa', icon: 'hand', c1: PAL.jade, c2: PAL.white,
     desc: SKILL_DEF.qinlong.desc(1) },
   { id: 'liekong', name: '裂空斩', type: 'gongfa', icon: 'rift', c1: PAL.cyan, c2: PAL.white,
-    desc: SKILL_DEF.liekong.desc(1) }
+    desc: SKILL_DEF.liekong.desc(1) },
+
+  /* ---------- 融合产物（第 3 期） ----------
+     定义在 src/fusion.js（那里还有配方表 / 图鉴 / 战斗钩子），
+     这里并入 ITEM_DEFS 是为了让图标、ITEM_MAP、悬停说明这些既有设施
+     零改动地认它们。⚠️ 必须在 ITEM_MAP 构建之前并入。 */
+  ...(typeof FUSION_ITEMS !== 'undefined' ? FUSION_ITEMS : [])
 ];
 
 const ITEM_MAP = {};
@@ -340,6 +346,17 @@ function buildItemIcons() {
       p.line(8, 2, 8, 14, d.c1, 2); p.line(3, 5, 13, 11, d.c2); p.line(13, 5, 3, 11, d.c2);
       p.set(7, 3, PAL.white); p.set(9, 13, PAL.white);
       ITEM_ICONS[d.id] = p.done();
+    } else if (d.icon === 'fused') {
+      /* 融合产物：两剑交会 + 正中一点金光 —— 「两件合而为一」。
+         刻意不走 makeItemIcon 的常规形状表：融合产物在背包里必须一眼可辨，
+         否则玩家认不出「这是我融出来的那件」。 */
+      const p = new Px(16, 16);
+      p.rect(1, 1, 14, 14, ICON_BG); p.box(0, 0, 16, 16, PAL.wall); p.box(1, 1, 14, 14, PAL.wallHi);
+      p.line(3, 12, 12, 3, d.c1, 2);
+      p.line(3, 3, 12, 12, d.c2, 2);
+      p.rect(6, 6, 4, 4, PAL.goldL);
+      p.set(7, 7, PAL.white); p.set(8, 8, PAL.white);
+      ITEM_ICONS[d.id] = p.done();
     } else {
       ITEM_ICONS[d.id] = makeItemIcon(d.icon, d.c1, d.c2);
     }
@@ -353,7 +370,9 @@ function rollItem(rng, pool, taken) {
   return avail[Math.floor(rng() * avail.length) % avail.length];
 }
 function poolByType(type) {
-  return ITEM_DEFS.filter(d => d.type === type).map(d => d.id);
+  /* fusion 产物不进随机池 —— 只能靠融合得到。
+     否则金匣/坊市/宝箱能直接开出融合产物，「锁得住」的取舍就没了。 */
+  return ITEM_DEFS.filter(d => d.type === type && !d.fusion).map(d => d.id);
 }
 
 /* ------------------------------------------------------------

@@ -598,6 +598,9 @@ class GameCore {
     /* 风格选择界面：复用挑战模式的三级菜单范式（面板 #stylePick）。
      * step: 'first' 开局三选一 / 'next' 每 5 层的二选一。 */
     this.styleMenu = null;
+    /* 法宝融合面板（第 3 期）。null = 未开。
+       开启时 state 切到 'fusion'，内容见 openFusion()。 */
+    this.fusion = null;
     this.input = input;
     this.acc = 0; this.last = 0;
     this.shakeAmt = 0; this.hurtFlash = 0;
@@ -861,6 +864,7 @@ class GameCore {
     this.beams = [];                 // 玄光不跨房残留（蓄力到一半出门会白赚一次闪身）
     this.dnums = [];   // 换房即清：上一间的伤害数字不该飘到新房间里
     this.shopHint = null; this.altarHint = null; this.portalHint = false; this.chestHint = null;
+    this.forgeHint = null;
     this.pickHint = null;
 
     // 重建本房此前没被拾取的掉落物（灵石/钥匙/雷符/心/盾）—— 走开再回来仍在
@@ -1194,6 +1198,117 @@ class GameCore {
     this.state = 'play';
     this.depth--;                        // 退回上一层（那一层的门还开着）
     this.newFloor(this.depth);
+    updateOverlay();
+  }
+
+  /* ---------------- 法宝融合（第 3 期） ----------------
+     与 stylePick / chall 同款「暂停 + DOM 面板」形状：state 切到 'fusion'，
+     主循环在 update 入口就返回，面板由 updateOverlay → renderFusionPanel 画。
+     交互沿用键盘（←→ 选、E 取件、Q 退件、Esc 退出），卡片也能点 —— 与既有面板同手感。
+     规则与数据在 src/fusion.js。 */
+
+  /* 玩家手里「参与过至少一条配方」的持有法宝（去重，按持有数降序）。
+     与配方完全无关的法宝不进池 —— 摆出来只会让玩家白试一遍。 */
+  fusionPool() {
+    const cnt = {};
+    for (const id of this.player.items) cnt[id] = (cnt[id] || 0) + 1;
+    return Object.keys(cnt)
+      .filter(id => fusionsWith(id).length > 0)
+      .sort((a, b) => cnt[b] - cnt[a]);
+  }
+
+  openFusion(forge) {
+    input.interact = false;
+    if (this.state !== 'play') return;
+    /* 手里凑不出任何一条配方时：**不弹面板、也不消耗这座阵** ——
+       否则玩家按一下 E 就把这一层的机会丢进一个空面板里。 */
+    const ready = FUSION_DEF.filter(r => fusionReady(r, this.player.items));
+    if (!this.fusionPool().length || !ready.length) {
+      this.forgeHint = null;
+      this.floaters.push(new Floater(this.player.x, this.player.y - 26, '机缘未至', PAL.grey));
+      return;
+    }
+    if (forge) { forge.used = true; if (forge.src) forge.src.used = true; }
+    this.fusion = { forge: forge || null, pool: this.fusionPool(), idx: 0, slots: [null, null], msg: '' };
+    this.state = 'fusion';
+    this.forgeHint = null;
+    SFX.levelup();
+    updateOverlay();
+  }
+
+  fusionMove(d) {
+    const f = this.fusion;
+    if (!f || !f.pool.length) return;
+    f.idx = (f.idx + d + f.pool.length) % f.pool.length;
+    f.msg = '';
+    SFX.ensure();
+    updateOverlay();
+  }
+
+  /* 把光标那件放进空槽；两槽都满则顶掉第二槽（再按一次就能换掉重选） */
+  fusionTake() {
+    const f = this.fusion;
+    if (!f || !f.pool.length) return;
+    const id = f.pool[f.idx];
+    if (!f.slots[0]) f.slots[0] = id;
+    else f.slots[1] = id;
+    f.msg = '';
+    SFX.pickup();
+    updateOverlay();
+  }
+
+  /* 退一件：先退第二槽再退第一槽（一次退一步，符合直觉） */
+  fusionDrop() {
+    const f = this.fusion;
+    if (!f) return;
+    if (f.slots[1]) f.slots[1] = null;
+    else if (f.slots[0]) f.slots[0] = null;
+    f.msg = '';
+    SFX.tone(320, 0.05, 'square', 0.08);
+    updateOverlay();
+  }
+
+  /* 两槽现在对应哪条配方（顺序无关） */
+  fusionCurrent() {
+    const f = this.fusion;
+    if (!f || !f.slots[0] || !f.slots[1]) return null;
+    return fusionRecipeOf(f.slots[0], f.slots[1]);
+  }
+
+  fusionConfirm() {
+    const f = this.fusion;
+    if (!f) return;
+    /* 两槽没凑齐：先当作「取件」，让 E 一键到底（少一次按键切换） */
+    if (!f.slots[0] || !f.slots[1]) { this.fusionTake(); return; }
+    if (!this.fusionCurrent()) {
+      f.msg = '这两件之间没有机缘'; SFX.tone(200, 0.08, 'square', 0.08); updateOverlay(); return;
+    }
+    const res = fusionExecute(this, f.slots[0], f.slots[1]);
+    if (!res.ok) { f.msg = res.why || '融合未成'; updateOverlay(); return; }
+    const fx = f.forge ? f.forge.x : this.player.x;
+    const fy = f.forge ? f.forge.y : this.player.y;
+    this.burst(fx, fy, 40, PAL.goldL);
+    this.shake(7);
+    SFX.thunder();
+    this.fusion = null;
+    this.state = 'play';
+    /* 首次合成 = 揭示 + 收录。
+       give() 已经把产物卡片推上来了（itemPopup 显示的就是真名），
+       「？？？」在这里被打破 —— 这就是本次设计里最珍贵的那一瞬间。 */
+    if (res.first) {
+      this.floaters.push(new Floater(fx, fy - 34, '图鉴收录', PAL.goldL));
+      SFX.secret();
+    }
+    updateOverlay();
+  }
+
+  /* Esc：有材料先退材料，没材料可退再关面板（面板开着就一定关得掉） */
+  fusionBack() {
+    const f = this.fusion;
+    if (!f) return;
+    if (f.slots[0] || f.slots[1]) { this.fusionDrop(); return; }
+    this.fusion = null;
+    this.state = 'play';
     updateOverlay();
   }
 
@@ -2170,6 +2285,7 @@ class GameCore {
 
     // 交互提示每帧重算（走开就该消失），由场景物在射程内重新认领
     this.shopHint = null; this.altarHint = null; this.portalHint = false; this.chestHint = null;
+    this.forgeHint = null;
     this.pickHint = null;                       // 二选一摆件：站在旁边才认领
     input.shopDist = 1e9;
 
@@ -2351,7 +2467,8 @@ class GameCore {
     g.clearRect(0, 0, 480, 320);
     g.fillStyle = PAL.edgeWarm; g.fillRect(0, 0, 480, 320);
     if (this.state === 'title' || this.state === 'choose' || this.state === 'chall'
-      || this.state === 'stylePick' || this.state === 'endlessEnd') { this.drawTitle(g); return; }
+      || this.state === 'stylePick' || this.state === 'fusion'
+      || this.state === 'endlessEnd') { this.drawTitle(g); return; }
 
     const sx = (Math.random() - 0.5) * this.shakeAmt, sy = (Math.random() - 0.5) * this.shakeAmt;
     g.save();
@@ -2430,7 +2547,8 @@ class GameCore {
     }
 
     // 交互物（地面层）
-    for (const pr of this.props) if (pr.kind === 'rune' || pr.kind === 'portal' || pr.kind === 'altar') pr.draw(g, this);
+    // 融合阵是印在地上的法阵，跟符阵/传送阵/祭坛一样走地面层，不掺进 y 排序
+    for (const pr of this.props) if (pr.kind === 'rune' || pr.kind === 'portal' || pr.kind === 'altar' || pr.kind === 'forge') pr.draw(g, this);
 
     // 雷符
     for (const bm of this.placedBombs) bm.draw(g);
@@ -2701,10 +2819,27 @@ class GameCore {
     let bx = 6, by = 320 - 22;
     const order = [], cnt = {};
     for (const id of p.items) { if (!(id in cnt)) { cnt[id] = 0; order.push(id); } cnt[id]++; }
+    /* 融合共鸣（第 3 期）：**设计里白送的那一半**。
+       只要手里凑齐了一对可融的法宝，这两个图标就浮起光晕 ——
+       发现是自动的、免费的；执行才要代价（走到融合阵按 E）。
+       没有这一层，300 种组合里玩家根本不知道该试什么。 */
+    const fusable = {};
+    for (const r of FUSION_DEF) if (fusionReady(r, p.items)) { fusable[r.a] = true; fusable[r.b] = true; }
     const show = order.slice(-12);
     for (const id of show) {
       const ic = ITEM_ICONS[id];
       if (ic) {
+        if (fusable[id]) {
+          const pulse = 0.5 + Math.sin(this.tick * 0.11) * 0.5;
+          g.save();
+          g.globalAlpha = 0.20 + pulse * 0.30;
+          g.fillStyle = PAL.purpleL;
+          g.fillRect(bx - 1, by - 1, 18, 18);
+          g.globalAlpha = 0.50 + pulse * 0.45;
+          g.strokeStyle = PAL.goldL; g.lineWidth = 1;
+          g.strokeRect(bx - 1.5, by - 1.5, 19, 19);
+          g.restore();
+        }
         g.globalAlpha = 0.9; g.drawImage(ic, bx, by); g.globalAlpha = 1;
         const n = cnt[id];
         if (n > 1) {
@@ -2794,6 +2929,23 @@ class GameCore {
     const rank = hit.rank !== undefined ? hit.rank
       : Math.max(0, this.player.items.filter(i => i === hit.id).length - 1);
     let html = itemTipHTML(def, this.style, null, rank);
+    /* 融合机缘：告诉玩家「这件能和什么融」，但**不剧透产物内容** ——
+       未解锁时只显示 ？？？。这正是本次设计的边界：
+       「能不能融」永远可见，「融出来是什么」才隐藏。 */
+    const fus = fusionsWith(hit.id);
+    if (fus.length && this.player) {
+      const rows = fus.map(pair => {
+        const otherDef = ITEM_MAP[pair.other];
+        const oName = otherDef ? (itemView(otherDef, this.style, 0).name || otherDef.name) : pair.other;
+        const outDef = ITEM_MAP[pair.recipe.id] || {};
+        const outName = FusionCodex.has(pair.recipe.id)
+          ? (itemView(outDef, this.style, 0).name || outDef.name)
+          : '？？？';
+        const have = fusionReady(pair.recipe, this.player.items);
+        return (have ? '可融　' : '缺料　') + '<b>' + oName + '</b> → ' + outName;
+      });
+      html += '<div class="talt">' + rows.join('<br>') + '</div>';
+    }
     if (def.type === 'gongfa' && this.player) {
       const sl = this.player.slots.find(v => v && v.id === hit.id);
       if (sl) html += '<div class="talt">已置于槽位 ' + (this.player.slots.indexOf(sl) + 1)
@@ -3365,6 +3517,16 @@ function bindInput(canvas, game) {
       else if (k >= '1' && k <= '3') { const i = +k - 1; if (i < n) { sm.idx = i; sm.sel = sm.pool[i]; SFX.tone(660 + i * 110, 0.05, 'square', 0.09); updateOverlay(); } }
       else if (k === 'enter' || k === ' ') { SFX.levelup(); game.styleMenuConfirm(); }
       else if (k === 'escape' || k === 'backspace') game.styleMenuBack();
+    } else if (game.state === 'fusion') {
+      /* 融合面板：←→ 选件、E 取件/确认、Q 退件、Esc 退出（面板开着必能关掉）。
+         Esc 与 Q 刻意分开：退材料不该把整个面板也带走。 */
+      const f = game.fusion;
+      if (!f) return;
+      if (k === 'arrowleft' || k === 'a') game.fusionMove(-1);
+      else if (k === 'arrowright' || k === 'd') game.fusionMove(1);
+      else if (k === 'e' || k === 'enter' || k === ' ') game.fusionConfirm();
+      else if (k === 'q') game.fusionDrop();
+      else if (k === 'escape' || k === 'backspace') game.fusionBack();
     } else if (game.state === 'choose') {
       const n = Math.max(1, PLAYABLE_STYLES.length);
       if (k === 'arrowleft') { game.styleIdx = (game.styleIdx + n - 1) % n; SFX.tone(660, 0.05, 'square', 0.09); }
@@ -3566,6 +3728,113 @@ function renderStyleMenu() {
   });
 }
 
+/* 法宝图标 → <img> 用的 data URL（面板里画不了 canvas，转一次缓存住）。
+   图标很小（16×16），转一次的开销可以忽略，而且只对进过面板的法宝转。 */
+const ITEM_ICON_URL = {};
+function itemIconURL(id) {
+  if (id in ITEM_ICON_URL) return ITEM_ICON_URL[id];
+  let u = '';
+  try { u = ITEM_ICONS[id] ? ITEM_ICONS[id].toDataURL() : ''; } catch (e) { u = ''; }
+  ITEM_ICON_URL[id] = u;
+  return u;
+}
+
+/* 法宝融合面板（#fusion）—— 第 3 期的执行界面。
+ * 与 #stylePick 同一套视觉语言（pickTitle / pickSub / pickTip / kbd）。
+ * 三个信息层，严格按「能不能融可见、融出来是什么隐藏」分：
+ *   ① 材料槽 + 产物：产物在**图鉴解锁前一律 ？？？**
+ *   ② 持有法宝网格：与已选材料**有配方**的才亮（can），其余的压暗（no）
+ *      ——「可融性」必须永远可见，否则 300 种组合里玩家只能盲选
+ *   ③ 底部键位提示
+ */
+function renderFusionPanel() {
+  const el = document.getElementById('fusion');
+  if (!el) return;
+  const f = Game && Game.fusion;
+  if (!f) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+
+  const cnt = {};
+  for (const id of Game.player.items) cnt[id] = (cnt[id] || 0) + 1;
+  const recipe = Game.fusionCurrent();
+  const revealed = recipe ? FusionCodex.has(recipe.id) : false;
+
+  const slotHTML = k => {
+    const id = f.slots[k];
+    if (!id) return '<span class="fusSlot">' + (k === 0 ? '材料 一' : '材料 二') + '</span>';
+    const v = itemView(ITEM_MAP[id] || {}, Game.style, cnt[id] - 1);
+    const u = itemIconURL(id);
+    return '<span class="fusSlot has">' + (u ? '<img class="ic" src="' + u + '" alt="">' : '')
+      + v.name + (cnt[id] > 1 ? ' ×' + cnt[id] : '') + '</span>';
+  };
+
+  let h = '';
+  h += '<div class="pickTitle">融 合 阵</div>';
+  h += '<div class="pickSub">已解机缘 <b>' + FusionCodex.count() + '</b> / ' + FUSION_DEF.length
+    + '　·　合而<b>不可逆</b>，两件材料从此消散</div>';
+
+  h += '<div class="fusRow">' + slotHTML(0) + '<span class="fusArrow">＋</span>' + slotHTML(1)
+    + '<span class="fusArrow">→</span>';
+  if (recipe && revealed) {
+    const outDef = ITEM_MAP[recipe.id] || {};
+    const ou = itemIconURL(recipe.id);
+    h += '<span class="fusProd">' + (ou ? '<img class="ic" src="' + ou + '" alt="">' : '')
+      + itemView(outDef, Game.style, 0).name + '</span>';
+  } else {
+    h += '<span class="fusProd unknown">？？？</span>';
+  }
+  h += '</div>';
+
+  /* 产物说明：解锁了才给内容。
+     未解锁时不写任何数值 —— 这就是「首次是赌博」的那一层，
+     但**可融性本身照旧可见**（网格里的高亮），所以不是纯黑箱。 */
+  if (recipe && revealed) {
+    h += '<div class="fusDesc">' + itemView(ITEM_MAP[recipe.id] || {}, Game.style, 0).desc + '</div>';
+  } else if (recipe) {
+    h += '<div class="fusDesc">未解之机缘　——　首度融成，方知其名与其效</div>';
+  } else {
+    h += '<div class="fusDesc">' + (f.msg || '选中两件持有之物，若有缘分自会显现') + '</div>';
+  }
+
+  h += '<div class="fusGrid">';
+  f.pool.forEach((id, i) => {
+    const def = ITEM_MAP[id] || {};
+    const v = itemView(def, Game.style, cnt[id] - 1);
+    /* can：还没选第一件时全都可选；选了之后就只亮「与它有配方」的那些。
+       ⚠️ 这条判断就是「可融性可见」的落点，别为了神秘感把它一起去掉。 */
+    const can = !f.slots[0] || !!fusionRecipeOf(f.slots[0], id);
+    const on = f.slots[0] === id || f.slots[1] === id;
+    const cls = 'fusItem' + (on ? ' on' : (can ? ' can' : ' no'));
+    const u = itemIconURL(id);
+    h += '<span class="' + cls + '" data-i="' + i + '">'
+      + (u ? '<img class="ic" src="' + u + '" alt="">' : '')
+      + v.name + (cnt[id] > 1 ? '<span class="cnt">×' + cnt[id] + '</span>' : '')
+      + '</span>';
+  });
+  h += '</div>';
+
+  h += '<div class="pickTip"><span class="kbd">←</span><span class="kbd">→</span> 择料　'
+    + '<span class="kbd">E</span> 放入 / 确认融合　<span class="kbd">Q</span> 取回　'
+    + '<span class="kbd">Esc</span> 退出</div>';
+
+  el.innerHTML = h;
+  /* 点一下即放入（与 #stylePick「点卡片即选定」同款，省一步） */
+  el.querySelectorAll('.fusItem').forEach(c => {
+    c.addEventListener('click', () => {
+      const i = +c.getAttribute('data-i');
+      const fm = Game.fusion;
+      if (!fm || !fm.pool[i]) return;
+      if (fm.slots[0] && !fusionRecipeOf(fm.slots[0], fm.pool[i])) {
+        fm.msg = '这两件之间没有机缘';
+        updateOverlay();
+        return;
+      }
+      fm.idx = i;
+      Game.fusionTake();
+    });
+  });
+}
+
 /* 各风格的一句话说明（面板用）。北欧 / 克苏鲁在三期填内容时补这里 */
 const STYLE_NOTE = {
   cn: '青玉为骨，朱金点睛 —— 符箓、剑修与丹火的故土',
@@ -3752,6 +4021,7 @@ function updateOverlay() {
   const chall = document.getElementById('chall');
   const endless = document.getElementById('endless');
   const stylePickEl = document.getElementById('stylePick');
+  const fusionEl = document.getElementById('fusion');
   const st = document.getElementById('stats');
   /* 无尽结算：底下垫的是标题背景，所以要把标题也藏掉，
      否则「九劫录」三个大字会和分数叠在一起。 */
@@ -3776,6 +4046,17 @@ function updateOverlay() {
     return;
   }
   if (stylePickEl) stylePickEl.style.display = 'none';
+  /* 融合面板：与风格三选一同样「垫标题背景、不画 HUD」 */
+  if (Game.state === 'fusion') {
+    title.style.display = 'none';
+    if (choose) choose.style.display = 'none';
+    if (chall) chall.style.display = 'none';
+    renderFusionPanel();
+    floorName.textContent = ''; hint.textContent = ''; card.style.display = 'none';
+    st.textContent = '';
+    return;
+  }
+  if (fusionEl) fusionEl.style.display = 'none';
   /* 挑战菜单：不画 HUD、也不显示楼层名 —— 底下垫的是标题画面的背景 */
   if (Game.state === 'chall') {
     title.style.display = 'none';
@@ -3844,6 +4125,7 @@ function updateOverlay() {
     : '灵石不足 —— 需 ' + Game.shopHint.price + '，现有 ' + Game.coins;
   else if (Game.pickHint) h = '按 E 选取这件法宝（另一件随之消散）';
   else if (Game.altarHint) h = '按 E 献祭 1 点气血，换取机缘';
+  else if (Game.forgeHint) h = '融合阵 —— 按 E 引动　两件有缘分的法宝，合而为一';
   else if (Game.lockedHint) h = Game.bombs > 0
     ? '石门封印 —— 需要 1 把钥匙，或按 E 用 1 颗雷符炸开'
     : '石门封印 —— 需要 1 把钥匙（钥匙散落在本层某间石室）';

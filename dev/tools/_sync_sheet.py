@@ -643,6 +643,63 @@ def tab_endless():
 
 
 # ---------------------------------------------------------------- 风格地图
+def tab_fusion():
+    """法宝融合（第 3 期）：配方表、产物机制、出现规则、图鉴。
+
+    ⚠️「机制」这一列是这一期的核心判据：一条配方如果只能用「伤害 +X%」写完，
+       它就是伪融合（玩家体感只是「又一个数值法宝」，1+1>2 的爽感不会出现）。
+       机制名由 _export_resources.js 跑一遍产物的 apply 读出来，**不是手抄的** ——
+       「改了代码忘了改表」在这里不会发生。
+    配方表在 src/fusion.js 的 FUSION_DEF；产物定义在那里的 FUSION_ITEMS。"""
+    F = D.get("fusion") or {}
+    defs = F.get("defs") or []
+
+    rows = [["项", "值", "说明"]]
+    rows.append(["配方条数", "%d 条" % F.get("recipes", len(defs)),
+                 "src/fusion.js 的 FUSION_DEF —— 手写，不做组合爆炸（全组合必然大量注水）"])
+    rows.append(["融合产物数", "%d 件" % F.get("productCount", 0),
+                 "带 fusion:true，poolByType() 会排除它 → 掉落 / 坊市 / 金匣一律抽不到"])
+    rows.append(["发现方式", "自动（共鸣光晕）",
+                 "凑齐一对可融法宝，左下角两个图标浮起金框；悬停即见「可融 / 缺料」与产物名"])
+    rows.append(["执行方式", "手动（融合阵按 E）",
+                 "复用既有交互词法（祭坛 / 金匣 / 坊市同款），不做拖拽"])
+    rows.append(["⚠️ 硬边界", "可融性可见 / 产物内容隐藏",
+                 "25 件法宝 = 300 种组合；若连「能不能融」都不显示，玩家只能盲选 —— 功能等于不存在"])
+    rows.append(["首次融合", "产物显示 ？？？",
+                 "名字 / 数值 / 效果三者全藏；首度融成才揭示并记入图鉴，之后跨局永久完整显示"])
+    rows.append(["不可逆", "是",
+                 "无拆分；产物是新 id，不能再融进别的配方（一阶）"])
+    rows.append(["取舍来源", "机会成本 + 稀缺性",
+                 "① 一层至多一座阵 ② 那两件本可融进别的配方。产物 = 两件之和 + 一条新机制（1+1>2 是设计目标）"])
+    rows.append(["图鉴存档键", "xiuxian-isaac.fusion.v1",
+                 "与游戏存档分开；⚠️ 只有融合阵里的显式确认才写图鉴，挑战 / 无尽的随机配装不解锁"])
+    rows.append(["⚠️ 属性重算", "Player.recomputeStats()",
+                 "give() 拿到即永久改 stats、扣掉 items 条目不撤销数值 → 融合后必须按持有列表重算，"
+                 "否则越融越强、材料白送"])
+    rows.append([])
+
+    rows.append(["材料 A", "材料 B", "产物", "机制（新玩法）", "说明"])
+    for d in defs:
+        rows.append([d.get("aName", ""), d.get("bName", ""), d.get("outName", ""),
+                     d.get("mech", ""), d.get("desc", "")])
+    rows.append([])
+
+    rows.append(["出现规则", "概率 / 层", "说明"])
+    rows.append(["段末（Boss 层）", "100%",
+                 "必出一座，落在普通石室里 —— 也就是 Boss 房之前，带着新法宝去打 Boss"])
+    rows.append(["其余层", "%.0f%%" % (float(F.get("forgeChance", 0.33)) * 100),
+                 "⚠️ 骰子按「层」掷一次，不是按「房」—— 按房掷一层 5 房会变成约 87%，稀缺性直接没了"])
+    rows.append(["每层上限", "%d 座" % F.get("forgePerFloorMax", 1),
+                 "用过即灭（写回房间数据，出门再回来不复活）"])
+    rows.append([])
+
+    rows.append(["说明", "这 6 件产物是本作唯一的「只能靠融合获得」的法宝，"
+                        "图标走 icon:'fused'（两剑交会 + 正中金光），背包里一眼可辨"])
+    rows.append(["说明", "扩展位（接口留着、内容未做）：二阶融合（把产物 id 写进另一条的 a/b，零改代码）；"
+                        "催化剂（配方加 cat 字段）；开局送一条教学配方（缓解冷启动）"])
+    return rows, [22, 22, 14, 26, 62]
+
+
 def tab_stylemap():
     """风格地图（27 条路径）：三个世界、每个世界的三段、每段的代表色。
 
@@ -1395,6 +1452,7 @@ TABS = [
     ("精英妖物", tab_elite), ("BOSS", tab_boss), ("Boss 挑战", tab_challenge),
     ("无尽试炼", tab_endless),
     ("风格地图", tab_stylemap),
+    ("法宝融合", tab_fusion),
     ("房间", tab_room), ("交互物", tab_props),
     ("经济掉落", tab_econ), ("动态难度", tab_diff), ("各层速览", tab_floors),
     ("流派玩家", tab_player), ("变更日志", tab_log),

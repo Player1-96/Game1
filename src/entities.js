@@ -311,6 +311,9 @@ class Bullet {
     this.chain = opt.chain || 0;
     this.crit = opt.crit || false;
     this.deflect = opt.deflect || 0;
+    /* 融合机制表（见 fusion.js）。发射时从 player.stats.fus 抄一份引用，
+       内容是「这一发带哪些融合机制」，飞行途中不变。没有融合产物时是 null。 */
+    this.fus = opt.fus || null;
     this.kind = opt.kind || 'sword';
     this.sprite = opt.sprite || SPR.sword;
     this.reflected = false;      // 被「照影」打回去的术法：加一圈青光以便和敌弹区分
@@ -372,7 +375,9 @@ class Bullet {
         if (e.dead || this.hit.has(e)) continue;
         if (!circleHit(this.x, this.y, this.r, e.x, e.y, e.r)) continue;
         this.hit.add(e);
-        let dmg = this.dmg * (this.crit ? 2 : 1);
+        /* 贯灵梭（融合）：每多穿透一个目标，这一击更重一分 ——
+           第 n 个目标吃 ×(1 + (n-1)×ramp)。hit 已含本目标，所以 size 就是 n。 */
+        let dmg = this.dmg * (this.crit ? 2 : 1) * Fusion.rampMul(this, this.hit.size);
         e.hurt(dmg, g, this);
         if (this.knockback) {
           const a = Math.atan2(e.y - this.y, e.x - this.x);
@@ -382,6 +387,9 @@ class Bullet {
         if (this.frost) e.frost = Math.max(e.frost, 70 + this.frost * 35);
         if (this.burn) e.burn = Math.max(e.burn, 120), e.burnDmg = this.burn;
         if (this.chain) g.chainLightning(e, this.dmg * 0.6, this.chain);
+        /* 融合机制（雷池 / 状态引爆）在 fusion.js 里统一分流。
+           必须放在状态注入之后 —— 「冰火两仪」靠的就是当帧刚点上的冰与火。 */
+        Fusion.onHit(e, this, g);
         g.burst(this.x, this.y, 6, this.crit ? PAL.gold : PAL.jadeL);
         if (this.pierce-- <= 0) { this.dead = true; return; }
       }
@@ -899,6 +907,10 @@ class Enemy {
   die(g) {
     if (this.dead) return;
     this.dead = true;
+    /* 摄魂铃（融合）：击杀即化魂为弹。
+       挂在 die() 出口而不是各个伤害来源 —— 飞剑／平A／突进／照影全都自动覆盖，
+       和上面「剑意不绝」的返还走同一处考虑。 */
+    Fusion.onKill(this, g);
     // 玄光瞳蓄势中被斩杀：光还没射出来，直接掐掉 —— 集火它是有回报的
     if (this.beam) { this.beam.dead = true; this.beam = null; }
     g.burst(this.x, this.y, 16, PAL.purpleL);
@@ -2119,6 +2131,20 @@ class Pickup {
 /* ------------------------------------------------------------
  *  玩家
  * ---------------------------------------------------------- */
+/* 基础属性表。**必须是工厂而不是字面量常量** ——
+   recomputeStats() 要把它重置回去，共享同一个对象会把基础值也改掉。
+   fus 是融合机制的挂载点（见 fusion.js）：{} 而不是 null，
+   免得每件融合产物都要写 `p.stats.fus = p.stats.fus || {}`。 */
+function baseStats() {
+  return {
+    damage: 3.5, fireRate: 2.6, speed: 2.35, shotSpeed: 6.4, range: 210,
+    pierce: 0, spread: 0, homing: 0, homingRange: 220, knockback: 0.8, luck: 0,
+    burn: 0, frost: 0, chain: 0, iframe: 62, greed: 0, crit: 0,
+    poison: 0, regen: 0, soul: 0, deflect: 0, reflect: 0, fly: false, mpRegen: MP_REGEN,
+    fus: {}
+  };
+}
+
 class Player {
   constructor(x, y) {
     this.x = x; this.y = y; this.r = 7;
@@ -2173,12 +2199,33 @@ class Player {
     this.ultCdFlashAmt = 0;              // 刚返还了多少帧（供 HUD 标出「−N 秒」）
     /* 专属升级带来的临时增益（移速 / 蓄力 / 伤害），单位是帧 */
     this.buffs = { spdT: 0, spdMul: 0, chargeT: 0, chargeMul: 0, dmgT: 0, dmgMul: 0 };
-    this.stats = {
-      damage: 3.5, fireRate: 2.6, speed: 2.35, shotSpeed: 6.4, range: 210,
-      pierce: 0, spread: 0, homing: 0, homingRange: 220, knockback: 0.8, luck: 0,
-      burn: 0, frost: 0, chain: 0, iframe: 62, greed: 0, crit: 0,
-      poison: 0, regen: 0, soul: 0, deflect: 0, reflect: 0, fly: false, mpRegen: MP_REGEN
-    };
+    this.stats = baseStats();
+  }
+  /* ---------------- 按持有列表重算属性 ----------------
+     ⚠️ 存在的唯一理由：**法宝融合会把两件材料吃掉**，而 give() 是「拿到即
+     永久改 stats」的。扣掉 items 里的条目并不能撤销那两件加过的数值，
+     于是融合后属性会凭空虚高（越融越强、材料白送）。
+     做法：把 stats 重置回基础值 + 清掉法宝派生的非 stats 状态，再按 items
+     顺序把所有 fabao 的 apply 重放一遍（rank 按同种出现次数递推，与 give 一致）。
+     apply 的签名是 (p, rank, style)，拿不到 g，所以重放不会冒出飘字/弹窗。
+     资源（气血/护盾/灵力/灵石）不是派生量，重放前后原样保留。 */
+  recomputeStats(style) {
+    const keep = { hp: this.hp, shield: this.shield, tShield: this.tShield, shieldT: this.shieldT };
+    this.stats = baseStats();
+    /* 法宝写进 Player 的非 stats 字段也要一起清，否则会「洗不掉」 */
+    this.shieldCap = 0; this.shieldGap = 0; this.shieldReviveT = -1;
+    const cnt = {};
+    for (const id of this.items) {
+      const def = ITEM_MAP[id];
+      if (!def || def.type !== 'fabao' || !def.apply) continue;
+      const rank = cnt[id] || 0;
+      def.apply(this, rank, style);
+      cnt[id] = rank + 1;
+    }
+    /* 还原资源；护盾不超过重算后的上限 */
+    this.hp = Math.min(keep.hp, this.maxHP);
+    this.shield = this.shieldCap > 0 ? Math.min(keep.shield, this.shieldCap) : keep.shield;
+    this.tShield = keep.tShield; this.shieldT = keep.shieldT;
   }
   heal(n) { this.hp = Math.min(this.maxHP, this.hp + n); }
   /* 护盾分两种：
@@ -2210,6 +2257,10 @@ class Player {
       this.invuln = this.stats.iframe;
       SFX.hurt(); g.shake(4);
       g.burst(this.x, this.y, 10, PAL.jade);
+      /* 护盾刚刚归零 = 「这一击被盾吃下了，但盾也碎了」。
+         太虚羽衣（融合）就在这一刻把冲击还回去。判断放在扣减之后、
+         return 之前 —— 上面两行已经扣过了，这里的 shieldTotal 是最终值。 */
+      if (this.shieldTotal <= 0) Fusion.onShieldBreak(this, g);
       return;
     }
     // 气血单位是「半颗心」，必须是整数：精英余祸之类的小数伤害（1.1 / 1.2）若直接累加，
@@ -2556,6 +2607,17 @@ class Prop {
         }
       }
     }
+    /* 融合阵（第 3 期）：法宝融合的唯一执行场所。
+       走近挂提示、按 E 开面板 —— 与祭坛/金匣/坊市同一套交互词法，玩家不必学新操作。
+       「用掉」不在这里定：交给 openFusion 判定 —— 手里没有可融的组合时
+       面板不弹、阵也不消耗，否则等于白丢一次机会。 */
+    if (this.kind === 'forge') {
+      const p = g.player;
+      if (!this.used && circleHit(this.x, this.y + 2, 22, p.x, p.y, p.r)) {
+        g.forgeHint = this;
+        if (g.input.interact) g.openFusion(this);
+      }
+    }
     if (this.kind === 'portal') {
       if (this.delay > 0) { this.delay--; return; }
       const p = g.player;
@@ -2604,6 +2666,33 @@ class Prop {
           const k = SPR.key;
           if (k) g2.drawImage(k, this.x - k.width / 2, this.y - 30 + bob);
         }
+        break;
+      }
+      case 'forge': {
+        /* 融合阵：一方阵图，画在地面层（见 game.js 的地面绘制行）——
+           它是印在地上的法阵，不该像箱子那样立着。
+           两道交错剑影呼应「两件合一」；用过之后整体暗下去，但阵图还在（留痕）。 */
+        const pulse = 0.5 + Math.sin(this.t * 0.07) * 0.5;
+        g2.save();
+        g2.globalAlpha = this.used ? 0.16 : 0.30 + pulse * 0.22;
+        g2.fillStyle = this.used ? PAL.greyD : PAL.purple;
+        g2.beginPath(); g2.ellipse(this.x, this.y, 23, 11.5, 0, 0, Math.PI * 2); g2.fill();
+        g2.globalAlpha = this.used ? 0.22 : 0.5 + pulse * 0.3;
+        g2.strokeStyle = this.used ? PAL.greyD : PAL.purpleL; g2.lineWidth = 2;
+        g2.beginPath(); g2.ellipse(this.x, this.y, 23, 11.5, 0, 0, Math.PI * 2); g2.stroke();
+        g2.globalAlpha = this.used ? 0.18 : 0.55 + pulse * 0.35;
+        g2.strokeStyle = this.used ? PAL.greyD : PAL.jadeL; g2.lineWidth = 1;
+        g2.beginPath(); g2.ellipse(this.x, this.y, 11.5, 5.5, 0, 0, Math.PI * 2); g2.stroke();
+        g2.beginPath();
+        g2.moveTo(this.x - 8, this.y - 4); g2.lineTo(this.x + 8, this.y + 4);
+        g2.moveTo(this.x - 8, this.y + 4); g2.lineTo(this.x + 8, this.y - 4);
+        g2.stroke();
+        if (!this.used) {
+          g2.globalAlpha = 0.55 + pulse * 0.45;
+          g2.fillStyle = PAL.goldL;
+          g2.beginPath(); g2.arc(this.x, this.y - 2 - pulse * 2, 2.4, 0, Math.PI * 2); g2.fill();
+        }
+        g2.restore();
         break;
       }
       case 'item': {
@@ -2751,8 +2840,20 @@ const STYLES = {
       const s = pl.stats;
       const count = 1 + s.spread;
       const dmgBonus = pl.soulBuff > 0 ? 1.2 + Math.max(0, s.soul - 1) * 0.9 : 0;
+      /* 万剑归宗（融合）：散剑各自锁定不同的妖物。
+         目标够多时一人一发（每发单独算角度）；不够就回落到原来的扇形 ——
+         否则怪少的时候会全部指向同一只，反而不如扇形铺得开。
+         取最近的 count 只：散剑本来就该先招呼脸上这些。 */
+      let aims = null;
+      if (s.fus.splitAim && count > 1) {
+        const live = g.enemies.filter(e => !e.dead);
+        if (live.length >= count) {
+          live.sort((e1, e2) => dist2(e1.x, e1.y, pl.x, pl.y) - dist2(e2.x, e2.y, pl.x, pl.y));
+          aims = live.slice(0, count).map(e => Math.atan2(e.y - pl.y, e.x - pl.x));
+        }
+      }
       for (let i = 0; i < count; i++) {
-        const ang = a + (i - (count - 1) / 2) * STYLES.feijian.consts.spreadArc;
+        const ang = aims ? aims[i] : a + (i - (count - 1) / 2) * STYLES.feijian.consts.spreadArc;
         g.bullets.push(new Bullet(
           pl.x + Math.cos(ang) * 10, pl.y + Math.sin(ang) * 6,
           Math.cos(ang) * s.shotSpeed, Math.sin(ang) * s.shotSpeed,
@@ -2762,6 +2863,7 @@ const STYLES = {
             pierce: s.pierce, homing: s.homing, knockback: s.knockback,
             burn: s.burn, frost: s.frost, chain: s.chain,
             crit: Math.random() < s.crit, deflect: s.deflect,
+            fus: s.fus,
             kind: 'sword', sprite: SPR.sword,
             scale: 0.8 + Math.min(0.6, s.damage * 0.03)
           }

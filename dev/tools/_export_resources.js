@@ -228,6 +228,32 @@ const PERK_CN = {
       })
     };
 
+    /* 法宝融合（第 3 期）：配方表 + 产物机制。
+       「机制」列是这一期的核心判据 —— 一条配方如果只能用「伤害 +X%」写完，它就是伪融合。
+       机制名直接跑一遍产物的 apply 读出来，免得手抄一份、改了代码忘了改表。 */
+    const fusion = {
+      recipes: FUSION_DEF.length,
+      forgeChance: FORGE_CHANCE,
+      forgeOnSegEnd: true,          // 段末（Boss 层）必出一座
+      forgePerFloorMax: 1,
+      productCount: (typeof FUSION_ITEMS !== 'undefined' ? FUSION_ITEMS.length : 0),
+      defs: FUSION_DEF.map(r => {
+        const out = ITEM_MAP[r.id] || {};
+        let mech = '';
+        try {
+          const probe = new Player(0, 0);
+          out.apply(probe, 0, 'feijian');
+          mech = Object.keys(probe.stats.fus || {}).filter(k => probe.stats.fus[k]).join(' + ');
+        } catch (e) { mech = '（读取失败）'; }
+        return {
+          a: r.a, aName: (ITEM_MAP[r.a] || {}).name || r.a,
+          b: r.b, bName: (ITEM_MAP[r.b] || {}).name || r.b,
+          out: r.id, outName: out.name || r.id,
+          mech: mech, desc: out.desc || ''
+        };
+      })
+    };
+
     /* ---------- 7. 流派与蓄力段位 ---------- */
     const styles = Object.keys(STYLES).map(k => ({
       id: k, name: STYLES[k].name, en: STYLES[k].en, tag: STYLES[k].tag, ready: !!STYLES[k].ready,
@@ -406,7 +432,7 @@ const PERK_CN = {
     };
 
     return { player, items, enemies, elites, bosses, challenge, endless, styles, styleMap, charge, shopPrices, pools, floors,
-             diffParams, curve, lootCurve, skills, ults, ultPaths, skillConst };
+             diffParams, curve, lootCurve, skills, ults, ultPaths, skillConst, fusion };
   }, { ENEMY_CN, AI_CN, PERK_CN, ENEMY_NOTE, BOLT_CN, BOSS_GIMMICK });
 
   data.exportedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -419,7 +445,8 @@ const PERK_CN = {
     + ' / 妖物 ' + data.enemies.length
     + ' / 精英 ' + data.elites.length
     + ' / 风格 ' + data.styleMap.worlds.length + '（可用 ' + data.styleMap.pool.length
-    + '，' + data.styleMap.totalFloors + ' 层 / ' + data.styleMap.paths + ' 路径）');
+    + '，' + data.styleMap.totalFloors + ' 层 / ' + data.styleMap.paths + ' 路径）'
+    + ' / 融合 ' + data.fusion.recipes + ' 条配方（产物 ' + data.fusion.productCount + ' 件）');
   if (errs.length) console.log('  ⚠ 页面报错：' + errs.join(' | '));
   await Promise.race([browser.close(), new Promise(r => setTimeout(r, 3000))]);
   process.exit(0);
