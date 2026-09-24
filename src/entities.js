@@ -2279,6 +2279,14 @@ function baseStats() {
        和贯灵梭的「越穿越痛」是**不同维度**：一个给控制、一个给伤害，两者互补而不是重叠。
        ⚠️ 同样不进 STAT_KEYS（近战流派没有贯穿这回事）。 */
     pin: 0,
+    /* shieldRegen = 每清一室自行补回的护盾格数（约顿海姆之铠）。
+       与「一次性给 N 格护盾」（太虚护盾 / 灵力丹）是两种东西：
+       那是一次性资源，这是**会自我修复的重甲** —— 打得久越能体现差别。 */
+    shieldRegen: 0,
+    /* layerHeal = 每进入新层自动回满气血（伊登之苹果）。
+       神话里诸神靠伊登的苹果**保持青春不老** —— 落到玩法上就是「一直在回春」，
+       与中式洗髓丹「一次性加两格上限」区分开（同是加血，一个给上限、一个给续航）。 */
+    layerHeal: false,
     burn: 0, frost: 0, chain: 0, iframe: 62, greed: 0, crit: 0,
     poison: 0, regen: 0, soul: 0, deflect: 0, reflect: 0, fly: false, mpRegen: MP_REGEN,
     fus: {}

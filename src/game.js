@@ -702,6 +702,8 @@ class GameCore {
      正常流程不传 → 按【段】取人（第 1/2/3 段分别对上 1/2/3 号位）。 */
   newFloor(depth, seed, opts) {
     this.depth = depth;
+    /* 伊登之苹果：每进新层自动回满 —— 「青春常在」的续航型效果 */
+    if (this.player && this.player.stats.layerHeal) this.player.hp = this.player.maxHP;
     // seed 可由读档传入：同一颗种子必须重建出同一层（存档的地基）
     this.floor = new Floor(depth, seed != null ? (seed >>> 0) : ((Math.random() * 0xffffffff) >>> 0), {
       power: this.powerScore(),
@@ -720,7 +722,12 @@ class GameCore {
     this.particles = []; this.floaters = []; this.zaps = []; this.props = [];
     this.dnums = [];
     this.placedBombs = []; this.slashes = [];
+    /* 符文护壁（北欧）：立在释放点的一个符文领域，持续期间把进入范围的敌方弹幕抹掉。
+       与中式「护体金光」是两种用途 —— 那个是**冲开**（瞬发护盾 + 击退），
+       这个是**守住**（定点 5 秒的弹幕禁区）。 */
+    this.runeWall = null;
     this.ultWarn = null; this.ultSword = null;   // 换层即作废，避免预警圈/巨剑残留到下一层
+    this.runeWall = null;                        // 符文壁同理：它是定点的，换个层就无从谈起
     this.bossRef = null; this.doorLock = 0;   // 清掉上一层的 Boss 引用，否则血条会残留到重开后
     this.timers = [];                         // 跨层的延迟效果作废
     const start = this.floorStart();
@@ -872,6 +879,7 @@ class GameCore {
     this.beams = [];                 // 玄光不跨房残留（蓄力到一半出门会白赚一次闪身）
     this.dnums = [];   // 换房即清：上一间的伤害数字不该飘到新房间里
     this.shopHint = null; this.altarHint = null; this.portalHint = false; this.chestHint = null;
+    this.runeWall = null;                        // 出门即散：壁是定点的，留在旧房间里
     this.forgeHint = null;
     this.pickHint = null;
 
@@ -1009,6 +1017,8 @@ class GameCore {
     SFX.door();
     const p = this.player;
     if (p.stats.regen) p.heal(Math.round(p.stats.regen * 2));
+    // 约顿海姆之铠：清一室自行补回护盾（重甲会自我修复）
+    if (p.stats.shieldRegen) p.addShield(p.stats.shieldRegen);
     // 本房配额没被敌人掉落吃干净的部分，清房时一次性补发 → 整层产出恒等于预算
     if (r.coinPool > 0) this.takeCoins(ROOM_W / 2, ROOM_H / 2, r.coinPool);
     // 本层规划好的钥匙 / 雷符，落在随机房间里
@@ -2337,7 +2347,10 @@ class GameCore {
       this.timers = keep;
     }
 
-    // 交互提示每帧重算（走开就该消失），由场景物在射程内重新认领
+    /* 交互提示每帧重算（走开就该消失），由场景物在射程内重新认领。
+       ⚠️ 这一段是**每帧**执行的 —— 一次性状态的清理（比如 runeWall）绝不能写在这里，
+       否则符文壁刚立起来就被下一帧抹掉。RuneWall 的清空只在 `enterRoom`（换房）与
+       `newFloor`（换层）两处，那才是「走到别处」的时机。 */
     this.shopHint = null; this.altarHint = null; this.portalHint = false; this.chestHint = null;
     this.forgeHint = null;
     this.pickHint = null;                       // 二选一摆件：站在旁边才认领
@@ -2350,6 +2363,21 @@ class GameCore {
     // 天崩剑狱：预警倒计时（内圈收紧 / 落剑下坠都靠它），以及插地巨剑的余留
     if (this.ultWarn && this.ultWarn.t > 0) this.ultWarn.t--;
     if (this.ultSword && --this.ultSword.t <= 0) this.ultSword = null;
+
+    /* 符文护壁：抹掉进入范围的敌方弹幕（玄铁弹例外 —— 它本来就「斩不落、照不穿」，
+       壁也挡不住，保持这条规矩一致） */
+    if (this.runeWall) {
+      const w = this.runeWall;
+      if (--w.t <= 0) this.runeWall = null;
+      else {
+        for (const b of this.bullets) {
+          if (b.friendly || b.dead || b.hard) continue;
+          if (Math.hypot(b.x - w.x, b.y - w.y) < w.r) {
+            b.dead = true; this.burst(b.x, b.y, 3, PAL.cyan);
+          }
+        }
+      }
+    }
 
     for (const b of this.bullets) if (!b.dead) b.update(this);
     for (const sl of this.slashes) if (!sl.dead) sl.update();
@@ -2606,6 +2634,30 @@ class GameCore {
 
     // 雷符
     for (const bm of this.placedBombs) bm.draw(g);
+
+    /* 符文护壁：贴地的一圈符文。剩余时间越少越淡 —— 「还剩几秒」是玩家决定
+       要不要继续待在里面的唯一读数。 */
+    if (this.runeWall) {
+      const w = this.runeWall, k = Math.min(1, w.t / 60);
+      g.save();
+      g.globalAlpha = 0.16 + 0.22 * k;
+      g.fillStyle = PAL.cyan;
+      g.beginPath(); g.arc(w.x, w.y, w.r, 0, Math.PI * 2); g.fill();
+      g.globalAlpha = 0.5 + 0.4 * k;
+      g.strokeStyle = PAL.cyan; g.lineWidth = 2;
+      g.beginPath(); g.arc(w.x, w.y, w.r, 0, Math.PI * 2); g.stroke();
+      // 内圈缓慢转动的符文刻痕（转动 = 它还在工作）
+      const spin = this.tick * 0.012;
+      g.strokeStyle = PAL.cyanD; g.lineWidth = 1;
+      for (let i = 0; i < 8; i++) {
+        const a = spin + i * Math.PI / 4;
+        g.beginPath();
+        g.moveTo(w.x + Math.cos(a) * (w.r - 14), w.y + Math.sin(a) * (w.r - 14));
+        g.lineTo(w.x + Math.cos(a) * (w.r - 4), w.y + Math.sin(a) * (w.r - 4));
+        g.stroke();
+      }
+      g.restore();
+    }
 
     // 实体按 y 排序
     const drawables = [];

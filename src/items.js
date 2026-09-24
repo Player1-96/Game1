@@ -178,7 +178,9 @@ const ITEM_DEFS = [
     up: ['幡影更盛：斩杀后伤害 +2.1，持续延长 1 秒',
          '幡影遮天：斩杀后伤害 +3.0，持续再延 1 秒'] },
   { id: 'yuyi', name: '羽衣', type: 'fabao', icon: 'feather', c1: PAL.white, c2: PAL.jadeL,
-    desc: '常驻护盾 +1（受击才扣），受击不易踉跄', apply: p => { p.addShield(1); p.stats.speed *= 1.05; } },
+    /* ⚠️ 原文案写着「受击不易踉跄」—— 但玩家**根本没有踉跄/被击退这回事**
+       （全项目搜不到 player.kbx），那句话是凭空写的。改成如实描述移速。 */
+    desc: '常驻护盾 +1（受击才扣），身法 +12%', apply: p => { p.addShield(1); p.stats.speed *= 1.05; } },
   { id: 'huiling', name: '回灵符', type: 'fabao', icon: 'talisman', c1: PAL.cyan, c2: PAL.jadeL,
     desc: '灵力自然回复 +1/秒（开局为 0，全靠此符）', apply: p => { p.stats.mpRegen += 1; } },
 

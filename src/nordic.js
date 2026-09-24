@@ -335,9 +335,12 @@ const NORDIC_ITEMS = [
   { id: 'idunn_apple', name: '伊登之苹果', type: 'fabao', world: 'nordic', icon: 'apple',
     c1: NORD.moss, c2: NORD.berylL,
     /* ⚠️ 文案单位是「颗心」（与中式的洗髓丹同一口径：`+= 4` 写「+2」），
-       不是内部的半心单位。写错单位玩家会把 1 颗心当成 2 颗。 */
-    desc: '气血上限 +1，并立刻回满',
-    apply: p => { p.maxHP += 2; p.hp = p.maxHP; } },
+       不是内部的半心单位。写错单位玩家会把 1 颗心当成 2 颗。
+       另：它与洗髓丹同属「加血上限 + 回满」（数值 1 颗心 vs 2 颗心，属同类不同档），
+       但神话里伊登的苹果是让诸神**保持青春不老** —— 所以再给一条续航：
+       每进新层自动回满。加血的是洗髓丹，不断回春的是伊登之苹果。 */
+    desc: '气血上限 +1 并立刻回满；此后每进新层自动回满气血',
+    apply: p => { p.maxHP += 2; p.hp = p.maxHP; p.stats.layerHeal = true; } },
   { id: 'mimir_well', name: '密米尔之泉', type: 'fabao', world: 'nordic', icon: 'rune',
     c1: NORD.ice, c2: NORD.runic,
     desc: '饮下即得智慧 —— 灵力自然回复 +1/秒，气运 +2',
@@ -354,8 +357,13 @@ const NORDIC_ITEMS = [
     apply: p => { p.stats.iframe += 30; p.stats.speed *= 1.12; } },
   { id: 'jotun_plate', name: '约顿海姆之铠', type: 'fabao', world: 'nordic', icon: 'helm',
     c1: NORD.iron, c2: NORD.iceD,
-    desc: '常驻护盾 +2（受击才扣），受创不易踉跄',
-    apply: p => { p.addShield(2); p.stats.speed *= 1.03; } },
+    /* ⚠️ 两处问题：
+       ① 原文案「受创不易踉跄」是**凭空写的** —— 玩家没有踉跄/被击退机制（同中式羽衣）。
+       ② 它和羽衣是同一类（护盾 + 移速），且移速数值还不到羽衣的一半，等于「弱化版羽衣」。
+       → 改成**厚甲**：护盾给足（+3，羽衣只有 +1）、不给移速。
+         于是两件形成明确对立：羽衣 = 快而薄，约顿铠 = 厚而不快。 */
+    desc: '常驻护盾 +3（受击才扣），每清一室自行补回 1 格',
+    apply: p => { p.addShield(3); p.stats.shieldRegen = (p.stats.shieldRegen || 0) + 1; } },
   { id: 'yggdrasil_seed', name: '世界树之种', rare: true, type: 'fabao', world: 'nordic', icon: 'tree',
     c1: NORD.moss, c2: NORD.amberL,
     /* ⚠️ 这里原来是 `maxHP += 1` —— **半颗心的血上限**。
@@ -374,12 +382,20 @@ const NORDIC_ITEMS = [
     apply: p => { p.heal(4); } },
   { id: 'rune_stone', name: '卢恩石', type: 'dan', world: 'nordic', icon: 'rune',
     c1: NORD.runic, c2: NORD.iceL,
-    desc: '立刻凝出 2 格常驻护盾',
-    apply: p => { p.addShield(2); } },
+    /* ⚠️ 原来是 `addShield(2)` —— 与中式「太虚护盾」「灵力丹」**数值完全一样**
+       （探针 `_probe_dup_audit.js` 一跑就抓出来），属于最赤裸的换皮。
+       卢恩（Rune）在神话里是奥丁以自身换来的「智慧」，所以改走**灵力**这条路：
+       立刻回满灵力 + 1 格护盾 —— 中式没有任何一件是「即时回灵」的
+       （回灵符是每秒 +1 的持续回复，不是一口气回满，两者手感完全不同）。 */
+    desc: '刻下卢恩，灵力尽复，并凝出一层护盾',
+    apply: p => { p.mp = p.maxMP; p.addShield(1); } },
   { id: 'einherjar_blood', name: '英灵之血', type: 'dan', world: 'nordic', icon: 'pill',
     c1: NORD.blood, c2: NORD.ember,
-    desc: '气血上限 +1，并回满',
-    apply: p => { p.maxHP += 2; p.hp = p.maxHP; } }
+    /* 「加血上限 + 回满」与中式洗髓丹同类（数值不同：1 颗心 vs 2 颗心，属同类不同档，
+       本身不算换皮）。再补一条中式秘药没有的效果 —— **战意无敌 1 秒**：
+       英灵战士「战死前的一搏」，喝下去有个短暂的强攻窗口。 */
+    desc: '气血上限 +1，立刻回满，并燃起 1 秒战意（无敌）',
+    apply: p => { p.maxHP += 2; p.hp = p.maxHP; p.invuln = Math.max(p.invuln, 60); } }
 ];
 
 /* ------------------------------------------------------------
@@ -399,16 +415,23 @@ const NORDIC_SKILLS = {
     c1: NORD.ice, c2: NORD.amberL, cost: 36, world: 'nordic',
     vals: [15, 21, 27, 33, 40],
     cd: [360, 330, 300, 270, 240],
-    desc: lv => '召下九道雷霆，重创全室妖物并引爆连锁　伤害 '
+    stun: [24, 30, 36, 42, 48],          // 全室钉住帧数（0.4 → 0.8 秒）
+    desc: lv => '召下九道雷霆，重创全室并把妖物钉在原地 '
+      + (NORDIC_SKILLS.thunderwrath.stun[lv - 1] / 60).toFixed(1) + ' 秒　伤害 '
       + (NORDIC_SKILLS.thunderwrath.vals[lv - 1] + 14) + '（另加伤害 ×1.6）'
       + '　冷却 ' + (NORDIC_SKILLS.thunderwrath.cd[lv - 1] / 60).toFixed(1) + ' 秒',
     cast(g, lv) {
       const p = g.player;
       const dmg = NORDIC_SKILLS.thunderwrath.vals[lv - 1] + p.stats.damage * 1.6;
+      /* ⚠️ 原来这一段与中式「天雷引」逐行相同（伤害 + zaps + 粒子）—— 纯换皮。
+         现在多一件事：**全室被雷震得钉在原地**（复用冈格尼尔的 pin）。
+         天雷引 = 纯输出；雷神之怒 = 输出 + 控场。 */
+      const stun = NORDIC_SKILLS.thunderwrath.stun[lv - 1];
       SFX.thunder(); g.shake(12);
       for (const e of g.enemies) {
         if (e.dead) continue;
         e.hurt(dmg, g);
+        e.pin = Math.max(e.pin, stun);
         g.zaps.push({ x1: e.x, y1: 0, x2: e.x, y2: e.y, life: 16 });
         g.burst(e.x, e.y, 10, PAL.cyan);
       }
@@ -474,8 +497,16 @@ const NORDIC_SKILLS = {
     vals: [2, 3, 3, 4, 4],
     cd: [600, 600, 600, 600, 600],
     dur: 300,
-    desc: lv => '刻下符文，震退周身妖物并结 ' + NORDIC_SKILLS.runeward.vals[lv - 1] + ' 层护盾，'
-      + (NORDIC_SKILLS.runeward.dur / 60) + ' 秒后消散'
+    /* ⚠️ 原来这一门与中式「护体金光」几乎一样（限时护盾 + 击退 + 范围伤害），
+       差别只有「顺手清一次全屏弹幕」—— 探针 `_probe_dup_audit.js` 把两件的
+       效果字段标成同一类。现在改成**定点持续 5 秒的符文壁**：
+       释放点立起一个领域，期间进入范围的敌方弹幕尽数消解。
+       于是两者的用途彻底分开：
+         护体金光 = **冲开**（瞬发护盾 + 击退，用来突围）
+         符文护壁 = **守住**（定点禁区 5 秒，用来站桩输出 / 掩护换位）
+       玄铁弹照旧穿得进来 —— 它本来就「斩不落、照不穿」，壁也不例外。 */
+    desc: lv => '刻下符文，震退周身妖物并结 ' + NORDIC_SKILLS.runeward.vals[lv - 1] + ' 层护盾；'
+      + '原地立起符文壁 ' + (NORDIC_SKILLS.runeward.dur / 60) + ' 秒，壁内敌方弹幕尽消'
       + '　范围 ' + (140 + (lv - 1) * 20) + '　伤害 ' + (6 + (lv - 1) * 3)
       + '　冷却 ' + (NORDIC_SKILLS.runeward.cd[lv - 1] / 60) + ' 秒',
     cast(g, lv) {
@@ -490,7 +521,7 @@ const NORDIC_SKILLS = {
           e.hurt(dmg, g);
         }
       }
-      for (const b of g.bullets) if (!b.friendly) b.dead = true;
+      g.runeWall = { x: p.x, y: p.y, r: 118 + (lv - 1) * 10, t: NORDIC_SKILLS.runeward.dur };
       g.burst(p.x, p.y, 30, PAL.cyan);
       SFX.pickup();
     }
@@ -503,7 +534,7 @@ const NORDIC_SKILLS = {
     c1: NORD.ironD, c2: NORD.iceL, cost: 30, world: 'nordic',
     vals: [11, 15, 19, 23, 27],              // 每道剑气的基础伤害（另加伤害 ×1.5）
     cd: [330, 300, 270, 240, 210],
-    desc: lv => '放出三只渡鸦，各拖一道贯通剑气　伤害 '
+    desc: lv => '放出三只渡鸦，各拖一道贯通剑气并自行折向妖物　伤害 '
       + (NORDIC_SKILLS.ravenhost.vals[lv - 1] + 4) + '（另加伤害 ×1.5）'
       + '　冷却 ' + (NORDIC_SKILLS.ravenhost.cd[lv - 1] / 60).toFixed(1) + ' 秒',
     cast(g, lv) {
@@ -520,6 +551,12 @@ const NORDIC_SKILLS = {
           Math.cos(aa) * 7.0, Math.sin(aa) * 7.0,
           {
             friendly: true, dmg: dmg, r: 8, life: 44, pierce: 99,
+            /* ⚠️ 这一门原来几乎就是中式「裂空斩」的复制品（连 dmg 公式都一样，
+               只是把一道剑气摊成三道）—— 探针 `_probe_dup_audit.js` 抓出来的。
+               渡鸦是**活的**：飞出 0.23 秒后各自折向附近的妖物（复用弗雷之剑的 reAim）。
+               于是它和裂空斩的区别不止「数量」：裂空斩是一条直线，
+               渡鸦是三条会拐弯、会各自找目标的曲线 —— 远处铺开、近处合围。 */
+            reAim: 1, reAimArc: 0.26,
             knockback: 1.4, crit: Math.random() < p.stats.crit,
             burn: p.stats.burn, frost: p.stats.frost, chain: p.stats.chain,
             deflect: p.stats.deflect, fus: p.stats.fus,

@@ -747,6 +747,201 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('数值型叠加但定身时间封顶（拿 4 件 ≤ 48 帧 = 0.8 秒）',
     t12c.cap === 48, String(t12c.cap));
 
+  /* ---------------------------------------------------------------
+   *  T12d 换皮体检（防复发）
+   *  背景：北欧那批是照着中式「镜像」做的，用户连着抓出三处换皮
+   *  （弗雷之剑=混元珠、冈格尼尔=穿透加大号、卢恩石=太虚护盾数值一模一样）。
+   *  这里把「效果签名」的对照固化成断言，往后加内容时会自己报警。
+   * ------------------------------------------------------------- */
+  sec('T12d 北欧内容不得与中式换皮（防复发）');
+  const t12d = await page.evaluate(() => {
+    const SIG = ['maxHP', 'hp', 'shield', 'tShield', 'mp', 'maxMP', 'invuln'];
+    const sign = (def) => {
+      const q = new Player(0, 0);
+      const s0 = JSON.parse(JSON.stringify(q.stats));
+      const v0 = {}; SIG.forEach(k => { v0[k] = q[k]; });
+      try { def.apply(q, 0, 'feijian'); } catch (e) { return null; }
+      const out = {};
+      for (const k of Object.keys(q.stats)) {
+        const a = s0[k], c = q.stats[k];
+        if (typeof c === 'number' && typeof a === 'number') {
+          if (c !== a) out['stats.' + k] = +(c - a).toFixed(4);
+        } else if (typeof c === 'boolean' && c !== a) {
+          out['stats.' + k] = true;      // 布尔开关也要抓（layerHeal / fly 这类）
+        }
+      }
+      const fus = q.stats.fus || {};
+      for (const k of Object.keys(fus)) if (fus[k] && !(s0.fus && s0.fus[k])) out['fus.' + k] = true;
+      SIG.forEach(k => { if (q[k] !== v0[k]) out[k] = +(q[k] - v0[k]).toFixed(2); });
+      return out;
+    };
+    const rows = ITEM_DEFS
+      .filter(d => d.type === 'fabao' || d.type === 'dan')
+      .map(d => ({ id: d.id, name: d.name, world: d.world || 'cn', sig: sign(d) }))
+      .filter(x => x.sig);
+    const keyOf = s => Object.keys(s).sort().join(',');
+    const exact = [], sameKeys = [];
+    const cn = rows.filter(x => x.world === 'cn');
+    for (const n of rows.filter(x => x.world === 'nordic')) {
+      for (const c of cn) {
+        const kn = keyOf(n.sig);
+        if (!kn || kn !== keyOf(c.sig)) continue;
+        if (JSON.stringify(n.sig) === JSON.stringify(c.sig)) exact.push(n.name + ' ＝ ' + c.name);
+        else sameKeys.push(n.name + ' ~ ' + c.name + ' [' + kn + ']');
+      }
+    }
+    return { exact: exact, sameKeys: sameKeys,
+             nNordic: rows.filter(x => x.world === 'nordic').length };
+  });
+  if (t12d.sameKeys.length) {
+    console.log('     ⚠ 同类同档（效果字段相同、数值不同，属可接受的「同类不同档」）：');
+    t12d.sameKeys.forEach(t => console.log('       ' + t));
+  }
+  ok('★ 没有「效果与数值都和中式完全相同」的换皮（北欧 ' + t12d.nNordic + ' 件）',
+    t12d.exact.length === 0, t12d.exact.join('、') || '零换皮');
+  ok('每件北欧道具都有自己的效果签名（不是空实现）',
+    t12d.nNordic >= 13, '北欧 ' + t12d.nNordic + ' 件');
+
+  /* ---------------------------------------------------------------
+   *  T12e 这一轮差异化出来的机制，逐个打卡
+   * ------------------------------------------------------------- */
+  sec('T12e 差异化机制实效（卢恩石 / 雷神之怒 / 符文壁 / 渡鸦 / 重甲 / 苹果）');
+  const t12e = await page.evaluate(() => {
+    const G = window.Game;
+    const out = {};
+    /* ① 卢恩石：回满灵力 + 1 格护盾（中式没有任何「即时回灵」的消耗品） */
+    {
+      const q = new Player(0, 0);
+      q.mp = 0; q.shield = 0;
+      ITEM_MAP.rune_stone.apply(q, 0, 'feijian');
+      out.runeStone = { mp: q.mp, maxMP: q.maxMP, shield: q.shield };
+    }
+    /* ② 英灵之血：加血上限 + 回满 + 1 秒战意（无敌 60 帧） */
+    {
+      const q = new Player(0, 0);
+      q.hp = 1; q.invuln = 0;
+      ITEM_MAP.einherjar_blood.apply(q, 0, 'feijian');
+      out.einherjar = { hp: q.hp, maxHP: q.maxHP, invuln: q.invuln };
+    }
+    /* ③ 约顿海姆之铠：护盾 +3 且盾再生（去掉移速，与羽衣形成厚薄对立） */
+    {
+      const q = new Player(0, 0);
+      const sp0 = q.stats.speed;
+      ITEM_MAP.jotun_plate.apply(q, 0, 'feijian');
+      out.jotun = { shield: q.shield, shieldRegen: q.stats.shieldRegen, speedSame: q.stats.speed === sp0 };
+    }
+    {
+      const q = new Player(0, 0);
+      ITEM_MAP.yuyi.apply(q, 0, 'feijian');
+      out.yuyi = { shield: q.shield, speedUp: q.stats.speed > 0 };
+    }
+    /* ④ 伊登之苹果：layerHeal 开启，且进新层真的回满 */
+    {
+      G.newRun('feijian');
+      G.stylePath = ['cn']; G.seg = 0; G.applySegmentPalette();
+      const pl = G.player;
+      pl.give('idunn_apple', G);
+      pl.hp = 2;                                  // 先打残
+      G.newFloor(2);                              // 进新层
+      out.idunn = { flag: !!pl.stats.layerHeal, hpAfterFloor: pl.hp, maxHP: pl.maxHP };
+    }
+    /* ⑤ 符文护壁：立起定点符文壁，且壁内敌方弹幕被抹掉 */
+    {
+      G.newRun('feijian');
+      G.stylePath = ['nordic', 'nordic', 'nordic']; G.seg = 0; G.applySegmentPalette();
+      G.newRun('feijian'); G.state = 'play';
+      const pl = G.player;
+      pl.addSkill('runeward'); pl.selectSlot(0);
+      pl.mp = pl.maxMP; pl.skillGcd = 0; pl.skillCd[0] = 0;
+      G.enemies.length = 0; G.bullets.length = 0;
+      G.room.obstacles.length = 0;
+      pl.x = 240; pl.y = 160;
+      G.useSkill();
+      const w = G.runeWall;
+      /* ⚠️ 测试弹要放在**壁内但离玩家远**的地方（壁心 +70）：
+         放到玩家身边的话，弹丸会因为撞到玩家而死，
+         看起来「被壁抹掉了」，其实跟壁没关系 —— 这条断言就白测了。 */
+      const FX = 240 + 70, FY = 160;
+      G.bullets.push(new Bullet(FX, FY, 0, 0, { friendly: false, dmg: 1, r: 5, life: 300 }));
+      const before = G.bullets.filter(b => !b.friendly && !b.dead).length;
+      G.update();
+      const after = G.bullets.filter(b => !b.friendly && !b.dead).length;
+      /* 玄铁弹（hard）应当照旧穿得进来 —— 与「斩不落、照不穿」保持一致；
+         同时放一颗**壁外**的普通弹，验证壁不吃范围外的东西。 */
+      G.bullets.push(new Bullet(FX, FY, 0, 0, { friendly: false, dmg: 1, r: 5, life: 300, hard: true }));
+      G.bullets.push(new Bullet(40, 40, 0, 0, { friendly: false, dmg: 1, r: 5, life: 300 }));
+      G.update();
+      const hardAlive = G.bullets.filter(b => !b.friendly && !b.dead && b.hard).length;
+      const outsideAlive = G.bullets.filter(b => !b.friendly && !b.dead && !b.hard).length;
+      out.runeWall = { made: !!w, r: w ? w.r : 0, t: w ? w.t : 0,
+                       before: before, after: after, hardAlive: hardAlive, outsideAlive: outsideAlive };
+    }
+    /* ⑥ 渡鸦群袭：三只都带 reAim（会自己折向目标） */
+    {
+      G.newRun('feijian');
+      G.stylePath = ['nordic', 'nordic', 'nordic']; G.seg = 0; G.applySegmentPalette();
+      G.newRun('feijian'); G.state = 'play';
+      const pl = G.player;
+      pl.addSkill('ravenhost'); pl.selectSlot(0);
+      pl.mp = pl.maxMP; pl.skillGcd = 0; pl.skillCd[0] = 0;
+      G.enemies.length = 0; G.bullets.length = 0;
+      pl.x = 240; pl.y = 200;
+      G.useSkill();
+      out.raven = G.bullets.filter(b => b.friendly).map(b => b.reAim);
+    }
+    /* ⑦ 雷神之怒：全室被钉住（不再是天雷引的复制品） */
+    {
+      G.newRun('feijian');
+      G.stylePath = ['nordic', 'nordic', 'nordic']; G.seg = 0; G.applySegmentPalette();
+      G.newRun('feijian'); G.state = 'play';
+      const pl = G.player;
+      pl.addSkill('thunderwrath'); pl.selectSlot(0);
+      pl.mp = pl.maxMP; pl.skillGcd = 0; pl.skillCd[0] = 0;
+      G.enemies.length = 0; G.bullets.length = 0;
+      G.room.obstacles.length = 0;
+      pl.x = 240; pl.y = 160;
+      const foes = [0, 1].map(i => {
+        const e = new Enemy('xiesui', 180 + i * 120, 120, 1);
+        e.spawnT = 0; e.maxHp = 99999; e.hp = 99999; e.speed = 0; e.touch = 0; e.cd = 999999;
+        G.enemies.push(e); return e;
+      });
+      G.useSkill();
+      out.thunder = foes.map(e => e.pin);
+    }
+    return out;
+  });
+  console.log('     卢恩石 ' + JSON.stringify(t12e.runeStone)
+    + '　英灵之血 ' + JSON.stringify(t12e.einherjar));
+  console.log('     约顿铠 ' + JSON.stringify(t12e.jotun) + '　羽衣 ' + JSON.stringify(t12e.yuyi));
+  console.log('     伊登之苹果 ' + JSON.stringify(t12e.idunn));
+  console.log('     符文壁 ' + JSON.stringify(t12e.runeWall));
+  console.log('     渡鸦 reAim ' + JSON.stringify(t12e.raven) + '　雷神之怒 pin ' + JSON.stringify(t12e.thunder));
+  ok('★ 卢恩石：灵力回满 + 1 格护盾（中式没有「即时回灵」的消耗品）',
+    t12e.runeStone.mp === t12e.runeStone.maxMP && t12e.runeStone.shield === 1,
+    JSON.stringify(t12e.runeStone));
+  ok('★ 英灵之血：加血上限 + 回满 + 1 秒战意（无敌 60 帧）',
+    t12e.einherjar.invuln >= 60 && t12e.einherjar.hp === t12e.einherjar.maxHP,
+    JSON.stringify(t12e.einherjar));
+  ok('★ 约顿铠 = 厚甲（护盾 3、盾再生、**不动移速**）',
+    t12e.jotun.shield === 3 && t12e.jotun.shieldRegen >= 1 && t12e.jotun.speedSame,
+    JSON.stringify(t12e.jotun));
+  ok('对照：羽衣 = 快而薄（护盾 1 + 移速加成）',
+    t12e.yuyi.shield === 1 && t12e.yuyi.speedUp, JSON.stringify(t12e.yuyi));
+  ok('★ 伊登之苹果：进新层自动回满（青春常在）',
+    t12e.idunn.flag === true && t12e.idunn.hpAfterFloor === t12e.idunn.maxHP,
+    JSON.stringify(t12e.idunn));
+  ok('★ 符文护壁：立起定点符文壁，并抹掉壁内敌方弹幕',
+    t12e.runeWall.made && t12e.runeWall.r > 80 && t12e.runeWall.after === 0 && t12e.runeWall.before === 1,
+    JSON.stringify(t12e.runeWall));
+  ok('符文壁例外：玄铁弹照旧穿得进来（与「斩不落」一致）',
+    t12e.runeWall.hardAlive === 1, 'hard 存活 ' + t12e.runeWall.hardAlive);
+  ok('符文壁只吃范围内的弹（壁外那颗照旧飞）',
+    t12e.runeWall.outsideAlive === 1, '壁外存活 ' + t12e.runeWall.outsideAlive);
+  ok('★ 渡鸦群袭：三只渡鸦都带 reAim（会自己折向妖物，不再是直线剑气）',
+    t12e.raven.length === 3 && t12e.raven.every(v => v === 1), JSON.stringify(t12e.raven));
+  ok('★ 雷神之怒：全室被钉住（不再是天雷引的复制品）',
+    t12e.thunder.length === 2 && t12e.thunder.every(v => v >= 24), JSON.stringify(t12e.thunder));
+
   sec('T12  全局错误检查');
   ok('全程无 pageerror / console.error', errs.length === 0, errs.slice(0, 4).join(' | '));
 
