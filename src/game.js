@@ -1015,6 +1015,41 @@ class GameCore {
     } else {
       this.floaters.push(new Floater(ROOM_W / 2, ROOM_H / 2 - 30, 'CLEAR', PAL.jade));
     }
+    this.maybeOpenPortal();
+  }
+
+  /* ------------------------------------------------------------
+   *  非 Boss 层的下层途径：清完本层所有**已探明的普通房**，当场开出传送阵
+   *
+   *  ⚠️ 这是一个真死局，2026-09-24 用户试玩第一把就撞上了：
+   *     第 2 期把 Boss 改成「按段分配」（只在第 5 / 10 / 15 层），
+   *     但下层用的传送阵**仍然只挂在 `onBossDead()` 上** ——
+   *     于是第 1~4、6~9、11~14 这 12 层一个出口都没有，打完第 1 层就卡死。
+   *     探针 `_probe_nogate.js` 坐实过：清全层后 portal 数 = 0。
+   *
+   *  判定为什么只看「已探明的普通房」：
+   *   · 密室（secret）是隐藏奖励，没找到的不能算，否则玩家永远出不去
+   *   · 坊市 / 藏珍阁 / 祭坛是可选的，没进去过也不该堵住出口
+   *   · 没在小地图上露过面的房间，玩家根本不知道它存在，不该要求
+   *  段末层（有 Boss 房）**不走这里** —— 它必须打完 Boss 才开阵，
+   *  否则玩家清完杂兵房就能绕开 Boss 直接下潜。
+   * ---------------------------------------------------------- */
+  maybeOpenPortal() {
+    if (this.endless || this.chall) return;                 // 这两个模式另有流程，没有「下一层」
+    if (this.props.some(pr => pr.kind === 'portal')) return; // 已经开过就别再开一个
+    let hasBoss = false;
+    for (const r of this.floor.rooms.values()) {
+      if (r.type === RT.BOSS) { hasBoss = true; break; }
+    }
+    if (hasBoss) return;                                     // 段末层交给 onBossDead
+    for (const r of this.floor.rooms.values()) {
+      if (r.type !== RT.NORMAL) continue;
+      if (!r.seen) continue;
+      if (!r.cleared) return;
+    }
+    this.room.portal = true;
+    this.props.push(new Prop('portal', ROOM_W / 2, ROOM_H / 2 + 10, {}));
+    this.floaters.push(new Floater(ROOM_W / 2, ROOM_H / 2 - 56, '传送阵已开 · 前往下一层', PAL.jade));
   }
   onBossDead() {
     const r = this.room;
