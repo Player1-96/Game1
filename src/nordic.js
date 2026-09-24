@@ -297,8 +297,20 @@ const NORDIC_ITEMS = [
     apply: p => { p.stats.chain += 1; p.stats.knockback += 1.5; } },
   { id: 'gungnir', name: '冈格尼尔', type: 'fabao', world: 'nordic', icon: 'spear',
     c1: NORD.amber, c2: NORD.iceL,
-    desc: '一击可贯穿 3 个妖物，排成一列时最痛',
-    apply: p => { p.stats.pierce += 3; } },
+    /* ⚠️ 这一件原来只是 `pierce += 3` —— 和中式「飞剑可穿透 2 个」是同一件事，
+       只是数字大一号；而且描述写着「排成一列时最痛」，实际三个目标伤害**完全一样**
+       （探针 `_probe_gungnir.js` 量过：3.5 / 3.5 / 3.5），描述是假的。
+       2026-09-24 用户问「效果是打中三个时伤害递增吗」—— 那其实是融合产物「贯灵梭」
+       的机制，冈格尼尔照做就等于又一次换皮。
+       → 改成**贯穿即钉住**：被穿过的妖物原地定住 0.3 秒。
+         与贯灵梭是**两个维度**（控制 vs 伤害），互补而不是重叠，
+         也贴合「永恒之枪」穿刺钉住的意象：排成一列时就是一串糖葫芦。 */
+    desc: '贯穿 3 个妖物，并把穿过的都钉在原地 0.3 秒',
+    apply: p => {
+      p.stats.pierce += 3;
+      // 数值型可叠加，但定身时间要封顶，否则拿到第三件就成了「站在原地看戏」
+      p.stats.pin = Math.min((p.stats.pin || 0) + 18, 48);
+    } },
   { id: 'freyr_sword', name: '弗雷之剑', rare: true, type: 'fabao', world: 'nordic', icon: 'sword',
     c1: NORD.ice, c2: NORD.berylL,
     /* ⚠️ 这一件原先是 `stats.homing += …` —— 跟中式「混元珠」几乎是同一件东西

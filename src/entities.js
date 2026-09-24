@@ -316,6 +316,7 @@ class Bullet {
        reAim = 还能折几次；reAiming = 这一次折返还剩几帧；reAimFlash = 折返的光效计时。 */
     this.reAim = opt.reAim || 0;
     this.reAimArc = opt.reAimArc || 0.30;
+    this.pin = opt.pin || 0;
     this.reAiming = 0;
     this.reAimT = 0;
     this.reAimFlash = 0;
@@ -433,6 +434,8 @@ class Bullet {
         }
         // 玄冰符可进阶：阶数越高冻得越久
         if (this.frost) e.frost = Math.max(e.frost, 70 + this.frost * 35);
+        // 冈格尼尔：贯穿即钉住（被穿过的妖物原地定住，视觉上插着一柄金枪）
+        if (this.pin) { e.pin = Math.max(e.pin, this.pin); g.burst(this.x, this.y, 4, PAL.goldL); }
         if (this.burn) e.burn = Math.max(e.burn, 120), e.burnDmg = this.burn;
         if (this.chain) g.chainLightning(e, this.dmg * 0.6, this.chain);
         /* 融合机制（雷池 / 状态引爆）在 fusion.js 里统一分流。
@@ -931,6 +934,7 @@ class Enemy {
     this.spawnT = SPAWN_GRACE;   // 凝形倒计时
     this.state = 0; this.stateT = 0;
     this.dead = false; this.frost = 0; this.burn = 0; this.burnDmg = 0;
+    this.pin = 0;        // 冈格尼尔的「钉住」：>0 期间动弹不得
     this.flash = 0; this.frame = 0;
     this.shadow = true;
     this.facing = 1;
@@ -1195,6 +1199,7 @@ class Enemy {
     this.t++;
     if (this.flash > 0) this.flash--;
     if (this.frost > 0) this.frost--;
+    if (this.pin > 0) this.pin--;
     if (this.burn > 0) {
       this.burn--;
       if (this.burn % 24 === 0) { this.hp -= this.burnDmg * 0.5; g.burst(this.x, this.y - 6, 2, PAL.fire); if (this.hp <= 0) this.die(g); }
@@ -1205,7 +1210,10 @@ class Enemy {
     const gk = this.spawnT > 0 ? 0.25 + 0.75 * (1 - this.spawnT / SPAWN_GRACE) : 1;
     // 冰封减速随玄冰符阶数加深（1 阶 0.45 → 2 阶 0.38 → 3 阶 0.31）
     const fz = this.frost > 0 ? Math.max(0.24, 0.52 - (g.player ? g.player.stats.frost : 0) * 0.07) : 1;
-    const spd = this.speed * fz * gk;
+    /* 钉住（冈格尼尔）：贯穿不是单纯多打几个，是把穿过的都定在原地 ——
+       排成一列时「一串糖葫芦」全被钉住，这才是「永恒之枪」该有的样子。 */
+    const pn = this.pin > 0 ? 0 : 1;
+    const spd = this.speed * fz * gk * pn;
     const dx = p.x - this.x, dy = p.y - this.y;
     const d = Math.hypot(dx, dy) || 1;
     let ax = 0, ay = 0;
@@ -1507,6 +1515,35 @@ class Enemy {
     const vis = this.hidden ? 0.16 : 1;
     // 光环画在缩放之外，尺寸才可控
     if (this.elite && !shaping) drawEliteAura(g2, this.x, this.y + this.r + 2, this.r, this.elite.aura, this.t);
+    /* 冈格尼尔的「钉住」：头顶插一柄金枪 + 脚下两道钉光。
+       没有这个读数，玩家只会觉得怪「忽然不动了」，看不出是法宝在起作用
+       —— 甚至可能当成卡住。 */
+    if (this.pin > 0) {
+      const kk = Math.min(1, this.pin / 12);            // 将散时淡出
+      g2.save();
+      g2.globalAlpha = 0.35 + 0.5 * kk;
+      // 枪杆：从上方斜插下来
+      g2.strokeStyle = PAL.goldL; g2.lineWidth = 2;
+      g2.beginPath();
+      g2.moveTo(this.x - 5, this.y - this.r - 12);
+      g2.lineTo(this.x + 1, this.y - this.r + 1);
+      g2.stroke();
+      // 枪尖
+      g2.fillStyle = PAL.gold;
+      g2.beginPath();
+      g2.moveTo(this.x + 1, this.y - this.r + 3);
+      g2.lineTo(this.x - 2, this.y - this.r - 3);
+      g2.lineTo(this.x + 4, this.y - this.r - 2);
+      g2.closePath(); g2.fill();
+      // 脚下钉光：横过一道，像被钉在地上
+      g2.globalAlpha = 0.3 + 0.35 * kk;
+      g2.strokeStyle = PAL.gold; g2.lineWidth = 1;
+      g2.beginPath();
+      g2.moveTo(this.x - this.r - 3, this.y + this.r + 2);
+      g2.lineTo(this.x + this.r + 3, this.y + this.r + 2);
+      g2.stroke();
+      g2.restore();
+    }
     // 蹦山魈：落点圈随蓄势收紧，腾空时保持全亮 —— 圈一出现，站位就有答案了
     if (this.def.ai === 'leap' && this.state === 1) {
       const kk = 1 - this.stateT / LEAP.wind;
@@ -1696,6 +1733,7 @@ class Boss {
     this.state = 'idle'; this.stateT = 0;
     this.vx = 0; this.vy = 0; this.kbx = 0; this.kby = 0;
     this.flash = 0; this.frost = 0; this.burn = 0; this.burnDmg = 0;
+    this.pin = 0;
     this.phase = 1; this.dead = false; this.frame = 0;
     this.age = 0;                    // 战斗计时（凝形结束后才走），用于一阶段软时限
     this.invuln = 0;                 // 转阶段的短暂无敌
@@ -2237,6 +2275,10 @@ function baseStats() {
          reAim（弗雷之剑）= 直着飞出去，飞出一段后**猛地折一次**，像回身再斩。
        ⚠️ 不加进 STAT_KEYS：舞剑流是近战没有飞剑，写进契约会逼它在 use 里造一条假说明。 */
     reAim: 0, reAimArc: 0.30,
+    /* pin = 被贯穿的妖物「钉住」多少帧（冈格尼尔）。
+       和贯灵梭的「越穿越痛」是**不同维度**：一个给控制、一个给伤害，两者互补而不是重叠。
+       ⚠️ 同样不进 STAT_KEYS（近战流派没有贯穿这回事）。 */
+    pin: 0,
     burn: 0, frost: 0, chain: 0, iframe: 62, greed: 0, crit: 0,
     poison: 0, regen: 0, soul: 0, deflect: 0, reflect: 0, fly: false, mpRegen: MP_REGEN,
     fus: {}
@@ -2973,7 +3015,7 @@ const STYLES = {
             friendly: true, dmg: (s.damage + dmgBonus) * (1 + (pl.buffs.dmgMul || 0)), r: STYLES.feijian.consts.r,
             life: Math.round(s.range / s.shotSpeed),
             pierce: s.pierce, homing: s.homing, knockback: s.knockback,
-            reAim: s.reAim, reAimArc: s.reAimArc,
+            reAim: s.reAim, reAimArc: s.reAimArc, pin: s.pin, pin: s.pin,
             burn: s.burn, frost: s.frost, chain: s.chain,
             crit: Math.random() < s.crit, deflect: s.deflect,
             fus: s.fus,
@@ -3076,7 +3118,7 @@ const STYLES = {
           life: Math.round(T.life * (0.8 + s.range / 700)),
           pierce: T.pierce + s.pierce,
           homing: s.homing, knockback: s.knockback + tier * 1.2,
-          reAim: s.reAim, reAimArc: s.reAimArc,
+          reAim: s.reAim, reAimArc: s.reAimArc, pin: s.pin,
           burn: s.burn, frost: s.frost, chain: s.chain,
           crit: Math.random() < s.crit, deflect: s.deflect,
           kind: 'jujian', sprite: SPR.jujian, scale: T.scale

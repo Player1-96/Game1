@@ -667,6 +667,86 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     t12b.freyr.reAim0 === 1 && t12b.freyr.reAimEnd === 0,
     t12b.freyr.reAim0 + ' → ' + t12b.freyr.reAimEnd);
 
+  /* ---------------------------------------------------------------
+   *  T12c 冈格尼尔：贯穿 + 钉住
+   *  原来只是 `pierce += 3`（与中式「穿透 2 个」同类，只是数字大一号），
+   *  而描述写着「排成一列时最痛」—— 探针量过是 3.5/3.5/3.5，**描述是假的**。
+   *  现在改成「贯穿即钉住」：控制维度，与贯灵梭的伤害递增互补而非重叠。
+   * ------------------------------------------------------------- */
+  sec('T12c 冈格尼尔：贯穿 + 钉住（与贯灵梭是两个维度）');
+  const t12c = await page.evaluate(() => {
+    const G = window.Game;
+    const shoot = (itemId) => {
+      G.newRun('feijian');
+      G.stylePath = ['cn']; G.seg = 0; G.applySegmentPalette();
+      const pl = G.player;
+      if (itemId) pl.give(itemId, G);
+      G.newFloor(1); G.state = 'play';
+      G.enemies.length = 0; G.bullets.length = 0;
+      /* ⚠️ 两个坑：石柱会挡剑；玩家必须站在 WALL_T/B 之内（房间 480×288、可行区 34~254），
+         站到 y=290 的话剑一出生就在墙外，第一帧撞墙没了，测出来全是 0。 */
+      G.room.obstacles.length = 0;
+      pl.x = 240; pl.y = 240;
+      const foes = [0, 1, 2].map(i => {
+        const e = new Enemy('xiesui', pl.x, pl.y - 40 - i * 26, 1);
+        e.spawnT = 0; e.speed = 0; e.maxHp = 99999; e.hp = 99999; e.touch = 0; e.cd = 999999;
+        G.enemies.push(e); return e;
+      });
+      pl.shootCd = 0;
+      STYLES.feijian.attack(pl, G, { shooting: true, aiming: true, aimAngle: -Math.PI / 2 });
+      /* ⚠️ 钉住按帧递减（射一发飞 32 帧、钉住只有 18 帧）—— 必须取**峰值** */
+      const maxPin = [0, 0, 0];
+      for (let f = 0; f < 80; f++) {
+        if (!G.bullets[0] || G.bullets[0].dead) break;
+        G.update();
+        foes.forEach((e, i) => { if (e.pin > maxPin[i]) maxPin[i] = e.pin; });
+      }
+      const dmg = foes.map(e => +(99999 - e.hp).toFixed(2));
+      /* 单独验「钉住真的阻止主动移动」：手动上 pin 跑 10 帧（< 18），再解除跑 10 帧 */
+      foes.forEach(e => { e.speed = 1.2; e.pin = 18; });
+      const q0 = foes.map(e => [e.x, e.y]);
+      for (let f = 0; f < 10; f++) G.update();
+      const pinned = foes.map((e, i) => +Math.hypot(e.x - q0[i][0], e.y - q0[i][1]).toFixed(2));
+      foes.forEach(e => { e.pin = 0; });
+      const r0 = foes.map(e => [e.x, e.y]);
+      for (let f = 0; f < 10; f++) G.update();
+      const freed = foes.map((e, i) => +Math.hypot(e.x - r0[i][0], e.y - r0[i][1]).toFixed(2));
+      return { dmg: dmg, maxPin: maxPin, pinned: pinned, freed: freed };
+    };
+    const bare = shoot(null);
+    const gun = shoot('gungnir');
+    const st = (() => {
+      const q = new Player(0, 0);
+      ITEM_MAP.gungnir.apply(q, 0, 'feijian');
+      return { pierce: q.stats.pierce, pin: q.stats.pin };
+    })();
+    /* 叠加上限：拿三件不该变成「站着看戏」 */
+    const cap = (() => {
+      const q = new Player(0, 0);
+      for (let i = 0; i < 4; i++) ITEM_MAP.gungnir.apply(q, 0, 'feijian');
+      return q.stats.pin;
+    })();
+    return { bare: bare, gun: gun, st: st, cap: cap };
+  });
+  console.log('     冈格尼尔：伤害 ' + t12c.gun.dmg.join(' / ') + '　钉住峰值 ' + t12c.gun.maxPin.join(' / '));
+  console.log('     裸装　　：伤害 ' + t12c.bare.dmg.join(' / ') + '　钉住峰值 ' + t12c.bare.maxPin.join(' / '));
+  console.log('     钉住时位移 ' + t12c.gun.pinned.join(' / ') + '　解除后 ' + t12c.gun.freed.join(' / '));
+  ok('★ 贯穿 3 个并把 3 个都钉住（每个峰值 18 帧）',
+    t12c.gun.maxPin.every(v => v === 18), t12c.gun.maxPin.join('/'));
+  ok('★ 伤害**不**递增（3.5 / 3.5 / 3.5）—— 递增是贯灵梭的机制，这里刻意不做',
+    new Set(t12c.gun.dmg).size === 1 && t12c.gun.dmg[0] > 0, t12c.gun.dmg.join('/'));
+  ok('裸装只打中 1 个、且不会钉住',
+    t12c.bare.dmg[0] > 0 && t12c.bare.dmg[1] === 0 && t12c.bare.maxPin.every(v => v === 0),
+    t12c.bare.dmg.join('/') + '　pin ' + t12c.bare.maxPin.join('/'));
+  /* ⚠️ 别用 `=== 0`：命中的击退会留下一点余速，实测是 0.01~0.07px
+     （浮点残值，视觉上就是不动）。严格等于零会被这种噪声打成假失败。 */
+  ok('★ 钉住期间主动移动被完全停住（10 帧位移 < 0.5px）',
+    t12c.gun.pinned.every(v => v < 0.5), t12c.gun.pinned.join('/'));
+  ok('钉住解除后恢复正常移动',
+    t12c.gun.freed.every(v => v > 3), t12c.gun.freed.join('/'));
+  ok('数值型叠加但定身时间封顶（拿 4 件 ≤ 48 帧 = 0.8 秒）',
+    t12c.cap === 48, String(t12c.cap));
+
   sec('T12  全局错误检查');
   ok('全程无 pageerror / console.error', errs.length === 0, errs.slice(0, 4).join(' | '));
 
