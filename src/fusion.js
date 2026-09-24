@@ -21,6 +21,14 @@
  *    但当前没有配方用它，所以界面上不会出现第三格。
  * ============================================================ */
 
+/* 太虚系产物的护盾上限 / 补回间隔。
+   ⚠️ 这里只能写字面量，不能引 TAIXU —— fusion.js 在 items.js **之前**加载，
+      产物定义是在脚本求值期就执行的，引用 items.js 的常量会直接抛 ReferenceError
+      （页面白屏，连 Game 都起不来）。数值必须与 items.js 的 TAIXU 对齐，
+      由 _t_fusion.js 的断言守着，改了 TAIXU 忘了改这里会红。
+   TAIXU = { caps: [2, 3, 4], gaps: [600, 480, 360] } */
+const FUS_SHIELD = { cap: 2, gap: 600, capBig: 3, gapBig: 480 };
+
 /* ---------- 融合产物 ----------
    与普通法宝同构（type:'fabao'），但带 fusion:true。
    poolByType() 会把它排除在随机池外 —— 只能靠融合得到，掉落/商店/金匣都抽不到。 */
@@ -41,11 +49,19 @@ const FUSION_ITEMS = [
       p.stats.fus.detonate = 12;
     } },
 
+  /* 太虚护盾 + 羽衣：护盾体系 + 常驻护盾 → 破盾时把冲击还回去
+     ⚠️ 必须把 太虚护盾 的 shieldCap 一并继承 —— 那是它整件法宝的身份
+        （受创后自动补回），丢了就等于「融一下就没了回盾」。
+        上限取 TAIXU.caps[1]（3 格）而不是 [0]（2 格），比单独持有时更高一档。 */
   { id: 'taixu_yuyi', name: '太虚羽衣', type: 'fabao', fusion: true, icon: 'shield2',
     c1: PAL.jade, c2: PAL.white,
-    desc: '护盾替你挡下一击而破时，把这份冲击化作环形剑气还回去',
+    desc: '护盾上限 ' + FUS_SHIELD.capBig + ' 格、受创后 ' + (FUS_SHIELD.gapBig / 60)
+      + ' 秒无伤即补回；护盾破裂的那一下，把冲击化作环形剑气还回去',
     apply: p => {
-      p.shield += 2;
+      p.shieldCap = FUS_SHIELD.capBig;
+      p.shieldGap = FUS_SHIELD.gapBig;
+      if (p.shield < p.shieldCap) p.shield = p.shieldCap;
+      p.shieldReviveT = -1;
       p.stats.speed *= 1.05;
       p.stats.fus.shieldBreak = 1;
     } },
@@ -54,7 +70,8 @@ const FUSION_ITEMS = [
     c1: PAL.purpleL, c2: PAL.jadeL,
     desc: '一次射出的散剑各自锁定不同的妖物，不再挤在同一条线上',
     apply: p => {
-      p.stats.spread += 6; p.stats.homing += 0.10;
+      /* 追敌强度必须 ≥ 混元珠单独时的 0.14 —— 少了就是「融完追得更差」 */
+      p.stats.spread += 6; p.stats.homing += 0.16;
       p.stats.fus.splitAim = 1;
     } },
 
@@ -92,9 +109,10 @@ const FUSION_ITEMS = [
   /* 天眼通 + 尸毒珠：看清弱点 + 死后放毒 → 让暴击点燃目标 */
   { id: 'dongming', name: '洞冥珠', type: 'fabao', fusion: true, icon: 'eye',
     c1: PAL.purpleL, c2: PAL.green,
-    desc: '暴击命中会点燃目标，且火势比寻常灼烧更旺',
+    desc: '暴击率 ' + '22' + '%（天眼通那份更高），暴击命中会点燃目标且火势更旺',
     apply: p => {
-      p.stats.crit += 0.12; p.stats.poison += 1;
+      /* 暴击率必须 ≥ 天眼通单独时的 0.20 —— 少了就是「融完更不容易暴击」 */
+      p.stats.crit += 0.22; p.stats.poison += 1;
       p.stats.fus.critBurn = 1;
     } },
 
@@ -110,9 +128,13 @@ const FUSION_ITEMS = [
   /* 回灵符 + 聚灵阵：一个管灵力、一个管灵石 → 把经济系统接到技能系统上 */
   { id: 'lingmai', name: '灵脉', type: 'fabao', fusion: true, icon: 'coin',
     c1: PAL.jade, c2: PAL.cyan,
-    desc: '每拾取一颗灵石，同时回复 1 点灵力 —— 捡钱就是回蓝',
+    desc: '灵力自然回复 +1/秒（回灵符那份照旧），且每拾取一颗灵石再回 1 点 —— 捡钱就是回蓝',
     apply: p => {
-      p.stats.regen += 1; p.stats.greed += 2;
+      /* ⚠️ 灵力走 `mpRegen`，不是 `regen` ——
+         `regen` 是「每清一室回血」（琉璃盏用），写成 regen 会**丢掉每秒回灵**、
+         还白送一个不相干的回血。用户 2026-09-24 正是拿这条当例子问「有没有越融越弱的」。 */
+      p.stats.mpRegen += 1;
+      p.stats.greed += 2;
       p.stats.fus.coinMp = 1;
     } },
 
@@ -146,12 +168,18 @@ const FUSION_ITEMS = [
       p.stats.fus.ignitePoison = 1;
     } },
 
-  /* 太虚护盾 + 玄元镜：击落的敌方术法被护盾吸收，化为护盾本身 */
+  /* 太虚护盾 + 玄元镜：击落的敌方术法被护盾吸收，化为护盾本身
+     ⚠️ 同样必须继承 shieldCap（见 太虚羽衣 那条）。 */
   { id: 'taixujing', name: '太虚镜', type: 'fabao', fusion: true, icon: 'mirror',
     c1: PAL.jade, c2: PAL.cyan,
-    desc: '击落的敌方法术被护盾吸收，化为 1 格护盾',
+    desc: '护盾上限 ' + FUS_SHIELD.cap + ' 格、受创后 ' + (FUS_SHIELD.gap / 60)
+      + ' 秒无伤即补回；击落的敌方法术被护盾吸收，化为 1 格护盾',
     apply: p => {
-      p.stats.deflect += 1; p.shield += 1;
+      p.shieldCap = FUS_SHIELD.cap;
+      p.shieldGap = FUS_SHIELD.gap;
+      if (p.shield < p.shieldCap) p.shield = p.shieldCap;
+      p.shieldReviveT = -1;
+      p.stats.deflect += 1;
       p.stats.fus.deflectShield = 1;
     } },
 

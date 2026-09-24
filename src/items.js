@@ -312,6 +312,20 @@ function itemTipHTML(def, style, extraHTML, rank) {
   const typeName = { fabao: '法宝', dan: '丹药', gongfa: '小技能', ult: '专属技能' }[def.type] || '';
   let html = '<div class="tn">' + v.name + '<span class="tt">' + typeName + '</span></div>'
            + '<div class="td">' + v.desc + '</div>';
+  /* 融合产物：把「由哪两件融成、材料的加成全部保留」摊开写出来。
+     说明里只讲新机制，玩家自然会以为「融完把材料的效果丢了」——
+     用户 2026-09-24 就是据此怀疑「融合后反而变弱」的。
+     真实数据由 _t_fusion.js 的 T2b 断言守着（产物逐字段 ≥ 材料之和），
+     这里只是把那个事实讲给玩家听。 */
+  if (def.fusion && typeof fusionDefOf === 'function') {
+    const rec = fusionDefOf(def.id);
+    if (rec) {
+      const an = (ITEM_MAP[rec.a] || {}).name || rec.a;
+      const bn = (ITEM_MAP[rec.b] || {}).name || rec.b;
+      html += '<div class="twarn">由「' + an + '」与「' + bn
+        + '」融成　·　<b>两件的加成全部保留</b>，另加下述新机制</div>';
+    }
+  }
   // 数值型法宝叠层：把各条数值按份数加总，一眼看出手里到底叠了多少
   if (def.type === 'fabao' && !def.func && rank > 0) {
     const n = rank + 1;

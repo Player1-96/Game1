@@ -142,8 +142,56 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     t2.filter(r => /伤害\s*\+/.test(r.desc)).map(r => r.id).join(',') || '');
 
   /* ---------------------------------------------------------------
-   *  T3 产物不进随机池
+   *  T2b ⭐「融合不许变弱」不变式
+   *      产物必须**逐字段 ≥「两件材料都留着」**。
+   *      用户 2026-09-24 问「有没有融合完反而变弱的」，一查真有 5 处：
+   *      两条「太虚」丢了 shieldCap（等于没了自动回盾）、
+   *      万剑归宗追敌 0.14→0.10、洞冥珠暴击 0.20→0.12、
+   *      灵脉把 mpRegen 写成 regen（丢了每秒回灵，还白送一个回血）。
+   *      ⚠️ 加新配方必过这一关：融一次要吃掉两件法宝，只要有一处净亏，
+   *         玩家就会开始「不敢融」——玩法的信任是一次性资产。
    * ------------------------------------------------------------- */
+  sec('T2b  融合不许变弱：产物必须逐字段 ≥ 两件材料之和');
+  const t2b = await page.evaluate(() => {
+    /* 把 stats 上的字段列全 —— 第一版探针漏了 mpRegen，真 bug 就从眼皮下溜过去了 */
+    const NUM = ['damage', 'fireRate', 'speed', 'shotSpeed', 'range', 'pierce', 'spread',
+      'homing', 'homingRange', 'knockback', 'luck', 'burn', 'frost', 'chain', 'iframe',
+      'greed', 'crit', 'poison', 'regen', 'mpRegen', 'soul', 'deflect', 'reflect'];
+    const PLR = ['shield', 'shieldCap'];
+    const grab = p => {
+      const o = {};
+      for (const k of NUM) o[k] = +(+p.stats[k]).toFixed(6);
+      for (const k of PLR) o[k] = +((p[k] === undefined ? 0 : p[k])).toFixed(6);
+      return o;
+    };
+    const rows = [];
+    for (const rec of FUSION_DEF) {
+      const keep = new Player(0, 0);                  // 不融：两件都留着
+      ITEM_MAP[rec.a].apply(keep, 0, 'feijian');
+      ITEM_MAP[rec.b].apply(keep, 0, 'feijian');
+      const fused = new Player(0, 0);                 // 融掉：只剩产物
+      ITEM_MAP[rec.id].apply(fused, 0, 'feijian');
+      const k = grab(keep), f = grab(fused);
+      const worse = [];
+      for (const key of Object.keys(k)) {
+        if (f[key] < k[key] - 1e-9) worse.push(key + ' ' + k[key] + '→' + f[key]);
+      }
+      rows.push({ out: ITEM_MAP[rec.id].name, worse: worse });
+    }
+    /* FUS_SHIELD 是写在 fusion.js 里的字面量（因为它要先于 items.js 加载，
+       不能引 TAIXU）—— 用断言把两边钉在一起，改了一边忘另一边会红。 */
+    const shieldAligned = FUS_SHIELD.cap === TAIXU.caps[0] && FUS_SHIELD.gap === TAIXU.gaps[0]
+      && FUS_SHIELD.capBig === TAIXU.caps[1] && FUS_SHIELD.gapBig === TAIXU.gaps[1];
+    return { rows: rows, shieldAligned: shieldAligned };
+  });
+  const weak = t2b.rows.filter(r => r.worse.length);
+  if (weak.length) weak.forEach(r => console.log('      ❌ ' + r.out + '：' + r.worse.join('，')));
+  ok('16 条产物没有任何一条比「两件材料都留着」更弱',
+    weak.length === 0,
+    weak.length ? weak.map(r => r.out).join('、') : '全部逐字段 ≥');
+  ok('FUS_SHIELD 与 items.js 的 TAIXU 对齐（防两边漂移）', t2b.shieldAligned === true);
+
+
   sec('T3  融合产物不进随机池');
   const t3 = await page.evaluate(() => {
     const fusionIds = FUSION_DEF.map(r => r.id);
