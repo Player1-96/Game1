@@ -126,18 +126,31 @@ const NORDIC_BOSS_GIMMICK = {
       world: d.world || 'cn'
     }));
 
-    /* ---------- 3. 妖物 ---------- */
+    /* ---------- 3. 妖物（中式 + 北欧，带 world 字段）----------
+       ⚠️ 北欧那批存在 `NORDIC_ENEMY_DEF`（**不并进 `ENEMY_DEF`**，理由见 entities.js）
+       —— 之前导出只读了 `ENEMY_DEF`，于是资源表的「敌人」页一直只有中式，
+       北欧内容只在「世界内容」页里看得到。这里手工拼起来，两张表口径一致。 */
     const enemies = Object.keys(ENEMY_DEF).map(k => {
       const d = ENEMY_DEF[k];
       return {
         id: k, cn: ENEMY_CN[k] || k, hp: d.hp, speed: d.speed, r: d.r,
         touch: d.touch, coins: d.coins, ai: d.ai, aiCn: AI_CN[d.ai] || d.ai,
         size: d.size, score: d.score, split: !!d.split, shield: !!d.shield,
-        note: ENEMY_NOTE[k] || ''
+        note: ENEMY_NOTE[k] || '', world: 'cn'
       };
-    });
+    }).concat(Object.keys(NORDIC_ENEMY_DEF).map(k => {
+      const d = NORDIC_ENEMY_DEF[k];
+      return {
+        id: k, cn: NORDIC_ENEMY_CN[k] || k, hp: d.hp, speed: d.speed, r: d.r,
+        touch: d.touch, coins: d.coins, ai: d.ai, aiCn: AI_CN[d.ai] || d.ai,
+        size: d.size, score: d.score, split: !!d.split, shield: !!d.shield,
+        // 北欧杂兵**零新战斗逻辑**：行为直接复用中式已有的 AI，这里把「复用了谁」写出来
+        note: '北欧杂兵，行为复用中式「' + (AI_CN[d.ai] || d.ai) + '」',
+        world: 'nordic'
+      };
+    }));
 
-    /* ---------- 4. 精英 ---------- */
+    /* ---------- 4. 精英（同上，中式 + 北欧）---------- */
     const elites = Object.keys(ELITE_DEF).map(k => {
       const E = ELITE_DEF[k];
       const base = ENEMY_DEF[E.base];
@@ -146,13 +159,26 @@ const NORDIC_BOSS_GIMMICK = {
         hpMul: E.hpMul, spdMul: E.spdMul, scale: E.scale, rMul: E.rMul,
         coins: E.coins, score: E.score, perk: E.perk, perkCn: PERK_CN[E.perk] || E.perk,
         perkCd: E.perkCd, desc: E.desc,
-        hpAtD1: Math.round(base.hp * E.hpMul)   // 一层裸装（hpScale=1）时的血量
+        hpAtD1: Math.round(base.hp * E.hpMul),   // 一层裸装（hpScale=1）时的血量
+        world: 'cn'
       };
-    });
+    }).concat(Object.keys(NORDIC_ELITE_DEF).map(k => {
+      const E = NORDIC_ELITE_DEF[k];
+      const base = NORDIC_ENEMY_DEF[E.base];
+      return {
+        id: k, cn: E.name, en: E.en, base: E.base,
+        baseCn: (NORDIC_ENEMY_CN[E.base] || E.base),
+        hpMul: E.hpMul, spdMul: E.spdMul, scale: E.scale, rMul: E.rMul,
+        coins: E.coins, score: E.score, perk: E.perk, perkCn: PERK_CN[E.perk] || E.perk,
+        perkCd: E.perkCd, desc: E.desc,
+        hpAtD1: Math.round((base ? base.hp : 0) * E.hpMul),
+        world: 'nordic'
+      };
+    }));
 
-    /* ---------- 5. Boss ----------
-       一层一位、固定不轮换（dungeon.js 的 RT.BOSS 直接取 BOSS_KEYS[层-1]），
-       所以这里的顺序就是出现顺序，改 BOSS_DEF 的键序等于改每层打谁。 */
+    /* ---------- 5. Boss（同上，中式 + 北欧）----------
+       中式的出现层**随 BOSS_KEYS 的顺序**（一层一位，固定不轮换）；
+       北欧的按段分配：第 i 尊落在第 (i+1)*SEG_FLOORS 层（5 / 10 / 15）。 */
     const bosses = Object.keys(BOSS_DEF).map((k, i) => {
       const d = BOSS_DEF[k];
       return {
@@ -161,9 +187,19 @@ const NORDIC_BOSS_GIMMICK = {
         alt: d.alt || null, altCn: d.alt ? (BOLT_CN[d.alt] || d.alt) : '',
         dash: d.dash || 0,
         appear: '第 ' + (i + 1) + ' 层',
-        gimmick: BOSS_GIMMICK[k] || ''
+        gimmick: BOSS_GIMMICK[k] || '', world: 'cn'
       };
-    });
+    }).concat(Object.keys(NORDIC_BOSS_DEF).map((k, i) => {
+      const d = NORDIC_BOSS_DEF[k];
+      return {
+        id: k, cn: d.name, en: d.en, hp: d.hp, spd: d.spd,
+        bolt: d.bolt, boltCn: BOLT_CN[d.bolt] || d.bolt,
+        alt: d.alt || null, altCn: d.alt ? (BOLT_CN[d.alt] || d.alt) : '',
+        dash: d.dash || 0,
+        appear: '第 ' + ((i + 1) * SEG_FLOORS) + ' 层（段末）',
+        gimmick: NORDIC_BOSS_GIMMICK[k] || d.desc || '', world: 'nordic'
+      };
+    }));
 
     /* ---------- 6. Boss 挑战模式 ----------
        难度系数同时决定「玩家拿到什么」与「头目有多厚」，所以这张表既是
@@ -425,6 +461,8 @@ const NORDIC_BOSS_GIMMICK = {
       const d = SKILL_DEF[id];
       return {
         id: id, name: d.name, en: d.en, cost: d.cost, maxLv: SKILL_MAX_LV,
+        // 北欧的「权能」并进了 SKILL_DEF，但**只在北欧局掉落** —— 资源表要靠这一列区分
+        world: d.world || 'cn',
         vals: d.vals.slice(),
         // 各等级的独立冷却（帧）
         cd: d.cd ? d.cd.slice() : null,

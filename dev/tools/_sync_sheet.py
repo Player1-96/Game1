@@ -60,6 +60,10 @@ RENAME = {"道具": "丹药"}
 # 数据快照由 _export_resources.js 写在 dev/data/ 下（本脚本在 dev/tools/）
 D = json.load(open(os.path.join(HERE, "..", "data", "_resources.json"), encoding="utf-8"))
 
+# 世界归属的中文名 —— 第 4 期起道具 / 妖物 / 精英 / 尊者都带 world 字段，
+# 几张主表都是「中式 + 北欧混排」，没有这一列根本分不清谁属于哪个世界。
+WORLD_CN = {"cn": "中式仙侠", "nordic": "北欧神话", "cthulhu": "克苏鲁"}
+
 
 def _tdoc_once(tool, args, service):
     """调一次 tencentdocs.py。
@@ -267,7 +271,7 @@ def tab_fabao():
             hit = [s for s in d[dp]["slots"] if s["idx"] == slot_idx]
             out.append(hit[0]["price"] if hit else "-")
         return " / ".join(str(x) for x in out)
-    head = ["ID", "名称", "类型", "通用效果", "实际数值改动", "飞剑流", "巨剑流", "舞剑流",
+    head = ["ID", "世界", "名称", "类型", "通用效果", "实际数值改动", "飞剑流", "巨剑流", "舞剑流",
             "可叠加", "珍稀", "满阶上限", "二阶效果", "三阶效果",
             "坊市价·1号位(1/3/5层)", "坊市价·3号位", "坊市价·4号位", "抽取概率",
             "叠 2 层合计", "叠 3 层合计", "备注"]
@@ -279,7 +283,8 @@ def tab_fabao():
         fj = bs.get("feijian", {}); jj = bs.get("jujian", {}); wj = bs.get("wujian", {})
         maxrank = (len(it["up"]) + 1) if it["func"] else "∞"
         rows.append([
-            it["id"], it["name"], "功能型" if it["func"] else "数值型",
+            it["id"], WORLD_CN.get(it.get("world", "cn"), ""), it["name"],
+            "功能型" if it["func"] else "数值型",
             it["desc"], it["apply"],
             (fj.get("name", "") + "：" + fj.get("desc", "")) if fj else "同通用",
             (jj.get("name", "") + "：" + jj.get("desc", "")) if jj else "同通用",
@@ -308,7 +313,7 @@ def tab_fabao():
                  "只有满三重才自寻最近的妖物并可多穿透 2 个）。它的进阶效果也随流派变（见 upByStyle）"])
     rows.append(["说明", "★珍稀 = 金匣（花 1 把钥匙）专用池，只出这一批；常规抽取仍可能出到它们",
                  "数值型同种会堆叠：背包只占一格并标 LvN，说明里按份数给出合计数值"])
-    return rows, [10, 16, 9, 30, 26, 34, 38, 38, 16, 7, 10, 34, 34, 20, 14, 14, 30, 26, 26, 24]
+    return rows, [10, 11, 16, 9, 30, 26, 34, 38, 38, 16, 7, 10, 34, 34, 20, 14, 14, 30, 26, 26, 24]
 
 
 # ---------------------------------------------------------------- 小技能（原「功法」页签）
@@ -328,7 +333,7 @@ def tab_gongfa():
         hit = [s for s in sp["slots"] if s["idx"] == idx]
         return hit[0]["price"] if hit else "-"
     c = D["skillConst"]
-    head = ["ID", "名称", "英文", "灵力消耗", "满级", "数值含义",
+    head = ["ID", "世界", "名称", "英文", "灵力消耗", "满级", "数值含义",
             "Lv1", "Lv2", "Lv3", "Lv4", "Lv5",
             "冷却 Lv1", "冷却 Lv2", "冷却 Lv3", "冷却 Lv4", "冷却 Lv5",
             "Lv1 效果", "Lv5 效果", "获取途径", "备注"]
@@ -336,7 +341,8 @@ def tab_gongfa():
     for s in D["skills"]:
         cd = s.get("cd") or []
         cds = ["%.1f 秒" % (v / 60) for v in cd]
-        rows.append([s["id"], s["name"], s["en"], s["cost"], s["maxLv"], MEANING.get(s["id"], "")] +
+        rows.append([s["id"], WORLD_CN.get(s.get("world", "cn"), ""),
+                     s["name"], s["en"], s["cost"], s["maxLv"], MEANING.get(s["id"], "")] +
                     s["vals"] + cds +
                     [s["descs"][0].replace(s["name"], "").strip(), s["descs"][4],
                      "坊市 4 号位（60%）/ 金匣附赠（35%）/ 祭坛（30%）",
@@ -378,7 +384,7 @@ def tab_gongfa():
     rows.append(["说明", "灵力珠 = 靛蓝菱形宝珠（带脉动青晕）；灵石 = 碧绿方孔钱。形状、颜色、拾取音效都不同"])
     rows.append(["坊市价（4 号位）", "%s / %s / %s（1/3/5 层）" % (price(4, f1), price(4, f3), price(4, f5)),
                  "该位置 60% 出小技能，否则出法宝"])
-    return rows, [12, 14, 10, 10, 8, 30, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 34, 34, 34, 32]
+    return rows, [12, 11, 14, 10, 10, 8, 30, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 34, 34, 34, 32]
 
 
 # ---------------------------------------------------------------- 专属技能
@@ -458,74 +464,103 @@ def tab_dan():
     def p(dp):
         hit = [s for s in D["shopPrices"] if s["depth"] == dp][0]["slots"]
         return [s for s in hit if s["idx"] == 2][0]["price"]
-    head = ["ID", "名称", "说明", "实际数值", "坊市价(1/3/5层)", "备注"]
+    head = ["ID", "世界", "名称", "说明", "实际数值", "坊市价(1/3/5层)", "备注"]
     rows = [head]
     for it in D["items"]:
         if it["type"] != "dan":
             continue
-        rows.append([it["id"], it["name"], it["desc"], it["apply"],
+        rows.append([it["id"], WORLD_CN.get(it.get("world", "cn"), ""),
+                     it["name"], it["desc"], it["apply"],
                      "%s / %s / %s" % (p(1), p(3), p(5)),
                      "即时生效、不占背包；占坊市 2 号位"])
     rows.append([])
     rows.append(["说明", "气血单位为半心：maxHP 6 = 3 颗心。回春丹 heal(4) 即回复 2 颗心。"])
-    return rows, [12, 14, 24, 22, 18, 30]
+    return rows, [12, 11, 14, 24, 22, 18, 30]
 
 
 # ---------------------------------------------------------------- 敌人
 def tab_enemy():
     pools = {p["depth"]: {x["id"]: x["p"] for x in p["pool"]} for p in D["pools"]}
-    head = ["ID", "名称", "基础血", "移速", "碰撞半径", "接触伤害", "掉灵石", "AI", "AI 说明",
+    head = ["ID", "世界", "名称", "基础血", "移速", "碰撞半径", "接触伤害", "掉灵石", "AI", "AI 说明",
             "体型", "击杀分", "出现层", "抽取率·1层", "抽取率·2层", "抽取率·3层+", "特殊"]
     rows = [head]
     appear = {"xiesui": "1 层起", "chanchu": "1 层起", "yinsha": "1 层起", "xuefu": "1 层起",
               "guixiu": "2 层起", "shikui": "2 层起", "bengyao": "2 层起",
               "jianling": "3 层起", "yingmo": "3 层起", "xuanguang": "3 层起",
               "tiehun": "4 层起", "xuanjia": "4 层起"}
+    # 北欧杂兵按段解锁 —— 从「世界内容」反查，避免在这里再抄一份名单
+    nord = {}
+    for w in D.get("worldContent") or []:
+        if w.get("id") != "nordic":
+            continue
+        for m in w.get("mobsBySeg") or []:
+            for mob in m.get("ids") or []:
+                nord.setdefault(mob, m["seg"])
     for e in D["enemies"]:
-        g = lambda dp: ("%s%%" % pools[dp][e["id"]]) if e["id"] in pools[dp] else "—"
-        rows.append([e["id"], e["cn"], e["hp"], e["speed"], e["r"], e["touch"], e["coins"],
-                     e["ai"], e["aiCn"], e["size"], e["score"], appear.get(e["id"], ""),
+        world = WORLD_CN.get(e.get("world", "cn"), e.get("world", ""))
+        if e.get("world") == "nordic":
+            ap = "北欧 第 %d 段起" % nord.get(e["id"], 1)
+            g = lambda dp: "—"
+        else:
+            ap = appear.get(e["id"], "")
+            g = lambda dp: ("%s%%" % pools[dp][e["id"]]) if e["id"] in pools[dp] else "—"
+        rows.append([e["id"], world, e["cn"], e["hp"], e["speed"], e["r"], e["touch"], e["coins"],
+                     e["ai"], e["aiCn"], e["size"], e["score"], ap,
                      g(1), g(2), g(3), e.get("note", "")])
     rows.append([])
     rows.append(["说明", "血量为 1 层裸装基准；实际 = 基础血 × hpScale，hpScale = (1+0.18×(层-1)) × 动态难度系数（见「动态难度」页）"])
     rows.append(["说明", "抽取率 = 1 / 该层妖物池大小，池内等概率；精英窟随从也从同一池抽"])
+    rows.append(["说明", "北欧杂兵**按段**解锁（抽取率列因此留空）：段 1 池 4 只各 25%、"
+                        "段 2 加 2 只各 16.7%、段 3 再加 2 只各 12.5% —— 与中式「按层解锁」的口径不同，"
+                        "逐段的名单见「世界内容」页"])
+    rows.append(["说明", "北欧杂兵**零新战斗逻辑**：8 只全部复用中式已有的 AI，"
+                        "每种只是一套数值 + 一张图（这是把新世界的成本压下来的关键）"])
     rows.append(["说明", "接触伤害 1 = 半颗心；掉灵石数受聚灵阵（greed）额外触发：概率 = greed × 12%"])
     rows.append(["说明", "妖物池按层解锁：池内等概率，所以「加一种」等于「稀释全部」—— 新妖物一次只放一两种进来，"
                         "既让后四层每层都有新面孔，又不至于把一层的池子冲淡到看不出性格"])
-    return rows, [12, 12, 9, 8, 10, 10, 9, 10, 24, 8, 9, 11, 13, 13, 13, 60]
+    return rows, [12, 11, 12, 9, 8, 10, 10, 9, 10, 24, 8, 9, 13, 13, 13, 13, 58]
 
 
 # ---------------------------------------------------------------- 精英
 def tab_elite():
-    head = ["ID", "名称", "英文标识", "基底妖物", "血量倍率", "移速倍率", "视觉放大", "碰撞倍率",
+    head = ["ID", "世界", "名称", "英文标识", "基底妖物", "血量倍率", "移速倍率", "视觉放大", "碰撞倍率",
             "一层血量", "掉灵石", "击杀分", "专属神通", "神通说明", "冷却帧", "冷却秒",
             "选中概率", "死后余祸"]
     rows = [head]
     for e in D["elites"]:
-        rows.append([e["id"], e["cn"], e["en"], "%s（%s）" % (e["baseCn"], e["base"]),
+        world = WORLD_CN.get(e.get("world", "cn"), e.get("world", ""))
+        pick = "20%（北欧 5 选 1）" if e.get("world") == "nordic" else "20%（5 选 1）"
+        rows.append([e["id"], world, e["cn"], e["en"], "%s（%s）" % (e["baseCn"], e["base"]),
                      e["hpMul"], e["spdMul"], e["scale"], e["rMul"],
                      e["hpAtD1"], e["coins"], e["score"], e["perk"], e["perkCn"],
                      e["perkCd"], round(e["perkCd"] / 60, 2),
-                     "20%（5 选 1）", e["desc"]])
+                     pick, e["desc"]])
     rows.append([])
+    rows.append(["说明", "北欧局只抽北欧那 5 位精英，中式局只抽中式那 5 位 —— "
+                        "两个世界的精英池互不串味（`eliteKeysOf(style)` 按世界取）"])
     rows.append(["说明", "精英窟出现率 = min(85%， 38% + 11%×(层-1))；一层 38%、二层 49%、三层 60%、四层 71%、五层 82%"])
     rows.append(["说明", "一层血量 = 基底血 × 血量倍率 × hpScale（1 层裸装 hpScale=1）"])
     rows.append(["说明", "精英窟灵石配额 = 普通石室的 2~3 倍；精英死亡不再额外掉法器，回报移到墙内密室"])
     rows.append(["说明", "随从数 = 2 + floor(层/2) + (动态难度系数 > 1.2 ? 1 : 0)"])
-    return rows, [10, 14, 10, 16, 10, 10, 10, 10, 10, 9, 9, 10, 22, 9, 9, 12, 40]
+    return rows, [10, 11, 14, 10, 16, 10, 10, 10, 10, 10, 9, 9, 10, 22, 9, 9, 14, 40]
 
 
 # ---------------------------------------------------------------- BOSS
 def tab_boss():
-    head = ["ID", "名称", "英文标识", "基础血", "出现层", "主弹幕", "副弹幕", "冲刺速度",
+    head = ["ID", "世界", "名称", "英文标识", "基础血", "出现层", "主弹幕", "副弹幕", "冲刺速度",
             "碰撞半径", "击杀分", "打法要点"]
     rows = [head]
     for b in D["bosses"]:
-        rows.append([b["id"], b["cn"], b["en"], b["hp"], b["appear"],
+        world = WORLD_CN.get(b.get("world", "cn"), b.get("world", ""))
+        rows.append([b["id"], world, b["cn"], b["en"], b["hp"], b["appear"],
                      b["boltCn"], b["altCn"] or "—",
                      b["dash"] if b["dash"] else "—（不冲刺）",
                      22, 200, b["gimmick"]])
     rows.append([])
+    rows.append(["说明", "中式的 5 位里，前 3 位（血魔 / 白骨 / 裂煞）是**段末**尊者（第 5 / 10 / 15 层）；"
+                        "轮回法王与烛龙只在「Boss 挑战」模式的完整名单里出现"])
+    rows.append(["说明", "北欧的 3 位同样按段分配：芬里尔第 5 层 / 耶梦加得第 10 层 / 苏尔特第 15 层。"
+                        "中式与北欧的尊者**不在同一局里混**（`bossKeysOf(style)` 按世界取）"])
     rows.append(["说明", "血量公式：基础血 × (1 + 0.45×(层-1)) × (1 + (动态难度系数-1) × 0.6)"])
     rows.append(["说明", "阶段阈值：血量 >66% 一阶段 / >33% 二阶段 / ≤33% 三阶段；"
                         "转阶段 40 帧（约 0.67 秒）无敌，期间不吃任何伤害（燃烧等 DoT 也不行）"])
@@ -543,7 +578,7 @@ def tab_boss():
                         "玩家可以干脆不打 Boss、赖在召唤阶段刷爪牙 —— 而爪牙既掉灵力珠，"
                         "又吃舞剑流「剑意不绝」的击杀返还冷却，会变成一个「我不想输就不会输」的龟缩洞"
                         % (D["skillConst"]["BOSS_P1_LIMIT"] // 60, D["skillConst"]["BOSS_P1_LIMIT"])])
-    return rows, [10, 14, 11, 9, 10, 10, 10, 13, 10, 9, 70]
+    return rows, [10, 11, 14, 11, 9, 14, 10, 10, 13, 10, 9, 70]
 
 
 # ---------------------------------------------------------------- Boss 挑战
