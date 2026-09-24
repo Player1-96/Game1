@@ -72,6 +72,105 @@ const FUSION_ITEMS = [
     apply: p => {
       p.stats.pierce += 2; p.stats.fireRate *= 1.35;
       p.stats.fus.ramp = 0.35;
+    } },
+
+  /* ---------- 第二批：让每件法宝都有 2~3 条路可选 ----------
+     用户 2026-09-24：「一个只能对应一个太可惜了」。
+     一件法宝只有一条配方 = 没有选择（凑齐即唯一解）；有了 2~3 条，
+     「融哪个」才成为真正的决策。下面这些刻意让 引雷符 / 赤焰符 / 太虚护盾
+     等成为**枢纽**（degree 3），其余多为 2。 */
+
+  /* 金刚不坏 + 玄元镜：两件都是「挨打时才生效」的防御件 → 把防御变成反击 */
+  { id: 'jingangjing', name: '金刚玄镜', type: 'fabao', fusion: true, icon: 'fused',
+    c1: PAL.gold, c2: PAL.cyan,
+    desc: '受创即迸发一圈罡气，把近旁的妖物震开并震伤',
+    apply: p => {
+      p.stats.iframe += 40; p.stats.deflect += 1;
+      p.stats.fus.revenge = 1;
+    } },
+
+  /* 天眼通 + 尸毒珠：看清弱点 + 死后放毒 → 让暴击点燃目标 */
+  { id: 'dongming', name: '洞冥珠', type: 'fabao', fusion: true, icon: 'eye',
+    c1: PAL.purpleL, c2: PAL.green,
+    desc: '暴击命中会点燃目标，且火势比寻常灼烧更旺',
+    apply: p => {
+      p.stats.crit += 0.12; p.stats.poison += 1;
+      p.stats.fus.critBurn = 1;
+    } },
+
+  /* 风行靴 + 祥云履：两件位移件 → 让「移动」本身变成一种可积攒的资源 */
+  { id: 'yufeng', name: '御风踏云', type: 'fabao', fusion: true, icon: 'cloud',
+    c1: PAL.cyan, c2: PAL.white,
+    desc: '奔走时积攒风势，攒满后下一次出手甩出一道风刃',
+    apply: p => {
+      p.stats.speed *= 1.44;
+      p.stats.fus.wind = 1;
+    } },
+
+  /* 回灵符 + 聚灵阵：一个管灵力、一个管灵石 → 把经济系统接到技能系统上 */
+  { id: 'lingmai', name: '灵脉', type: 'fabao', fusion: true, icon: 'coin',
+    c1: PAL.jade, c2: PAL.cyan,
+    desc: '每拾取一颗灵石，同时回复 1 点灵力 —— 捡钱就是回蓝',
+    apply: p => {
+      p.stats.regen += 1; p.stats.greed += 2;
+      p.stats.fus.coinMp = 1;
+    } },
+
+  /* 引雷符 + 玄冰符：雷与冰同源（都是「天象」），交会处冻结 */
+  { id: 'shuanglei', name: '霜雷', type: 'fabao', fusion: true, icon: 'fused',
+    c1: PAL.cyan, c2: PAL.jadeL,
+    desc: '雷击的同时冻住目标及其周围的妖物',
+    apply: p => {
+      p.stats.chain += 1; p.stats.frost += 1;
+      p.stats.fus.frostBolt = 1;
+    } },
+
+  /* 引雷符 + 赤焰符：雷落处起火
+     ⚠️ 配色别和「赤焰符」一致（flame + fire/gold 是它本人）——
+        审计里有一条「同形状 + 同配色 = 同一位图」的断言，撞了会被拦下。
+        这里雷在前、火在后，和赤焰符的「火 + 金」明确区分。 */
+  { id: 'leihuo', name: '雷火焚天', type: 'fabao', fusion: true, icon: 'flame',
+    c1: PAL.cyan, c2: PAL.fire,
+    desc: '被雷击中的目标会同时被点燃',
+    apply: p => {
+      p.stats.chain += 1; p.stats.burn += 2;
+      p.stats.fus.boltBurn = 1;
+    } },
+
+  /* 赤焰符 + 尸毒珠：击杀时毒雾被点着，炸成一片火海 */
+  { id: 'fendu', name: '焚毒', type: 'fabao', fusion: true, icon: 'orb',
+    c1: PAL.fire, c2: PAL.green,
+    desc: '击杀时毒雾与火海同时炸开，火海范围更广',
+    apply: p => {
+      p.stats.burn += 2; p.stats.poison += 1;
+      p.stats.fus.ignitePoison = 1;
+    } },
+
+  /* 太虚护盾 + 玄元镜：击落的敌方术法被护盾吸收，化为护盾本身 */
+  { id: 'taixujing', name: '太虚镜', type: 'fabao', fusion: true, icon: 'mirror',
+    c1: PAL.jade, c2: PAL.cyan,
+    desc: '击落的敌方法术被护盾吸收，化为 1 格护盾',
+    apply: p => {
+      p.stats.deflect += 1; p.shield += 1;
+      p.stats.fus.deflectShield = 1;
+    } },
+
+  /* 乾坤袋 + 聚灵阵：气运 + 财气 → 灵石有机会变成钥匙 */
+  { id: 'jubaopen', name: '聚宝盆', type: 'fabao', fusion: true, icon: 'bag',
+    c1: PAL.gold, c2: PAL.jade,
+    desc: '灵石掉落大幅增加，且每颗灵石有小半概率变成一把钥匙',
+    apply: p => {
+      p.stats.greed += 4; p.stats.luck += 3;
+      p.stats.fus.coinKey = 1;
+    } },
+
+  /* 御剑术·三重 + 灵犀玉佩：散剑不再列成固定扇形 —— 把「可预判」换成「难躲」 */
+  { id: 'luanpifeng', name: '乱披风', type: 'fabao', fusion: true, icon: 'needle',
+    c1: PAL.jadeL, c2: PAL.cyan,
+    desc: '散剑不再列成固定扇形 —— 每次出手的弧度都不同，近身难躲全中',
+    apply: p => {
+      p.stats.spread += 2; p.stats.fireRate *= 1.35;
+      p.stats.fus.wildArc = 1;
     } }
 ];
 
@@ -85,7 +184,24 @@ const FUSION_DEF = [
   { id: 'taixu_yuyi', a: 'taixu',    b: 'yuyi'     },
   { id: 'wangui',     a: 'hunyuan',  b: 'fenying'  },
   { id: 'shehunting', a: 'zhenhun',  b: 'shehun'   },
-  { id: 'guanling',   a: 'chuanyun', b: 'lingxi'   }
+  { id: 'guanling',   a: 'chuanyun', b: 'lingxi'   },
+
+  /* ---------- 第二批（2026-09-24）：把「一对一」扩成「一对 2~3」 ----------
+     一件法宝只有一条配方 = 凑齐即唯一解 = 没有决策。
+     这批刻意让 引雷符 / 赤焰符（degree 3）、太虚护盾 / 玄元镜 / 尸毒珠 /
+     玄冰符 / 灵犀玉佩 / 聚灵阵（degree 2）成为枢纽 ——
+     「我手里这对，融还是留给下一对」这才成立。
+     ⚠️ 每条仍然必须产出新机制（判据：能用「伤害 +X%」写完的就是伪融合）。 */
+  { id: 'jingangjing', a: 'jingang',  b: 'xuanyuan' },   // 防御帧 → 反击
+  { id: 'dongming',    a: 'tianyan',  b: 'shidu'    },   // 暴击 → 点燃
+  { id: 'yufeng',      a: 'fengxing', b: 'xiangyun' },   // 移动 → 攻击资源
+  { id: 'lingmai',     a: 'huiling',  b: 'juling'   },   // 经济 → 灵力
+  { id: 'shuanglei',   a: 'leifu',    b: 'hanbing'  },   // 雷 → 冻结
+  { id: 'leihuo',      a: 'leifu',    b: 'chiyan'   },   // 雷 → 点燃
+  { id: 'fendu',       a: 'chiyan',   b: 'shidu'    },   // 毒 → 火海
+  { id: 'taixujing',   a: 'taixu',    b: 'xuanyuan' },   // 击落 → 补盾
+  { id: 'jubaopen',    a: 'qiankun',  b: 'juling'   },   // 灵石 → 钥匙
+  { id: 'luanpifeng',  a: 'yujian',   b: 'lingxi'   }    // 固定扇形 → 乱弧
 ];
 
 /* ---------- 图鉴（跨局永久解锁）----------
@@ -189,11 +305,22 @@ function fusionExecute(g, idA, idB) {
   return { ok: true, first: first, out: r.id, recipe: r };
 }
 
+/* 「风势」蓄满所需的移动距离（像素）。御风踏云用。
+   260px 约等于横穿大半间石室 —— 只要在走就会攒满，但站着不动永远攒不出，
+   所以它奖励的是「边走边打」，而不是站桩。 */
+const WIND_MAX = 260;
+
 /* ---------- 战斗钩子 ----------
-   全部集中在这里，entities.js 只留 5 处一行调用 ——
-   融合玩法的新机制不该散进战斗代码里。 */
+   全部集中在这里，entities.js 只留几处一行调用 ——
+   融合玩法的新机制不该散进战斗代码里。每加一个机制，先问
+   「能不能落到已有的钩子上」，落不下才新开一个（现有：
+   命中 / 穿透递增 / 受创 / 破盾 / 击杀 / 拾取灵石 / 移动 / 击落 / 发射时）。 */
 
 const Fusion = {
+  /* 每帧的限流计时。由 Player.update 的逐帧计时区调用。 */
+  tick(pl) {
+    if (pl._deflectShieldCd > 0) pl._deflectShieldCd--;
+  },
   /* 飞剑命中一个妖物。在 e.hurt() 之后调用（此时 b.hit 已含本目标）。
      b.fus 是发射时从 stats.fus 抄到弹上的机制表。 */
   onHit(e, b, g) {
@@ -217,6 +344,93 @@ const Fusion = {
       g.shake(4);
       SFX.thunder();
     }
+
+    /* 雷火焚天：命中即点燃（不需要暴击） */
+    if (F.boltBurn) {
+      e.burn = Math.max(e.burn, 150);
+      e.burnDmg = Math.max(e.burnDmg || 0, F.boltBurn * 1.5);
+    }
+
+    /* 洞冥珠：暴击命中的灼烧格外旺 —— 火势按这一发的伤害折算 */
+    if (F.critBurn && b.crit) {
+      e.burn = Math.max(e.burn, 190);
+      e.burnDmg = Math.max(e.burnDmg || 0, b.dmg * 0.9);
+    }
+
+    /* 霜雷：雷击的同时把目标**连同它周围**一起冻住。
+       ⚠️ 别把主目标排除在外（跳过 o === e 的那种写法）——
+          被直接打中的那只反而不冻，读起来毫无道理。测试撞到过这一条。 */
+    if (F.frostBolt) {
+      for (const o of g.enemies) {
+        if (o.dead) continue;
+        if (Math.hypot(o.x - e.x, o.y - e.y) < 56) o.frost = Math.max(o.frost, 90);
+      }
+      g.burst(e.x, e.y, 10, PAL.cyan);
+    }
+  },
+
+  /* 受创即反震（金刚玄镜）：挂一圈罡气在玩家身上，持续到无敌帧结束。
+     用 Hazard 而不是逐妖判定 —— Hazard 已经有「每帧结算、打敌人」的现成逻辑，
+     半径给到 52 就够把贴上来的妖物推开。 */
+  onHurt(pl, g) {
+    const F = pl.stats.fus;
+    if (!F || !F.revenge) return;
+    g.hazards.push(new Hazard(pl.x, pl.y, 52, 0, 18, 10, PAL.goldL, true));
+    g.burst(pl.x, pl.y, 22, PAL.goldL);
+    g.shake(5);
+  },
+
+  /* 拾取灵石（灵脉 / 聚宝盆）。n = 这一颗的面值 */
+  onCoin(g, n) {
+    const pl = g.player;
+    if (!pl || !pl.stats.fus) return;
+    const F = pl.stats.fus;
+    /* 灵脉：捡钱就是回蓝 —— 把经济系统接到技能系统上 */
+    if (F.coinMp) {
+      pl.mp = Math.min(pl.maxMP, pl.mp + n);
+      g.floaters.push(new Floater(pl.x, pl.y - 26, 'MP +' + n, PAL.cyan));
+    }
+    /* 聚宝盆：每颗灵石有四成概率变成一把钥匙 */
+    if (F.coinKey && Math.random() < 0.4) {
+      g.keys++;
+      g.floaters.push(new Floater(pl.x, pl.y - 36, 'KEY', PAL.gold));
+      SFX.pickup();
+    }
+  },
+
+  /* 风势（御风踏云）：移动时按位移积攒，攒满后由 takeWind 取走 */
+  onMove(pl, moved) {
+    const F = pl.stats.fus;
+    if (!F || !F.wind) return;
+    pl.windT = Math.min(WIND_MAX, (pl.windT || 0) + moved);
+  },
+  /* 取用风势：满了就消耗掉并返回 true（调用方负责甩风刃） */
+  takeWind(pl) {
+    const F = pl.stats.fus;
+    if (!F || !F.wind) return false;
+    if ((pl.windT || 0) < WIND_MAX) return false;
+    pl.windT = 0;
+    return true;
+  },
+  windRatio(pl) {
+    return Math.min(1, (pl && pl.windT || 0) / WIND_MAX);
+  },
+
+  /* 击落敌弹（太虚镜）：化为 1 格护盾。
+     限流：一拍内击落多枚只补 1 格，否则弹幕房会变成刷盾机。 */
+  onDeflect(pl, g) {
+    const F = pl.stats.fus;
+    if (!F || !F.deflectShield) return;
+    if ((pl._deflectShieldCd || 0) > 0) return;
+    pl._deflectShieldCd = 20;
+    pl.addShield(1);
+    g.floaters.push(new Floater(pl.x, pl.y - 26, 'SHIELD', PAL.jadeL));
+  },
+
+  /* 每次出手的扇形弧度（乱披风）：固定扇形 → 随机乱弧 */
+  spreadArcOf(F, base) {
+    if (!F || !F.wildArc) return base;
+    return base * (0.4 + Math.random() * 1.8);
   },
 
   /* 飞剑被「穿透递增」加权：第 n 个目标吃 ×(1 + (n-1)×ramp)。
@@ -238,11 +452,20 @@ const Fusion = {
     SFX.thunder();
   },
 
-  /* 妖物被击杀。摄魂铃：魂魄化为一枚追敌的魂弹。 */
+  /* 妖物被击杀。摄魂铃：魂魄化为一枚追敌的魂弹。
+     焚毒：毒雾（尸毒珠的效果）与火海在同一处炸开 —— 毒被点着了。 */
   onKill(e, g) {
     const pl = g.player;
     if (!pl || !pl.stats.fus) return;
     const F = pl.stats.fus;
+
+    /* 焚毒：范围比尸毒珠自己那圈更大，颜色用火色以便和绿雾分开 */
+    if (F.ignitePoison && pl.stats.poison > 0) {
+      const k = Math.max(0, pl.stats.poison - 1);
+      g.hazards.push(new Hazard(e.x, e.y, 40 + k * 8, 0, 120 + k * 30, 1.6 + k * 0.5, PAL.fire, true));
+      g.burst(e.x, e.y, 16, PAL.orange);
+    }
+
     if (!F.soulShot) return;
     if (e.small) return;                          // 随从/魂火之类的小杂兵不触发，免得刷屏
     const a = Math.random() * Math.PI * 2;

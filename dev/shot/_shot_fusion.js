@@ -73,21 +73,21 @@ const OUT = path.resolve(__dirname, '..', 'preview');
   });
   await shot('_preview_fusion_empty.png', '未选料 · 全部可选');
 
-  /* ---------- ③ 面板 · 选了一件 ---------- */
-  console.log('\n③ 面板 · 选了一件（只亮有缘分的）');
+  /* ---------- ③ 面板 · 选中枢纽（一对多） ---------- */
+  console.log('\n③ 面板 · 选中枢纽「引雷符」（三条路同时亮起）');
   await page.evaluate(() => {
     const G = window.Game;
-    const i = G.fusion.pool.indexOf('qingfeng');
+    const i = G.fusion.pool.indexOf('leifu');    // 引雷符：通 青锋剑 / 玄冰符 / 赤焰符
     G.fusion.idx = i; G.fusionTake();
     G.draw();
   });
-  await shot('_preview_fusion_one.png', '只亮与青锋剑有配方的');
+  await shot('_preview_fusion_one.png', '引雷符 → 三条路可选（枢纽）');
 
   /* ---------- ④ 两件齐了但未解锁 → ？？？ ---------- */
   console.log('\n④ 两件齐了但未解锁 → ？？？');
   await page.evaluate(() => {
     const G = window.Game;
-    const i = G.fusion.pool.indexOf('leifu');
+    const i = G.fusion.pool.indexOf('chiyan');
     G.fusion.idx = i; G.fusionTake();
     G.draw();
   });

@@ -2817,6 +2817,19 @@ class GameCore {
 
     // 已获法宝（左下角）：同种堆叠成一层，右下角标 LvN
     let bx = 6, by = 320 - 22;
+    /* 御风踏云的风势读数：满了才甩得出风刃，所以必须给一条能看的进度条 ——
+       否则「攒够了没」只能靠猜。放在法宝图标行正上方（图标最多两行，
+       y 从 298 往上长到 279，这里取 270 正好不打架）。 */
+    if (p.stats.fus && p.stats.fus.wind) {
+      const k = Fusion.windRatio(p), wx = 6, wy = 320 - 50, ww = 40;
+      g.fillStyle = 'rgba(8,6,18,0.78)'; g.fillRect(wx - 1, wy - 1, ww + 2, 5);
+      g.fillStyle = k >= 1 ? PAL.cyan : PAL.jade;
+      g.fillRect(wx, wy, Math.round(ww * k), 3);
+      if (k >= 1) {
+        g.globalAlpha = 0.5 + Math.sin(this.tick * 0.14) * 0.5;
+        g.fillStyle = PAL.white; g.fillRect(wx + ww + 2, wy - 1, 2, 5); g.globalAlpha = 1;
+      }
+    }
     const order = [], cnt = {};
     for (const id of p.items) { if (!(id in cnt)) { cnt[id] = 0; order.push(id); } cnt[id]++; }
     /* 融合共鸣（第 3 期）：**设计里白送的那一半**。

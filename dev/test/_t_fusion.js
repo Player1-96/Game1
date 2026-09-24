@@ -71,13 +71,52 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   });
   console.log('    配方 ' + t1.n + ' 条；道具总数 ' + t1.itemCount + '；随机法宝池 ' + t1.poolCount);
   t1.rows.forEach(r => console.log('      ' + r.a + ' + ' + r.b + ' → ' + r.id));
-  ok('配方数在 6~10 之间', t1.n >= 6 && t1.n <= 10, String(t1.n));
+  ok('配方数在 10~24 之间', t1.n >= 10 && t1.n <= 24, String(t1.n));
   ok('每条配方的两件材料都存在于道具表', t1.rows.every(r => r.aOk && r.bOk));
   ok('每条配方的产物都存在于道具表', t1.rows.every(r => r.outOk));
   ok('产物都是法宝且带 fusion 标记', t1.rows.every(r => r.outFabao && r.outFusion));
   ok('没有自环（产物不能再当自己的材料）', t1.rows.every(r => !r.selfLoop));
   ok('配方 id 不重复', !t1.dupIds);
   ok('配方「材料对」不重复', !t1.dupPairs);
+
+  /* ---------------------------------------------------------------
+   *  T1b ⭐「一对多」结构
+   *     一件法宝只有一条配方 = 凑齐即唯一解 = 没有决策。
+   *     必须有若干件能通向 2~3 条不同的产物，「融哪个」才成立。
+   * ------------------------------------------------------------- */
+  sec('T1b  一对多结构（同一个法宝有多条路可选）');
+  const t1b = await page.evaluate(() => {
+    const pool = poolByType('fabao');
+    const deg = pool.map(id => ({ id, name: (ITEM_MAP[id] || {}).name, n: fusionsWith(id).length }))
+      .sort((a, b) => b.n - a.n);
+    const covered = deg.filter(d => d.n > 0);
+    /* 配方之间不能是同一条材料对（否则就是重复定义，玩家看不出区别） */
+    const pairKey = r => [r.a, r.b].sort().join('+');
+    const keys = FUSION_DEF.map(pairKey);
+    return {
+      deg: deg,
+      maxDeg: deg[0] ? deg[0].n : 0,
+      twoPlus: covered.filter(d => d.n >= 2).length,
+      threePlus: covered.filter(d => d.n >= 3).length,
+      coveredCount: covered.length,
+      poolSize: pool.length,
+      orphans: deg.filter(d => d.n === 0).map(d => d.name),
+      dupPair: keys.length !== new Set(keys).size
+    };
+  });
+  console.log('    度数最高的几件：' + t1b.deg.slice(0, 8)
+    .map(d => d.name + '×' + d.n).join('　'));
+  console.log('    覆盖 ' + t1b.coveredCount + '/' + t1b.poolSize + ' 件；'
+    + '≥2 条路的有 ' + t1b.twoPlus + ' 件；≥3 条路的有 ' + t1b.threePlus + ' 件');
+  if (t1b.orphans.length) console.log('    仍无配方：' + t1b.orphans.join('、'));
+  ok('存在能通向 3 条不同产物的法宝（真正的枢纽）',
+    t1b.threePlus >= 2, t1b.threePlus + ' 件');
+  ok('有相当一批法宝能通向 2 条以上（不是「一对一定死」）',
+    t1b.twoPlus >= 5, t1b.twoPlus + ' 件');
+  ok('覆盖率过半（大部分法宝都有机缘）',
+    t1b.coveredCount / t1b.poolSize > 0.7,
+    t1b.coveredCount + '/' + t1b.poolSize);
+  ok('没有任何两条配方共用同一对材料', !t1b.dupPair);
 
   /* ---------------------------------------------------------------
    *  T2 「真融合」判据 —— 如果说明能用「伤害 +X%」写完，它就是假的
@@ -409,6 +448,113 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('确认后回到 play 状态且面板关闭', t9.done.state === 'play' && t9.done.fusion === null);
   ok('产物入袋、材料清空', t9.done.hasProduct && t9.done.leftMats === 0,
     '残余材料 ' + t9.done.leftMats);
+
+  /* ---------------------------------------------------------------
+   *  T9b 机制实效：每条新机制都要真的「发生」
+   *      T2 只验了 stats.fus 上挂着键 —— 键存在 ≠ 钩子接上了。
+   *      这一节逐个钩子打一遍，看它有没有真的改变游戏状态。
+   * ------------------------------------------------------------- */
+  sec('T9b  机制实效（逐个钩子真的生效）');
+  const t9b = await page.evaluate(() => {
+    const G = window.Game;
+    G.newRun('feijian');
+    const p = G.player;
+    const ek = Object.keys(ENEMY_DEF)[0];
+    const out = {};
+
+    /* 金刚玄镜：受创 → 场上多出一片 friendly 罡气 */
+    p.stats.fus = { revenge: 1 };
+    G.hazards.length = 0; p.invuln = 0;
+    p.takeDamage(1, G);
+    out.revenge = G.hazards.filter(h => h.friendly).length;
+
+    /* 灵脉：拾取灵石 → 回灵力 */
+    p.stats.fus = { coinMp: 1 };
+    p.mp = 0;
+    Fusion.onCoin(G, 3);
+    out.coinMp = p.mp;
+
+    /* 聚宝盆：概率性，跑多次看有没有出过钥匙 */
+    p.stats.fus = { coinKey: 1 };
+    const k0 = G.keys;
+    for (let i = 0; i < 60; i++) Fusion.onCoin(G, 1);
+    out.coinKey = G.keys - k0;
+
+    /* 御风踏云：移动积攒 → 可取用；不满则取不到 */
+    p.stats.fus = { wind: 1 }; p.windT = 0;
+    Fusion.onMove(p, 100);
+    const notFull = Fusion.takeWind(p);
+    Fusion.onMove(p, 400);
+    const full = Fusion.takeWind(p);
+    out.wind = { notFull: notFull, full: full, left: p.windT };
+
+    /* 太虚镜：击落 → 补盾，且同一拍内限流 */
+    p.stats.fus = { deflectShield: 1 };
+    p.shield = 0; p._deflectShieldCd = 0;
+    Fusion.onDeflect(p, G);
+    const s1 = p.shield;
+    Fusion.onDeflect(p, G);
+    out.deflect = { first: s1, second: p.shield };
+
+    /* 霜雷 / 雷火焚天 / 洞冥珠：都给同一只目标上状态，逐条验 */
+    const mk = (fus, crit) => {
+      G.enemies.length = 0;
+      const e = new Enemy(ek, 240, 180, 1);
+      const nb = new Enemy(ek, 262, 180, 1);      // 贴着主目标，用来验「周围也冻住」
+      G.enemies.push(e); G.enemies.push(nb);
+      const b = new Bullet(240, 180, 0, 0, { friendly: true, dmg: 4, r: 5, fus: fus, crit: !!crit });
+      Fusion.onHit(e, b, G);
+      return { e: e, nb: nb, haz: G.hazards.filter(h => h.friendly).length };
+    };
+
+    G.hazards.length = 0;
+    const fr = mk({ frostBolt: 1 });
+    out.frostBolt = { main: fr.e.frost > 0, near: fr.nb.frost > 0 };
+
+    G.hazards.length = 0;
+    const bb = mk({ boltBurn: 1 });
+    out.boltBurn = bb.e.burn > 0;
+
+    const cb = mk({ critBurn: 1 }, false);
+    const cb2 = mk({ critBurn: 1 }, true);
+    out.critBurn = { normal: cb.e.burn > 0, crit: cb2.e.burn > 0 };
+
+    /* 焚毒：击杀 → 场上多出一片火色 friendly Hazard（需要 player 带毒） */
+    p.stats.poison = 1;
+    p.stats.fus = { ignitePoison: 1 };
+    G.hazards.length = 0;
+    const victim = new Enemy(ek, 240, 180, 1);
+    G.enemies.push(victim);
+    Fusion.onKill(victim, G);
+    out.ignitePoison = G.hazards.filter(h => h.friendly).length;
+
+    /* 乱披风：弧度必须真的随机（跑 40 次看有没有出现不同值） */
+    const arcs = {};
+    for (let i = 0; i < 40; i++) {
+      arcs[Fusion.spreadArcOf({ wildArc: 1 }, 0.16).toFixed(3)] = 1;
+    }
+    out.wildArc = Object.keys(arcs).length;
+    out.wildArcOff = Fusion.spreadArcOf({}, 0.16);
+    return out;
+  });
+  console.log('    ' + JSON.stringify(t9b));
+  ok('金刚玄镜：受创后场上出现反震罡气', t9b.revenge >= 1, String(t9b.revenge));
+  ok('灵脉：拾取 3 灵石回 3 点灵力', t9b.coinMp === 3, String(t9b.coinMp));
+  ok('聚宝盆：60 颗灵石里真的出过钥匙', t9b.coinKey > 0, '+' + t9b.coinKey);
+  ok('御风踏云：不满时取不到风势', t9b.wind.notFull === false);
+  ok('御风踏云：攒满后取得到、且取走即清零',
+    t9b.wind.full === true && t9b.wind.left === 0, '剩 ' + t9b.wind.left);
+  ok('太虚镜：击落补 1 格护盾', t9b.deflect.first === 1, String(t9b.deflect.first));
+  ok('太虚镜：同一拍内连击落只补 1 格（有限流）', t9b.deflect.second === 1, String(t9b.deflect.second));
+  ok('霜雷：主目标被冻', t9b.frostBolt.main === true);
+  ok('霜雷：**周围**的妖物也被冻（这正是它和玄冰符的区别）', t9b.frostBolt.near === true);
+  ok('雷火焚天：命中即点燃（不需要暴击）', t9b.boltBurn === true);
+  ok('洞冥珠：普通命中不点燃、暴击命中才点燃',
+    t9b.critBurn.normal === false && t9b.critBurn.crit === true,
+    JSON.stringify(t9b.critBurn));
+  ok('焚毒：击杀时炸出火海', t9b.ignitePoison >= 1, String(t9b.ignitePoison));
+  ok('乱披风：弧度真的随机（40 次出多个不同值）', t9b.wildArc >= 8, t9b.wildArc + ' 种');
+  ok('乱披风：没这件法宝时弧度仍是固定值', t9b.wildArcOff === 0.16, String(t9b.wildArcOff));
 
   /* ---------------------------------------------------------------
    *  T10 运行期无报错

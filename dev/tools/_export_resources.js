@@ -251,7 +251,25 @@ const PERK_CN = {
           out: r.id, outName: out.name || r.id,
           mech: mech, desc: out.desc || ''
         };
-      })
+      }),
+      /* 度数结构：一件法宝通向几条**不同**的产物。
+         一对一 = 凑齐即唯一解 = 没有决策；有 2~3 条，「融哪个」才成立。
+         这张表就是「一对多」这个设计目标的验收口径。 */
+      degree: (() => {
+        const pool = poolByType('fabao');
+        const deg = {};
+        for (const id of pool) deg[id] = fusionsWith(id).length;
+        const name = id => (ITEM_MAP[id] || {}).name || id;
+        return {
+          total: pool.length,
+          covered: pool.filter(id => deg[id] > 0).length,
+          maxDeg: Math.max.apply(null, pool.map(id => deg[id])),
+          hubs: pool.filter(id => deg[id] >= 3).map(id => ({ name: name(id), n: deg[id] })),
+          two: pool.filter(id => deg[id] === 2).map(id => name(id)),
+          one: pool.filter(id => deg[id] === 1).map(id => name(id)),
+          none: pool.filter(id => deg[id] === 0).map(id => name(id))
+        };
+      })()
     };
 
     /* ---------- 7. 流派与蓄力段位 ---------- */

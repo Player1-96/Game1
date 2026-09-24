@@ -678,6 +678,24 @@ def tab_fusion():
                  "否则越融越强、材料白送"])
     rows.append([])
 
+    # 一对多结构：这是「一个只能对应一个太可惜了」那个需求的验收口径
+    deg = F.get("degree") or {}
+    if deg:
+        hubs = " / ".join("%s（%d 条）" % (h.get("name", ""), h.get("n", 0))
+                          for h in (deg.get("hubs") or [])) or "（无）"
+        rows.append(["项", "值", "说明"])
+        rows.append(["枢纽法宝", hubs,
+                     "通向 3 条不同产物的法宝。一条路 = 凑齐即唯一解 = 没有决策；"
+                     "有 2~3 条，「我这对融还是留给下一对」才成立"])
+        rows.append(["通向 2 条的法宝", " / ".join(deg.get("two") or []) or "（无）", ""])
+        rows.append(["只有 1 条的法宝", "%d 件" % len(deg.get("one") or []),
+                     "仍有改进余地：给它们补第二条路，玩家的选择会更多"])
+        rows.append(["暂无配方的法宝", " / ".join(deg.get("none") or []) or "（无）",
+                     "多为纯数值法宝（做配方容易变伪融合），或留给二阶当原料"])
+        rows.append(["覆盖", "%d / %d 件" % (deg.get("covered", 0), deg.get("total", 0)),
+                     "最高度数 %d" % deg.get("maxDeg", 0)])
+        rows.append([])
+
     rows.append(["材料 A", "材料 B", "产物", "机制（新玩法）", "说明"])
     for d in defs:
         rows.append([d.get("aName", ""), d.get("bName", ""), d.get("outName", ""),
@@ -1511,6 +1529,9 @@ def main():
     # 3) 写入
     for name, fn in TABS:
         if name not in ids:
+            # --only 模式下，没被点名的子表本来就不在 ids 里 —— 跳过而不是报错
+            if only:
+                continue
             raise RuntimeError("缺少子表 " + name)
         rows, widths = fn()
         n, w = write_tab(ids[name], rows)

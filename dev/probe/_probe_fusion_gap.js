@@ -56,13 +56,13 @@ const FILE = 'file:///' + path.resolve(__dirname, '..', '..', 'index.html').repl
       rate[n] = hit / TRIALS;
     }
 
-    /* 「再加 4 条配方」的模拟：用剩下的孤儿法宝凑 4 条，
-       看配对概率能涨多少 —— 这个数直接决定「值不值得再加」。 */
+    /* 第一波已落地（2026-09-24 第二批）：下面这 4 条**已经是真配方**，
+       所以 ratePlus 现在等于 rate —— 保留它是为了让「再加 4 条」的推演可复现。 */
     const HYPOTHETICAL = [
-      ['jingang', 'xuanyuan'],
-      ['tianyan', 'shidu'],
-      ['fengxing', 'xiangyun'],
-      ['huiling', 'juling']
+      ['xuantie', 'taixu'],      // 玄铁重铠
+      ['liuli', 'jindan'],       // 丹鼎
+      ['xuantie', 'jingang'],    // ?（推演用，未必真做）
+      ['liuli', 'huiling']       // ?（推演用）
     ];
     const ratePlus = {};
     const hasPair2 = hand => {
@@ -111,10 +111,14 @@ const FILE = 'file:///' + path.resolve(__dirname, '..', '..', 'index.html').repl
 
   console.log('\n─── 每件参与的配方数 ───');
   console.log('  ' + r.degree.map(d => d.name + ':' + d.n).join('　'));
-  console.log('  ⚠️ 全部是 1 —— 没有任何一件是「枢纽」，也没有任何一件参与两条配方');
+  const hubs = r.degree.filter(d => d.n >= 3).map(d => d.name);
+  const multi = r.degree.filter(d => d.n === 2).length;
+  console.log('  枢纽（3 条路）：' + (hubs.join('、') || '（无）')
+    + '　·　2 条路的：' + multi + ' 件'
+    + '　·　只有 1 条：' + r.degree.filter(d => d.n === 1).length + ' 件');
 
   console.log('\n─── 手里有 N 件时，凑得出一对可融的概率 ───');
-  console.log('   N  | 现在(6条) | 加4条(10条) | 提升');
+  console.log('   N  | 当前(' + r.defs + '条) | 再补4条(' + (r.defs + 4) + '条) | 提升');
   console.log('  ----+-----------+-------------+------');
   Object.keys(r.rate).forEach(n => {
     const a = r.rate[n], b = r.ratePlus[n];

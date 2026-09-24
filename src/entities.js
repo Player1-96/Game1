@@ -403,6 +403,8 @@ class Bullet {
           // 「这不是没打中，是打不动」，不然会被当成判定 bug
           if (b.hard) { g.burst(b.x, b.y, 4, PAL.greyL); continue; }
           b.dead = true; g.burst(b.x, b.y, 6, PAL.cyan);
+          /* 太虚镜（融合）：击落的术法被护盾吸收，化为 1 格护盾（内部有限流） */
+          Fusion.onDeflect(g.player, g);
         }
       }
     } else {
@@ -2093,7 +2095,7 @@ class Pickup {
     this.dead = true;
     if (this.rec) this.rec.taken = true;   // 回写房间数据，换房后不再重建
     const p = g.player;
-    if (this.kind === 'coin') { Game.addCoins(this.value); SFX.coin(); }
+    if (this.kind === 'coin') { Game.addCoins(this.value); SFX.coin(); Fusion.onCoin(g, this.value); }
     else if (this.kind === 'heart') { p.heal(2); SFX.pickup(); }
     else if (this.kind === 'shield') { p.addShield(1); SFX.pickup(); }
     else if (this.kind === 'bomb') { g.bombs++; SFX.pickup(); }
@@ -2250,6 +2252,10 @@ class Player {
        突进本身无敌（上面的 invuln 提前返回），所以真正的软肋
        只是「蓄势的那半秒」，这套连招的赌注就压在这里。 */
     if (this.wjCharging) this.wjInterrupt(g);
+    /* 金刚玄镜（融合）：受创即反震。
+       放在分叉**之前** —— 无论这一下是被护盾吃掉还是真掉气血，
+       「挨了一下」这个事实都成立，反击的时机也就成立。 */
+    Fusion.onHurt(this, g);
     if (this.shieldTotal > 0) {
       // 先消耗限时护盾（横竖要散），再扣常驻护盾
       if (this.tShield > 0) this.tShield--;
@@ -2369,6 +2375,9 @@ class Player {
     if (this.invuln > 0) this.invuln--;
     if (this.soulBuff > 0) this.soulBuff--;
     if (this.shootCd > 0) this.shootCd--;
+    /* 融合机制里带「每拍限流」的那些（太虚镜的击落补盾）在这里衰减 ——
+       放在逐帧计时区，和 invuln / shootCd 同一处，别散进战斗逻辑里。 */
+    Fusion.tick(this);
     // 灵力：自然回复走 stats.mpRegen（开局为 0，全靠「回灵符」法宝堆）。
     // 用整数计数而不是累加浮点 —— 累加 4/60 会因浮点误差拖成每 16 帧才回 1 点。
     if (this.mp > this.maxMP) this.mp = this.maxMP;
@@ -2436,6 +2445,9 @@ class Player {
       this.vy = lerp(this.vy, my * sp, 0.28);
       this.x += this.vx; this.y += this.vy;
       g.collideRoom(this, this.r, true);
+      /* 御风踏云（融合）：按本帧实际位移积攒风势。
+         用位移而不是「按键了没」—— 撞墙原地推也会算位移，要的就是「真的走起来了」。 */
+      Fusion.onMove(this, Math.hypot(this.vx, this.vy));
     }
 
     // 朝向
@@ -2852,8 +2864,12 @@ const STYLES = {
           aims = live.slice(0, count).map(e => Math.atan2(e.y - pl.y, e.x - pl.x));
         }
       }
+      /* 乱披风（融合）：散剑的扇形弧度**每次出手都不同** ——
+         把「可预判、好躲」换成「贴近了必吃满」。
+         固定扇形时玩家能靠站位卡缝隙，随机弧度让这条对策失效。 */
+      const arc = Fusion.spreadArcOf(s.fus, STYLES.feijian.consts.spreadArc);
       for (let i = 0; i < count; i++) {
-        const ang = aims ? aims[i] : a + (i - (count - 1) / 2) * STYLES.feijian.consts.spreadArc;
+        const ang = aims ? aims[i] : a + (i - (count - 1) / 2) * arc;
         g.bullets.push(new Bullet(
           pl.x + Math.cos(ang) * 10, pl.y + Math.sin(ang) * 6,
           Math.cos(ang) * s.shotSpeed, Math.sin(ang) * s.shotSpeed,
@@ -2868,6 +2884,22 @@ const STYLES = {
             scale: 0.8 + Math.min(0.6, s.damage * 0.03)
           }
         ));
+      }
+      /* 御风踏云（融合）：风势攒满 → 这一发额外甩出一道风刃。
+         风刃又宽又长（r=13 / life=42）、几乎无限穿透，专门用来清成排的妖物 ——
+         它不是「更高伤害」，而是「把跑动换成的资源兑现掉」。 */
+      if (Fusion.takeWind(pl)) {
+        g.bullets.push(new Bullet(
+          pl.x + Math.cos(a) * 12, pl.y + Math.sin(a) * 8,
+          Math.cos(a) * s.shotSpeed * 0.9, Math.sin(a) * s.shotSpeed * 0.9,
+          {
+            friendly: true, dmg: (s.damage + dmgBonus) * 1.6, r: 13, life: 42,
+            pierce: 99, knockback: 3.2, fus: s.fus,
+            kind: 'sword', sprite: SPR.sword, scale: 1.9
+          }
+        ));
+        g.burst(pl.x + Math.cos(a) * 14, pl.y + Math.sin(a) * 10, 16, PAL.cyan);
+        SFX.thunder();
       }
       pl.vx -= Math.cos(a) * STYLES.feijian.consts.recoil;
       pl.vy -= Math.sin(a) * STYLES.feijian.consts.recoil;
