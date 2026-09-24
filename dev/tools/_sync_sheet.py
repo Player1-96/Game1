@@ -801,6 +801,50 @@ def tab_stylemap():
     return rows, [20, 26, 12, 8, 14, 30, 30]
 
 
+# ---------------------------------------------------------------- 世界内容
+def tab_worlds():
+    """世界内容表（第 4 期起）：每个已登记世界的杂兵池 / 精英 / 段末尊者 / 类型名。
+
+    数据源是 _export_resources.js 新增的 worldContent 键 —— 它读 src/nordic.js 的
+    STYLE_CONTENT 登记表（「哪个世界用哪些内容」的唯一真相）。
+    中式那几行与老表逐字对齐过（_t_nordic.js T2 钉着），改怪表先看测试。"""
+    W = D.get("worldContent") or []
+    rows = [["说明", "一个世界 = 3 段色板 + 按段解锁的杂兵池 + 精英 5 + 段末尊者 3 + 专属道具池。"
+                    "行为全部复用中式已有的 11 种 AI —— 每种新怪只是一套数值 + 一张图"]]
+    rows.append(["说明", "道具池按世界分岔：北欧局商栈只卖神器/秘药、精英只掉北欧权能，中式局反之。"
+                        "类型名跟着世界走：中式「法宝/丹药/小技能」，北欧「神器/秘药/权能」"])
+    rows.append([])
+
+    for w in W:
+        rows.append(["世界", w.get("name", ""), "代号 %s / 顶栏标识「%s」" % (w.get("id", ""), w.get("tag", ""))])
+        tn = w.get("typeName") or {}
+        rows.append(["类型名", "法宝类：%s　丹药类：%s　功法类：%s" % (tn.get("fabao", ""), tn.get("dan", ""), tn.get("gongfa", "")), ""])
+        rows.append(["房型名", "　".join("%s=%s" % (k, v) for k, v in (w.get("roomLabel") or {}).items()), ""])
+        rows.append([])
+        rows.append(["段", "该段杂兵（id）", "中文名", "说明"])
+        for m in (w.get("mobsBySeg") or []):
+            rows.append(["段 %d" % m.get("seg", 0), "、".join(m.get("ids") or []),
+                         "、".join(m.get("cn") or []), "池内等概率，按段整批解锁（加一种 = 稀释全部）"])
+        rows.append([])
+        rows.append(["精英", "本体", "神通", "神通冷却", "一层血量", "死后余祸 / 说明"])
+        for e in (w.get("elites") or []):
+            rows.append(["%s（%s）" % (e.get("cn", ""), e.get("en", "")),
+                         "%s（%s）" % (e.get("baseCn", ""), e.get("base", "")),
+                         e.get("perkCn", ""), "%.1f 秒" % ((e.get("perkCd") or 0) / 60.0),
+                         e.get("hpAtD1", ""), e.get("desc", "")])
+        rows.append([])
+        rows.append(["段末尊者", "登场层", "血量", "主弹幕", "副弹幕", "打法要点"])
+        for b in (w.get("bosses") or []):
+            rows.append(["%s（%s）" % (b.get("cn", ""), b.get("en", "")),
+                         b.get("appear", ""), b.get("hp", ""),
+                         b.get("boltCn", "") or b.get("bolt", ""),
+                         b.get("altCn", "") or "—",
+                         b.get("gimmick", "")])
+        rows.append([])
+
+    return rows, [18, 34, 22, 12, 10, 56]
+
+
 # ---------------------------------------------------------------- 房间
 def tab_room():
     f1 = D["floors"][0]; f3 = D["floors"][2]; f5 = D["floors"][4]
@@ -1470,6 +1514,7 @@ TABS = [
     ("精英妖物", tab_elite), ("BOSS", tab_boss), ("Boss 挑战", tab_challenge),
     ("无尽试炼", tab_endless),
     ("风格地图", tab_stylemap),
+    ("世界内容", tab_worlds),
     ("法宝融合", tab_fusion),
     ("房间", tab_room), ("交互物", tab_props),
     ("经济掉落", tab_econ), ("动态难度", tab_diff), ("各层速览", tab_floors),
@@ -1496,10 +1541,10 @@ def main():
     print("  现有子表：" + "、".join(ids.keys()))
 
     if only:
-        unknown = [n for n in only if n not in ids]
-        if unknown:
-            raise SystemExit("云端没有这些子表：%s（现有：%s）" % ("、".join(unknown), "、".join(ids.keys())))
-        ids = {n: ids[n] for n in only}
+        # ⚠️ 别在这里对「云端没有的子表」报错退出 —— 下面第 3 步会自动建表。
+        # 之前在这里 raise，会让「加了新 tab 后想 --only 刷它」永远走不通
+        # （only 模式跳过建表 → 未知名字 → 退出，一次 API 都没跑）。
+        ids = {n: ids[n] for n in only if n in ids}
         print("  仅重写：" + "、".join(only))
 
     # 2) 按需改名
@@ -1510,10 +1555,11 @@ def main():
             print("  改名 %s → %s" % (old, new))
 
     # 3) 补齐缺失的子表（凡是 TABS 里要写、而云端还没有的，都自动建 —— 只认一处清单）
+    #    --only 模式下只建**被点名的**缺失子表（别的留给整同步）。
     for name, _fn in TABS:
         if name in ids:
             continue
-        if only:
+        if only and name not in only:
             continue
         res = tdoc_payload("add_sheet", {"name": name, "append_index": True})
         sid = res.get("sheet_id") or res.get("id")

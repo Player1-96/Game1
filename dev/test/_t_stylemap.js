@@ -1,12 +1,13 @@
 'use strict';
 /* ============================================================
- *  _t_stylemap.js —— 风格地图（27 条路径）+ 色板可插拔・回归
+ *  _t_stylemap.js —— 风格地图（每段三选一）+ 色板可插拔・回归
  *
  *  覆盖：
  *    T1 色板表结构：三风格 × 中式 3 段、键齐备、无缺键
  *    T2 PAL 代理契约：可枚举 / 可读 / in 可达 / pal() 一致
  *    T3 层段推进：第几层属于第几段、哪几层弹面板
- *    T4 27 条路径：允许重复、三段各自记录、连选三次同风格合法
+ *    T4 全部路径：允许重复、三段各自记录、连选三次同风格合法
+ *       （总数 = 可择风格数³，别写死 —— 第 4 期上了北欧就从 1 变成 2）
  *    T5 换风格真的换了像素 + 缓存命中 + 互不污染
  *    T6 存档：路径落盘、读档色板不跳段、老存档回落
  *    T7 面板交互：键盘导航 / 确认 / Esc 退回
@@ -38,7 +39,7 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   await page.waitForTimeout(200);
 
   console.log('══════════════════════════════════════════════════');
-  console.log('  风格地图 · 27 条路径 + 色板可插拔　回归');
+  console.log('  风格地图 · 3³ 路径 + 色板可插拔　回归');
   console.log('══════════════════════════════════════════════════');
 
   sec('T1  色板表结构');
@@ -151,6 +152,7 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     FAKE.beta = { name: '测试乙', cn: '乙', ready: true, segs: [{ key: 'cn_2', cn: '乙一', name: 'B1' }, { key: 'cn_3', cn: '乙二', name: 'B2' }, { key: 'cn_1', cn: '乙三', name: 'B3' }] };
     const real = {};
     for (const k of Object.keys(STYLE_DEF)) real[k] = STYLE_DEF[k].ready;
+    out.realPool = STYLE_SYS.pickPool().slice();
     STYLE_DEF.alpha = FAKE.alpha; STYLE_DEF.beta = FAKE.beta;
     try {
       const pool = STYLE_SYS.pickPool();
@@ -195,9 +197,16 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   console.log('     组合总数：' + paths.n + '　其中三连同风格：' + paths.dup + ' 条');
   console.log('     三连同风格记录：' + (paths.sameThrice || []).join(' · '));
   console.log('     同风格三段的地板色：' + (paths.segPal || []).join('  →  '));
-  ok('每节点三选一 → 27 条路径', paths.n === 27, '实际 ' + paths.n);
-  ok('三条「三连同风格」路径合法（用户明确要求）', paths.dup === 3, paths.dup + ' 条');
-  ok('27 条路径全部可走通且记录正确', paths.badTrace === null, paths.badTrace || '全部通过');
+  /* ⚠️ 路径数**不要写死**：它是 pool 的三次方，而 pool 会随着新风格
+     ready 而变大（第 4 期上了北欧就从 1 → 2）。写成 27 会在每次
+     加世界时假失败，且检查的人不一定看得出是变差了还是变好了。
+     真正在验的是「每个节点都能任意选、且重复合法」，那是 pool 无关的。 */
+  const nPool = paths.pool.length;
+  ok('真实（未注入）的可择风格 = 中式 + 北欧', paths.realPool.join(',') === 'cn,nordic', paths.realPool.join(','));
+  ok('每节点三选一 → pool³ 条路径', paths.n === Math.pow(nPool, 3),
+     nPool + '³ = ' + Math.pow(nPool, 3) + '，实际 ' + paths.n);
+  ok('「三连同风格」路径合法且每种风格各一条（用户明确要求）', paths.dup === nPool, paths.dup + ' 条');
+  ok('全部路径可走通且记录正确', paths.badTrace === null, paths.badTrace || '全部通过');
   ok('连选三次同风格被正确记录', (paths.sameThrice || []).join('') === 'alphaalphaalpha',
      (paths.sameThrice || []).join('/'));
   ok('同风格的三段配色互不相同（层段差异的落点）',

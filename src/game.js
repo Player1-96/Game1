@@ -707,7 +707,10 @@ class GameCore {
       power: this.powerScore(),
       owned: this.player ? this.player.items.slice() : [],
       slots: this.player ? this.player.slots.map(s => (s ? { id: s.id, lv: s.lv } : null)) : [],
-      boss: (opts && opts.boss) || null
+      boss: (opts && opts.boss) || null,
+      /* 世界风格：本层用哪套杂兵 / 精英 / 尊者 / 道具都由它定
+         （`applySegmentPalette()` 已经把色板与素材对齐到同一个值）。 */
+      style: this.worldStyle()
     });
     // 本层备用灵石（宝箱、祭坛失手时的小额产出，已计入预算）
     this.coinReserve = this.floor.coinReserve || 0;
@@ -1105,11 +1108,22 @@ class GameCore {
    *  ③ 「允许重复」→ 同一风格可能连续选三次，每次段号不同，色板也就不同。
    */
 
+  /* 当前这一段走的是哪个**世界风格**（cn / nordic / …）。
+     ⚠️ 与 `this.style` 区分：`this.style` 是**战斗流派**（feijian/jujian/wujian）。
+        两个都叫「风格」是历史遗留，读代码时看准类型。
+     段还没被选过（stylePath 只填到上一段）时回落到 'cn'。 */
+  worldStyle() {
+    return (this.stylePath || [])[this.seg] || 'cn';
+  }
+
   /* 把色板与素材对齐到「当前风格 + 当前层所属段」 */
   applySegmentPalette() {
-    const style = this.stylePath[this.seg] || 'cn';
+    const style = this.worldStyle();
     const seg = this.seg % 3;
     switchStyle(style, seg);
+    /* 道具图标也要重烤：图标底（`iconBG()`）取自 `PAL.wallLo`，
+       而道具的身份色是写死的 —— 不重烤的话北欧段里图标底还是中式的紫。 */
+    buildItemIcons();
     return style + '_' + seg;
   }
 
@@ -1897,16 +1911,16 @@ class GameCore {
       }
     }
   }
-  /* 随机一个小技能：优先没学过的，其次没满级的 */
+  /* 随机一个小技能：优先没学过的，其次没满级的（按世界风格取，见 rollSkillId） */
   rollSkill() {
-    return rollSkillId(Math.random, this.player ? this.player.slots : []);
+    return rollSkillId(Math.random, this.player ? this.player.slots : [], this.worldStyle());
   }
   rollFabao() {
-    return rollFabaoId(Math.random, this.player ? this.player.items : []);
+    return rollFabaoId(Math.random, this.player ? this.player.items : [], this.worldStyle());
   }
   /* 金匣专用：单件珍稀法宝 */
   rollRareFabao() {
-    return rollRareFabaoId(Math.random, this.player ? this.player.items : []);
+    return rollRareFabaoId(Math.random, this.player ? this.player.items : [], this.worldStyle());
   }
 
   /* ---------------- 功法（主动技） ---------------- */
@@ -2682,7 +2696,10 @@ class GameCore {
     g.fillStyle = PAL.gold; g.globalAlpha = 0.35; g.fillRect(0, 30, 480, 1); g.globalAlpha = 1;
 
     const p = this.player;
-    // 流派标识：放在资源行右侧，避开居中的楼层名
+    // 流派标识：放在资源行右侧，避开居中的楼层名。
+    // ⚠️ 英文名（FEIJIAN…）别画在这儿 —— 它会和居中的 `#floorName` 抢位置，
+    // 层名一长（如「第十一层 · 英灵殿　北·三」）就被压成「FEIJ第十…」。
+    // 流派信息已有两处可读：右下 #stats 的「飞剑流」+ 顶栏风格标识「北·三」。
     const stl = STYLES[this.style] || STYLES.feijian;
     const isJu = this.style === 'jujian';
     const ic = styleIcon(this.style);
@@ -2691,7 +2708,6 @@ class GameCore {
     g.scale(isJu ? 0.8 : 0.85, isJu ? 0.8 : 0.85);
     g.drawImage(ic, -ic.width / 2, -ic.height / 2);
     g.restore();
-    drawPixelText(g, stl.en, 148, 9, 1, styleColor(this.style));
 
     // 气血（半心单位）
     let hx = 8;
@@ -4127,7 +4143,10 @@ function updateOverlay() {
     const sKey = (Game.stylePath || [])[Game.seg] || 'cn';
     const sDef = STYLE_DEF[sKey] || {};
     const sTag = sDef.cn ? (sDef.cn.charAt(0) + '·' + ['一', '二', '三'][Game.seg]) : '';
-    floorName.textContent = '第' + depthCN + '层 · ' + (ROOM_LABEL[Game.room.type] || '石室')
+    /* 房间名也按世界风格走：中式是「静心阁 / 石室 / 魔窟」，
+       北欧是「英灵殿 / 冰原 / 巨人之厅」（见 nordic.js 的 STYLE_CONTENT）。 */
+    floorName.textContent = '第' + depthCN + '层 · '
+      + roomLabelOf(Game.room.type, sKey)
       + (elKey ? ' · 精英' : '') + (sTag ? '　' + sTag : '');
     floorName.style.color = elKey ? '#ff9d8a' : '';
   }

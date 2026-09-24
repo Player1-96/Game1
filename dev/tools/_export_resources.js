@@ -66,6 +66,16 @@ const PERK_CN = {
      那件事已经写在「死后余祸」（desc）列里了，这里只留剑气的部分。 */
   swarm: '环形剑气'
 };
+/* 北欧内容的中文名 —— 与 ENEMY_CN 同理，源码里只有 id */
+const NORDIC_ENEMY_CN = {
+  draugr: '尸鬼', hrafn: '渡鸦', nokk: '水妖', isvarg: '霜狼',
+  volva: '女巫', skuggi: '影魅', rimtroll: '霜巨魔', runestone: '符文石'
+};
+const NORDIC_BOSS_GIMMICK = {
+  fenrir: '巨狼贴地扑咬，越到后面越急：不贪刀、跟着它转圈，冲刺前横移一步就够',
+  jormungandr: '尘世巨蟒盘住整座厅堂，以毒环封路：毒环缺口每轮换位，提前站位而不是临时躲',
+  surtr: '火巨人挥着烈焰之剑把厅堂烧成熔炉：火墙与符箓交替，绕着外圈走别贪中心'
+};
 
 (async () => {
   const browser = await chromium.launch({ channel: 'chrome' });
@@ -77,7 +87,8 @@ const PERK_CN = {
   // 停掉主循环，避免后台 update 干扰采样
   await page.evaluate(() => { window.requestAnimationFrame = () => 0; });
 
-  const data = await page.evaluate(({ ENEMY_CN, AI_CN, PERK_CN, ENEMY_NOTE, BOLT_CN, BOSS_GIMMICK }) => {
+  const data = await page.evaluate(({ ENEMY_CN, AI_CN, PERK_CN, ENEMY_NOTE, BOLT_CN, BOSS_GIMMICK,
+                                     NORDIC_ENEMY_CN, NORDIC_BOSS_GIMMICK }) => {
     const G = window.Game;
 
     /* ---------- 1. 玩家基础 ---------- */
@@ -110,7 +121,9 @@ const PERK_CN = {
       tally3: ITEM_TALLY[d.id] ? ITEM_TALLY[d.id](3) : '',
       byStyle: d.byStyle ? JSON.parse(JSON.stringify(d.byStyle)) : null,
       // 个别法宝连「进阶效果」都分流派（如玄元镜在舞剑流下改走照影）
-      upByStyle: d.upByStyle ? JSON.parse(JSON.stringify(d.upByStyle)) : null
+      upByStyle: d.upByStyle ? JSON.parse(JSON.stringify(d.upByStyle)) : null,
+      // 世界归属（第 4 期起道具按世界分池）：cn = 中式，nordic = 北欧
+      world: d.world || 'cn'
     }));
 
     /* ---------- 3. 妖物 ---------- */
@@ -449,9 +462,47 @@ const PERK_CN = {
       SHIELD_DUR: SKILL_DEF.huti.dur             // 限时护盾（仅护体金光）的持续帧数
     };
 
+    /* ---------- 12. 世界内容表（第 4 期：多世界分岔） ----------
+       每个已登记世界的：房型名 / 类型名 / 按段杂兵池 / 精英 / 段末尊者。
+       「中式那几行」是与老表逐字对齐过的（_t_nordic T2 钉着），改怪表先看测试。 */
+    const worldContent = Object.keys(STYLE_CONTENT).map(k => {
+      const c = contentOf(k);
+      const cnOf = id => (k === 'cn' ? (ENEMY_CN[id] || id) : (NORDIC_ENEMY_CN[id] || id));
+      return {
+        id: k, tag: c.tag, name: c.name,
+        typeName: c.typeName,
+        roomLabel: c.roomLabel,
+        mobsBySeg: c.mobsBySeg.map((a, i) => ({
+          seg: i + 1, ids: a.slice(), cn: a.map(cnOf)
+        })),
+        elites: c.elites.map(id => {
+          const E = eliteDefOf(id);
+          const base = enemyDefOf(E.base);
+          return {
+            id: id, cn: E.name, en: E.en, base: E.base, baseCn: cnOf(E.base),
+            hpMul: E.hpMul, perk: E.perk, perkCn: PERK_CN[E.perk] || E.perk,
+            perkCd: E.perkCd, desc: E.desc,
+            hpAtD1: Math.round((base ? base.hp : 0) * E.hpMul)
+          };
+        }),
+        /* 段末尊者：第 i 尊落在第 (i+1)*SEG_FLOORS 层（5 / 10 / 15） */
+        bosses: c.bosses.map((id, i) => {
+          const d = bossDefOf(id);
+          return {
+            id: id, cn: d.name, en: d.en, hp: d.hp, spd: d.spd,
+            bolt: d.bolt, boltCn: BOLT_CN[d.bolt] || d.bolt,
+            alt: d.alt || null, altCn: d.alt ? (BOLT_CN[d.alt] || d.alt) : '',
+            dash: d.dash || 0,
+            appear: '第 ' + ((i + 1) * SEG_FLOORS) + ' 层',
+            gimmick: (k === 'cn' ? (BOSS_GIMMICK[id] || '') : (NORDIC_BOSS_GIMMICK[id] || d.desc || ''))
+          };
+        })
+      };
+    });
+
     return { player, items, enemies, elites, bosses, challenge, endless, styles, styleMap, charge, shopPrices, pools, floors,
-             diffParams, curve, lootCurve, skills, ults, ultPaths, skillConst, fusion };
-  }, { ENEMY_CN, AI_CN, PERK_CN, ENEMY_NOTE, BOLT_CN, BOSS_GIMMICK });
+             diffParams, curve, lootCurve, skills, ults, ultPaths, skillConst, fusion, worldContent };
+  }, { ENEMY_CN, AI_CN, PERK_CN, ENEMY_NOTE, BOLT_CN, BOSS_GIMMICK, NORDIC_ENEMY_CN, NORDIC_BOSS_GIMMICK });
 
   data.exportedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
   data.errs = errs;
@@ -465,6 +516,9 @@ const PERK_CN = {
     + ' / 风格 ' + data.styleMap.worlds.length + '（可用 ' + data.styleMap.pool.length
     + '，' + data.styleMap.totalFloors + ' 层 / ' + data.styleMap.paths + ' 路径）'
     + ' / 融合 ' + data.fusion.recipes + ' 条配方（产物 ' + data.fusion.productCount + ' 件）');
+  console.log('  世界内容：' + data.worldContent.map(w =>
+    w.name + '（杂兵 ' + w.mobsBySeg[w.mobsBySeg.length - 1].ids.length
+    + ' / 精英 ' + w.elites.length + ' / 尊者 ' + w.bosses.length + '）').join('　'));
   if (errs.length) console.log('  ⚠ 页面报错：' + errs.join(' | '));
   await Promise.race([browser.close(), new Promise(r => setTimeout(r, 3000))]);
   process.exit(0);

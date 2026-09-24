@@ -481,8 +481,178 @@ function drawYingMo(frame) {
   return p.outline(PAL.edge).done();
 }
 
+/* ============================================================
+ *  北欧 · 杂兵 8 种
+ *
+ *  配色判据（见 px.js 顶部的「色板分层的判据」）：
+ *  妖物的**固有色写死**（`const C = '#...'`），不走 PAL —— 霜狼在极光段
+ *  也该是霜白的，跟着色板变会让「换个段就认不出这是哪只怪」。
+ *  只有环境性的配色（描边、盔甲上的符文光、眼睛的高光）跟 PAL 走。
+ *
+ *  ⚠️ 每一只都对应 entities.js 里**已有的**一种 AI（见 nordic.js 的行为对照表）。
+ *     这里只负责「长什么样」，不引入任何战斗逻辑。
+ * ============================================================ */
+
+/* 尸鬼武士：坟丘里爬起来的旧日战士 —— 装备还在身上（铁盔 + 锁甲 + 斧），
+   眼睛是冰光而不是血红，一眼与中式的「邪祟 / 尸傀」分开。 */
+function drawNordDraugr(frame) {
+  const p = new Px(16, 18);
+  const yb = frame ? 0 : 1;
+  const C = '#6d7f8c', CD = '#41505a', CL = '#a4b7c3', IR = '#8a6234';
+  p.rect(5, 2 + yb, 6, 4, CD);                       // 铁盔
+  p.rect(4, 4 + yb, 8, 2, CD);
+  p.rect(7, 3 + yb, 2, 1, CL);
+  p.rect(6, 5 + yb, 4, 2, '#252c33');                // 面甲下的暗
+  p.set(6, 6 + yb, PAL.cyan); p.set(9, 6 + yb, PAL.cyan);
+  p.rect(4, 7 + yb, 8, 8, C);                        // 锁甲
+  for (let i = 0; i < 3; i++) p.rect(5, 8 + i * 2 + yb, 6, 1, CD);
+  p.rect(4, 7 + yb, 8, 1, CL);
+  p.rect(2, 8 + yb + (frame ? 1 : 0), 2, 5, C);      // 双臂
+  p.rect(12, 8 + yb + (frame ? 0 : 1), 2, 5, C);
+  p.line(12, 9 + yb, 13, 3 + yb, IR);                // 斧
+  p.rect(12, 2 + yb, 3, 3, PAL.greyL);
+  p.set(13, 3 + yb, PAL.cyan);
+  p.rect(5, 15 + yb, 3, 2, CD); p.rect(9, 15 + yb, 3, 2, CD);
+  return p.outline(PAL.edge).done();
+}
+
+/* 血鸦：奥丁的鸟。双翼一上一下就是全部动画 —— 盘旋 → 俯冲（dash）。 */
+function drawNordHrafn(frame) {
+  const p = new Px(18, 14);
+  const C = '#2c3140', CD = '#171b25', CL = '#59637c';
+  const up = frame === 0;
+  for (let i = 0; i < 4; i++) {                      // 展开的双翼
+    const y = (up ? 1 : 4) + i;
+    const w = 5 - i;
+    p.rect(2 + i, y, w + (i ? 0 : 1), 1, i < 2 ? CD : C);
+    p.rect(15 - i, y, w + (i ? 0 : 1), 1, i < 2 ? CD : C);
+  }
+  p.ell(9, 8, 3, 3.4, C);                            // 身体
+  p.ell(9, 7, 2.4, 2.4, CL);
+  p.set(8, 6, PAL.red); p.set(10, 6, PAL.red);       // 血红眼
+  p.rect(9, 9, 2, 3, PAL.greyD);                     // 喙
+  p.set(9, 10, PAL.ink);
+  p.rect(7, 11, 5, 1, CD);
+  p.set(6, 12, C); p.set(12, 12, C);
+  return p.outline(PAL.edge).done();
+}
+
+/* 溺灵：水里的妖，永远在滴水。缓慢游走 + 三连水弹（spit）。 */
+function drawNordNokk(frame) {
+  const p = new Px(18, 16);
+  const yb = frame ? 0 : 1;
+  const C = '#3a6b66', CD = '#1e423e', CL = '#6fb8a8';
+  p.ell(9, 9 + yb, 6, 5, C);                         // 水做的身躯
+  p.ell(9, 7 + yb, 4.4, 3.4, CL);
+  p.set(7, 7 + yb, PAL.cyan); p.set(11, 7 + yb, PAL.cyan);
+  p.rect(7, 10 + yb, 4, 1, CD);
+  p.rect(3, 12 + yb, 2, 3 - (frame ? 1 : 0), CD);    // 垂下的水须
+  p.rect(13, 12 + yb, 2, 2 + (frame ? 1 : 0), CD);
+  p.set(4, 15 + yb, PAL.cyanD); p.set(14, 14 + yb, PAL.cyanD);
+  p.rect(6, 14 + yb, 6, 1, CD);
+  return p.outline(PAL.edge).done();
+}
+
+/* 霜狼：一跳一跳地压上来（hop）。帧间前身抬起、后腿蹬直，蹦跳的读法就出来了。 */
+function drawNordIsvarg(frame) {
+  const p = new Px(18, 14);
+  const C = '#9db6cc', CD = '#5d7690', CL = '#dcefff';
+  const up = frame === 1;
+  const yb = up ? 0 : 1;
+  p.ell(9, 8 + yb, 6.4, 3.4, C);                     // 躯干
+  p.ell(9, 7 + yb, 4.6, 2.4, CL);
+  p.rect(11, 3 + yb - (up ? 1 : 0), 4, 4, C);        // 头
+  p.rect(12, 4 + yb, 3, 2, CL);
+  p.set(14, 5 + yb, PAL.cyan);
+  p.set(15, 6 + yb, PAL.white);                      // 獠牙
+  p.rect(10, 1 + yb - (up ? 1 : 0), 2, 2, CD);       // 耳
+  p.rect(14, 1 + yb - (up ? 1 : 0), 2, 2, CD);
+  p.rect(2, 6 + yb, 3, 2, CD);                       // 尾
+  p.rect(3, 9 + yb, 2, up ? 2 : 4, CD);              // 前腿
+  p.rect(7, 9 + yb, 2, up ? 2 : 4, CD);
+  p.rect(12, 9 + yb, 2, up ? 4 : 3, CD);             // 后腿（蹬地那条更长）
+  p.rect(15, 10 + yb, 2, 3, CD);
+  return p.outline(PAL.edge).done();
+}
+
+/* 先知：北欧的女巫（völva）。权杖 + 兜帽 + 环绕的符文，保持中距放三连符文弹。 */
+function drawNordVolva(frame) {
+  const p = new Px(16, 18);
+  const yb = frame ? 0 : 1;
+  const R = '#3a3450', RD = '#242038', CL = '#7a6ea8';
+  p.ell(8, 8 + yb, 4.6, 5, R);                       // 兜帽
+  p.rect(3, 8 + yb, 10, 9, R);                       // 斗篷
+  p.ell(8, 9 + yb, 3.2, 3.4, RD);                    // 兜帽里的暗
+  p.set(6, 9 + yb, PAL.purpleL); p.set(9, 9 + yb, PAL.purpleL);
+  p.rect(3, 8 + yb, 10, 1, CL);
+  p.rect(1, 10 + yb, 2, 6, R); p.rect(13, 10 + yb, 2, 6, R);
+  p.line(13, 11 + yb, 14, 3 + yb, PAL.greyD);        // 权杖
+  p.disc(13, 2 + yb, 2, PAL.purple);
+  p.set(13, 1 + yb, PAL.purpleL);
+  p.rect(5, 16 + yb, 6, 1, RD);
+  return p.outline(PAL.edge).done();
+}
+
+/* 影灵：一团没有实体的影（stealth）。与中式「影魅」的差别是**没有轮廓** ——
+   只剩两点幽光与一截散开的尾。 */
+function drawNordSkuggi(frame) {
+  const p = new Px(16, 18);
+  const yb = frame ? 0 : 1;
+  const C = '#1c2230', CL = '#3c4a63', F = '#8ce0ff';
+  p.ell(8, 8 + yb, 5, 5.4, C);                       // 影团
+  p.ell(8, 7 + yb, 3.6, 3.6, CL);
+  p.set(6, 7 + yb, F); p.set(9, 7 + yb, F);          // 两点幽光
+  p.rect(4, 12 + yb, 8, 2, C);
+  p.rect(5, 14 + yb, 2, 3, C); p.rect(9, 14 + yb, 2, 2, C);
+  p.set(3, 13 + yb, CL); p.set(12, 13 + yb, CL);
+  return p.outline(PAL.edge).done();
+}
+
+/* 霜巨魔：扛长柄战锤的重装（shieldbash）。全套里体型最大的杂兵，
+   所以解法是「绕到侧后」而不是站着对砍 —— 行为与外观必须互相说明。
+   ⚠️ 手里不画盾：旋盾由 entities.js 的盾系统按弧线单独绘制，
+      这里再画一个静态盾就是两个盾。 */
+function drawNordRimtroll(frame) {
+  const p = new Px(20, 20);
+  const yb = frame ? 0 : 1;
+  const S = '#5e7a8c', SD = '#374c5a', SL = '#93b0c0', IR = '#8a6234';
+  p.ell(10, 6 + yb, 5, 4.6, S);                      // 头
+  p.ell(10, 5 + yb, 3.4, 3, SL);
+  p.set(8, 6 + yb, PAL.cyan); p.set(12, 6 + yb, PAL.cyan);
+  p.rect(8, 8 + yb, 4, 1, SD);
+  p.set(8, 9 + yb, PAL.bone); p.set(11, 9 + yb, PAL.bone);   // 獠牙
+  p.rect(4, 10 + yb, 12, 7, S);                      // 躯干
+  p.rect(4, 10 + yb, 12, 1, SL);
+  for (let i = 0; i < 3; i++) p.rect(6, 12 + i * 2 + yb, 8, 1, SD);
+  p.rect(1, 11 + yb, 3, 6, S); p.rect(16, 11 + yb, 3, 6, S);
+  p.line(17, 12 + yb, 18, 3 + yb, IR);               // 战锤
+  p.rect(16, 2 + yb, 4, 4, IR);
+  p.rect(16, 3 + yb, 4, 1, PAL.greyL);
+  p.rect(5, 17 + yb, 4, 3, SD); p.rect(11, 17 + yb, 4, 3, SD);
+  return p.outline(PAL.edge).done();
+}
+
+/* 符文石人：立起来的符文石自己走动的守卫。慢、硬、弹丸斩不落 ——
+   它逼你把「击落弹幕」这条解法收回去，只剩走位。 */
+function drawNordRunestone(frame) {
+  const p = new Px(18, 18);
+  const yb = frame ? 0 : 1;
+  const S = '#5a6670', SD = '#3a444c', SL = '#8698a6';
+  p.rect(5, 1 + yb, 8, 13, S);                       // 石身
+  p.rect(5, 1 + yb, 8, 1, SL);
+  p.rect(4, 1 + yb, 1, 13, SD); p.rect(13, 1 + yb, 1, 13, SD);
+  p.rect(6, 14 + yb, 6, 2, SD);
+  p.disc(9, 7 + yb, 3.2, PAL.ink);                   // 符文槽
+  if (frame) { p.line(9, 4 + yb, 9, 10 + yb, PAL.rune); p.line(7, 7 + yb, 11, 7 + yb, PAL.rune); }
+  else { p.line(7, 4 + yb, 11, 10 + yb, PAL.rune); p.line(11, 4 + yb, 7, 10 + yb, PAL.rune); }
+  p.rect(2, 5 + yb, 3, 5, S); p.rect(13, 5 + yb, 3, 5, S);   // 双臂
+  p.rect(2, 5 + yb, 3, 1, SL);
+  p.rect(5, 16 + yb, 3, 2, SD); p.rect(10, 16 + yb, 3, 2, SD);
+  return p.outline(PAL.edge).done();
+}
+
 /* ------------------------------------------------------------
- *  BOSS
+ *  BOSS  ── 中式的五位尊者
  * ---------------------------------------------------------- */
 function drawBossXueMo(frame) {
   const p = new Px(48, 52);
@@ -612,6 +782,94 @@ function drawBossZhuLong(frame) {
   p.line(38, 22 + yb, 46, 18 + yb, F);
   p.line(8, 42 + yb, 2, 48 + yb, PAL.bone);      // 爪
   p.line(40, 42 + yb, 46, 48 + yb, PAL.bone);
+  return p.outline(PAL.edgeSoft).done();
+}
+
+/* ============================================================
+ *  北欧 · 尊者 3 尊（每段一尊）
+ *
+ *  3 尊对应第 5 / 10 / 15 层。与中式同一个骨架（游走 + 冲刺 + 三阶段），
+ *  所以这里只要能一眼认出「这是谁」就够了 —— 题面的差别在数值与弹幕色系。
+ * ============================================================ */
+
+/* 芬里尔：巨狼。低伏、张口、铁链缠身（它本该被 Gleipnir 拴住）。 */
+function drawBossFenrir(frame) {
+  const p = new Px(48, 52);
+  const C = '#4a5464', CD = '#2a3240', CL = '#7d8ca0';
+  const yb = frame ? 0 : 1;
+  p.ell(26, 38 + yb, 18, 12, CD);                    // 蜷起的后身
+  p.ell(26, 34 + yb, 14, 9, C);
+  p.ell(16, 22 + yb, 12, 10, C);                     // 头
+  p.ell(15, 20 + yb, 9, 7, CL);
+  p.rect(3, 22 + yb, 14, 8, C);                      // 长吻
+  p.rect(4, 24 + yb, 12, 3, CL);
+  p.set(6, 27 + yb, PAL.white); p.set(11, 27 + yb, PAL.white);      // 獠牙
+  p.set(8, 28 + yb, PAL.white); p.set(10, 28 + yb, PAL.white);
+  p.set(13, 17 + yb, PAL.goldL); p.set(18, 17 + yb, PAL.goldL);     // 金瞳
+  p.rect(10, 13 + yb, 2, 4, CD); p.rect(19, 13 + yb, 2, 4, CD);     // 耳
+  p.rect(28, 12 + yb, 3, 4, CD); p.rect(32, 11 + yb, 3, 4, CD);     // 背鬃
+  p.rect(36, 13 + yb, 3, 4, CD);
+  /* 铁链：一段一段地搭在背脊上 —— Klépnir 的痕迹，也是「它挣脱过」的说明 */
+  for (let i = 0; i < 6; i++) p.ring(20 + i * 4, 38 + (i % 2) * 3 + yb, 2, PAL.greyL);
+  p.line(12, 44 + yb, 5, 50 + yb, PAL.bone);         // 前爪
+  p.line(20, 46 + yb, 15, 51 + yb, PAL.bone);
+  p.line(34, 44 + yb, 41, 50 + yb, PAL.bone);        // 后爪
+  p.line(28, 46 + yb, 33, 51 + yb, PAL.bone);
+  p.line(40, 34 + yb, 47, 26 + yb, CD);              // 尾
+  return p.outline(PAL.edgeSoft).done();
+}
+
+/* 耶梦加得：尘世巨蟒。三圈盘身把厅堂坐满，以毒环封路，不冲刺。 */
+function drawBossJormungandr(frame) {
+  const p = new Px(48, 52);
+  const C = '#2f6b56', CD = '#1b4436', CL = '#57a882';
+  const yb = frame ? 0 : 1;
+  for (let i = 0; i < 3; i++) {                      // 盘绕的蛇身
+    p.ell(24, 30 + i * 7 + yb, 20 - i * 2, 6, i % 2 ? CL : C);
+    if (i < 2) p.rect(5 - i, 30 + i * 7 + yb, 38 + i * 2, 1, CD);
+  }
+  p.ell(24, 16 + yb, 13, 10, C);                     // 头
+  p.ell(24, 14 + yb, 10, 7, CL);
+  p.rect(16, 22 + yb, 16, 6, CD);                    // 吻部
+  p.rect(17, 23 + yb, 14, 2, CL);
+  p.set(19, 25 + yb, PAL.white); p.set(28, 25 + yb, PAL.white);     // 毒牙
+  p.set(20, 17 + yb, PAL.green); p.set(28, 17 + yb, PAL.green);     // 双眼
+  p.line(12, 10 + yb, 3, 3 + yb, PAL.bone);          // 角
+  p.line(13, 11 + yb, 6, 5 + yb, PAL.bone);
+  p.line(36, 10 + yb, 45, 3 + yb, PAL.bone);
+  p.line(35, 11 + yb, 42, 5 + yb, PAL.bone);
+  for (let i = 0; i < 5; i++) p.set(10 + i * 6, 33 + yb, CD);       // 鳞纹
+  p.line(20, 28 + yb, 20, 34 + yb, PAL.green);       // 毒涎
+  p.line(28, 28 + yb, 28, 32 + yb, PAL.green);
+  return p.outline(PAL.edgeSoft).done();
+}
+
+/* 苏尔特：火巨人。气势全在那一笔「斜举的烈焰之剑」上 ——
+   剑身占满画面三分之一，玩家一进场就知道这一局要躲的是什么。 */
+function drawBossSurtr(frame) {
+  const p = new Px(48, 52);
+  const yb = frame ? 0 : 1;
+  const C = '#6b2a1c', CD = '#3d150c', CL = '#a84a28';
+  const F = PAL.fire, FL = PAL.goldL;
+  p.ell(24, 36 + yb, 20, 16, CD);                    // 熔岩披风
+  p.ell(24, 32 + yb, 15, 11, CL);
+  p.rect(18, 6 + yb, 12, 12, C);                     // 头
+  p.rect(18, 6 + yb, 12, 3, CD);
+  p.set(21, 12 + yb, FL); p.set(26, 12 + yb, FL);    // 火眼
+  p.rect(21, 16 + yb, 6, 1, PAL.ink);
+  for (let i = 0; i < 5; i++) {                      // 头上烧出来的焰冠
+    const h = 3 + ((i % 3) + (frame ? 1 : 0)) * 2;
+    p.line(19 + i * 2.4, 6 + yb, 19 + i * 2.4, 6 + yb - h, i % 2 ? F : FL);
+  }
+  p.rect(6, 20 + yb, 10, 6, CD); p.rect(32, 20 + yb, 10, 6, CD);    // 肩甲
+  p.rect(20, 24 + yb, 8, 10, C);                     // 胸
+  p.rect(21, 26 + yb, 6, 6, F);                      // 胸口的熔核
+  p.set(24, 28 + yb, FL);
+  p.rect(2, 26 + yb, 8, 5, CD); p.rect(38, 26 + yb, 8, 5, CD);      // 手臂
+  p.line(40, 30 + yb, 46, 4 + yb, PAL.greyD, 3);     // 烈焰之剑
+  p.line(40, 30 + yb, 46, 4 + yb, F, 1);
+  p.set(45, 7 + yb, FL); p.set(44, 11 + yb, FL); p.set(43, 15 + yb, FL);
+  p.rect(38, 30 + yb, 6, 2, PAL.goldD);              // 护手
   return p.outline(PAL.edgeSoft).done();
 }
 
@@ -893,6 +1151,100 @@ function makeIncense() {
   return p.outline(PAL.ink).done();
 }
 
+/* ---------- 北欧摆件 ----------
+   不新增「摆件种类」，而是在 buildSprites 里**顶掉同名键** ——
+   于是 Prop 的绘制、房间生成、存档都不用改一行。 */
+function makeNordBrazier() {                  // 顶替 lantern
+  const p = new Px(14, 20);
+  p.rect(6, 14, 2, 6, PAL.stoneLo);           // 柱脚
+  p.rect(3, 12, 8, 3, PAL.stoneHi);           // 铁盆
+  p.ell(7, 12, 4.4, 1.4, PAL.stoneLo);
+  p.ell(7, 8, 3.4, 4.6, PAL.fire);            // 火
+  p.ell(7, 9, 2, 2.6, PAL.goldL);
+  p.set(6, 6, PAL.white); p.set(8, 5, PAL.goldL);
+  return p.outline(PAL.ink).done();
+}
+function makeNordBlotStone() {                // 顶替 altar：血祭石
+  const p = new Px(30, 26);
+  p.rect(3, 20, 24, 4, PAL.stone2);           // 基座
+  p.rect(6, 2, 18, 20, PAL.stone);            // 立石
+  p.rect(6, 2, 18, 2, PAL.stoneHi);
+  p.rect(5, 2, 2, 20, PAL.stoneLo); p.rect(23, 2, 2, 20, PAL.stoneLo);
+  p.rect(11, 8, 8, 2, PAL.redD);              // 血槽
+  p.rect(12, 10, 6, 1, PAL.red);
+  p.line(15, 12, 15, 17, PAL.rune);           // 符文
+  p.line(12, 14, 18, 14, PAL.rune);
+  p.set(15, 20, PAL.red);
+  return p.outline(PAL.ink).done();
+}
+function makeNordRunePillar() {               // 顶替 incense
+  const p = new Px(16, 22);
+  p.rect(4, 2, 8, 18, PAL.stone);             // 石柱
+  p.rect(3, 1, 10, 2, PAL.stoneHi);
+  p.rect(3, 19, 10, 3, PAL.stoneLo);
+  p.line(8, 5, 8, 16, PAL.rune);
+  p.line(5, 9, 11, 9, PAL.rune);
+  p.line(6, 13, 10, 13, PAL.rune);
+  p.disc(8, 16, 1.4, PAL.rune);
+  return p.outline(PAL.ink).done();
+}
+function makeNordFloorRune(seed) {            // 顶替 floorRune：起手房与龙巢的符文地砖
+  const p = new Px(32, 32);
+  p.rect(0, 0, 32, 32, PAL.floor);
+  for (let i = 0; i < 40; i++) {
+    p.set(Math.floor(mulberry32(seed + i)() * 32), Math.floor(mulberry32(seed + i * 7)() * 32), PAL.floor2);
+  }
+  p.ring(16, 16, 9, PAL.rune);
+  p.ring(16, 16, 5, PAL.stone2);
+  p.rect(16, 6, 1, 20, PAL.rune);
+  p.rect(8, 15, 16, 1, PAL.rune);
+  p.rect(0, 0, 32, 1, PAL.floorLine); p.rect(0, 0, 1, 32, PAL.floorLine);
+  return p.done();
+}
+
+/* ============================================================
+ *  按世界风格取素材
+ *
+ *  ⚠️ 每一项都是**惰性构造器**（`() => [...]`），不是烤好的 canvas。
+ *     写成立刻求值的话，顶层会在 px.js 的初值色板（cn_1）下把北欧的怪
+ *     烤成中式配色 —— 而且**不报错**，只在切到北欧时才看出来。
+ *     （融合产物当初踩过同型的坑：说明里引 items.js 的 TAIXU 直接白屏。）
+ *
+ *  ⚠️ 键名必须与 nordic.js 的 `NORDIC_ENEMY_DEF[*].spr` / `NORDIC_BOSS_DEF` 键
+ *     完全一致。写错的后果是 `SPR.enemies[undefined]` → Enemy.draw 里
+ *     `set[frame]` 抛异常，整局直接断在刷怪那一刻。`_t_nordic.js` T3/T5 逐个核。
+ *
+ *  中式的表不放在这里 —— 它继续写在 buildSprites 里（14 种 + 5 尊，原文照旧）。
+ * ============================================================ */
+const STYLE_ART = {
+  nordic: {
+    /* 杂兵：8 种（行为对照见 nordic.js） */
+    enemy: {
+      draugr: () => [drawNordDraugr(0), drawNordDraugr(1)],
+      hrafn: () => [drawNordHrafn(0), drawNordHrafn(1)],
+      nokk: () => [drawNordNokk(0), drawNordNokk(1)],
+      isvarg: () => [drawNordIsvarg(0), drawNordIsvarg(1)],
+      volva: () => [drawNordVolva(0), drawNordVolva(1)],
+      skuggi: () => [drawNordSkuggi(0), drawNordSkuggi(1)],
+      rimtroll: () => [drawNordRimtroll(0), drawNordRimtroll(1)],
+      runestone: () => [drawNordRunestone(0), drawNordRunestone(1)]
+    },
+    /* 尊者：3 尊，分别镇守第 5 / 10 / 15 层 */
+    boss: {
+      fenrir: () => [drawBossFenrir(0), drawBossFenrir(1)],
+      jormungandr: () => [drawBossJormungandr(0), drawBossJormungandr(1)],
+      surtr: () => [drawBossSurtr(0), drawBossSurtr(1)]
+    },
+    /* 摆件：**顶掉同名键** —— 于是 Prop 绘制 / 房间生成 / 存档一行都不用改 */
+    prop: {
+      lantern: makeNordBrazier,
+      altar: makeNordBlotStone,
+      incense: makeNordRunePillar,
+      floorRune: () => makeNordFloorRune(77)
+    }
+  }
+};
+
 /* ------------------------------------------------------------
  *  UI 图标
  * ---------------------------------------------------------- */
@@ -961,10 +1313,10 @@ function makeBomb() {
 }
 
 /* 法宝图标：kind 决定形状，c1/c2 决定配色 */
-const ICON_BG = PAL.wallLo;
+function iconBG() { return PAL.wallLo; }   /* 图标底随色板走：换风格时图标要一起重建（见 game.js 的 applySegmentPalette） */
 function makeItemIcon(kind, c1, c2) {
   const p = new Px(16, 16);
-  p.rect(1, 1, 14, 14, ICON_BG);
+  p.rect(1, 1, 14, 14, iconBG());
   p.box(0, 0, 16, 16, PAL.wall);
   p.box(1, 1, 14, 14, PAL.wallHi);
   const g = p.g;
@@ -1050,6 +1402,60 @@ function makeItemIcon(kind, c1, c2) {
       p.line(8, 1, 8, 14, c1, 2);
       p.line(4, 4, 4, 12, c2); p.line(12, 4, 12, 12, c2);
       p.set(6, 2, PAL.white); p.set(10, 13, PAL.white); break;
+    /* ---------- 北欧专属形状 ----------
+       刻意**不复用**中式形状（剑 / 符 / 葫芦 / 幡…）：形状就是「这个世界的语言」，
+       跨界复用会让北欧的商栈里摆的东西看起来还是中式那一套。
+       ⚠️ 同一形状下的配色必须两两不同（`_t_audit.js` ⑫ 守着）。 */
+    case 'hammer':  // 妙尔尼尔：方头战锤
+      p.rect(7, 3, 2, 11, c2); p.rect(5, 11, 6, 1, c2);
+      p.rect(4, 2, 8, 6, c1); p.rect(5, 3, 6, 2, c2);
+      p.set(8, 4, PAL.white); break;
+    case 'spear':   // 冈格尼尔：长枪
+      p.line(4, 14, 10, 6, c2); p.rect(9, 4, 4, 4, c1);
+      p.line(12, 1, 12, 6, c1); p.line(10, 4, 14, 4, c1);
+      p.set(12, 2, PAL.white); break;
+    case 'apple':   // 伊登之苹果
+      p.disc(8, 9, 5, c1); p.disc(6, 7, 2.4, c2);
+      p.rect(8, 2, 1, 3, PAL.moss); p.line(9, 3, 12, 2, PAL.moss);
+      p.set(6, 6, PAL.white); break;
+    case 'rune':    // 卢恩石：刻了符文的石
+      p.rect(4, 3, 8, 11, c1); p.rect(5, 4, 6, 9, c2);
+      p.line(8, 5, 8, 11, PAL.ink); p.line(6, 7, 10, 7, PAL.ink);
+      p.set(8, 9, PAL.white); break;
+    case 'wolf':    // 芬里尔之牙：狼首
+      p.rect(5, 3, 7, 7, c1); p.rect(4, 8, 9, 4, c1);
+      p.rect(10, 1, 2, 3, c1); p.rect(4, 1, 2, 3, c1);
+      p.set(6, 6, PAL.ink); p.set(10, 6, PAL.ink);
+      p.rect(6, 8, 5, 1, c2);
+      p.set(6, 10, PAL.white); p.set(9, 10, PAL.white); break;
+    case 'raven':   // 渡鸦
+      p.ell(8, 9, 4.4, 3.4, c1); p.disc(8, 5, 3, c1);
+      p.line(4, 7, 1, 4, c1); p.line(12, 7, 15, 4, c1);
+      p.set(7, 5, PAL.red); p.set(9, 5, PAL.red);
+      p.line(8, 6, 11, 8, c2); p.rect(6, 12, 4, 2, c1); break;
+    case 'helm':    // 约顿海姆之铠：带角的头盔
+      p.ell(8, 8, 5, 4.4, c1); p.rect(4, 8, 9, 4, c1);
+      p.rect(7, 8, 2, 5, c2);
+      p.line(4, 6, 1, 3, c2); p.line(12, 6, 15, 3, c2);
+      p.rect(6, 4, 4, 1, c2); break;
+    case 'tree':    // 世界树
+      p.rect(7, 9, 2, 6, c2); p.rect(5, 13, 6, 1, c2);
+      p.disc(8, 6, 4, c1); p.disc(5, 8, 2.4, c1); p.disc(11, 8, 2.4, c1);
+      p.set(8, 4, PAL.goldL); p.set(5, 7, PAL.goldL); break;
+    case 'horn':    // 蜜酒角
+      p.rect(3, 4, 4, 4, c1); p.rect(3, 4, 4, 1, c2);
+      p.line(6, 5, 13, 11, c1, 2); p.line(7, 6, 13, 10, c2);
+      p.disc(13, 12, 1.6, c2); p.set(4, 3, PAL.white); break;
+    case 'frost':   // 霜结：六出冰花
+      p.line(8, 2, 8, 14, c1); p.line(3, 5, 13, 11, c1); p.line(13, 5, 3, 11, c1);
+      p.rect(7, 7, 3, 3, c2);
+      p.set(8, 4, PAL.white); p.set(8, 12, PAL.white);
+      p.set(5, 7, PAL.white); p.set(11, 7, PAL.white);
+      p.set(5, 10, PAL.white); p.set(11, 10, PAL.white); break;
+    case 'knot':    // 符文结：两个交叠的三角
+      p.line(8, 3, 13, 12, c1); p.line(13, 12, 3, 12, c1); p.line(3, 12, 8, 3, c1);
+      p.line(8, 7, 11, 11, c2); p.line(11, 11, 5, 11, c2); p.line(5, 11, 8, 7, c2);
+      p.set(8, 2, PAL.white); break;
     default:
       p.disc(8, 8, 5, c1);
   }
@@ -1155,7 +1561,11 @@ function buildSprites(style, seg) {
   };
   SPR.playerSwingSideL = SPR.playerSwing.side.map(c => { const o = mkCanvas(c.width, c.height); o.g.translate(c.width, 0); o.g.scale(-1, 1); o.g.drawImage(c, 0, 0); return o.c; });
 
-  SPR.enemies = {
+  /* 妖物 / 尊者 / 摆件的素材**按世界风格换**（见上面的 STYLE_ART）。
+     中式是「默认那一套」，原文照旧；北欧那套惰性构建，
+     然后顶掉摆件的同名键 —— 于是 Prop 的绘制、房间生成、存档都不用改。 */
+  const ART = STYLE_ART[st] || null;
+  SPR.enemies = ART ? {} : {
     xiesui: [drawXieSui(0), drawXieSui(1)],
     chanchu: [drawChanChu(0), drawChanChu(1)],
     xuefu: [drawXueFu(0), drawXueFu(1)],
@@ -1171,13 +1581,15 @@ function buildSprites(style, seg) {
     xuanjia: [drawXuanJia(0), drawXuanJia(1)],
     yingmo: [drawYingMo(0), drawYingMo(1)]
   };
-  SPR.boss = {
+  if (ART) for (const k in ART.enemy) SPR.enemies[k] = ART.enemy[k]();
+  SPR.boss = ART ? {} : {
     xuemo: [drawBossXueMo(0), drawBossXueMo(1)],
     baigu: [drawBossBaiGu(0), drawBossBaiGu(1)],
     liesha: [drawBossLieSha(0), drawBossLieSha(1)],
     lunhui: [drawBossLunHui(0), drawBossLunHui(1)],
     zhulong: [drawBossZhuLong(0), drawBossZhuLong(1)]
   };
+  if (ART) for (const k in ART.boss) SPR.boss[k] = ART.boss[k]();
 
   SPR.sword = drawFeiJian();
   SPR.jujian = drawJuJian();
@@ -1210,6 +1622,10 @@ function buildSprites(style, seg) {
   SPR.mana = makeMana();
   SPR.key = makeKey();
   SPR.bomb = makeBomb();
+
+  /* 摆件：北欧那些在**标准摆件全部烤完之后**才顶掉同名键 ——
+     顶早了会被上面的赋值覆盖回去（而且不报错，只是「换了风格摆件没变」）。 */
+  if (ART && ART.prop) for (const k in ART.prop) SPR[k] = ART.prop[k]();
 
   /* 烤完入缓存。存的是 SPR 引用的一份深拷贝（数组也复制，避免外部改动串味） */
   const snap = {};

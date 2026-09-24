@@ -234,6 +234,13 @@ const SKILL_DEF = {
     }
   }
 };
+/* 北欧「权能」并入同一张表（数据定义在 nordic.js，加载早于本文件）。
+   复用同一套契约 —— cost / vals / cd / desc(lv) / cast(g,lv) —— 所以
+   Q 释放、灵力消耗、冷却查表、等级文案这些设施**一行都不用改**。
+   `world` 标记供 rollSkillId 按风格过滤（中式那六门没有这个字段，视为 'cn'）。 */
+if (typeof NORDIC_SKILLS !== 'undefined') {
+  for (const k in NORDIC_SKILLS) SKILL_DEF[k] = NORDIC_SKILLS[k];
+}
 const SKILL_KEYS = Object.keys(SKILL_DEF);
 
 /* ------------------------------------------------------------
@@ -405,12 +412,17 @@ function skillCd(id, lv) {
   if (!d || !d.cd) return SKILL_GCD;
   return d.cd[Math.max(1, Math.min(SKILL_MAX_LV, lv)) - 1];
 }
-/* 从池子里抽一个没满级的技能（拾取掉落用）；全满则退化为整池随机 */
-function rollSkillId(rng, slots) {
+/* 从池子里抽一个没满级的技能（拾取掉落用）；全满则退化为整池随机。
+   ⚠️ 必须按**世界风格**过滤 —— 否则北欧的商栈会卖「天雷引」，
+      而且拿到手还能正常释放（法术数据是全局的），只是文案与世界观对不上。 */
+function rollSkillId(rng, slots, style) {
+  const st = style || (typeof STYLE_CUR !== 'undefined' ? STYLE_CUR : 'cn');
+  const keys = SKILL_KEYS.filter(id => (SKILL_DEF[id].world || 'cn') === st);
+  const src0 = keys.length ? keys : SKILL_KEYS;      // 该风格一个都没配时不至于抽空
   const owned = slots || [];
-  const fresh = SKILL_KEYS.filter(id => !owned.some(s => s && s.id === id));
+  const fresh = src0.filter(id => !owned.some(s => s && s.id === id));
   if (fresh.length) return fresh[Math.floor(rng() * fresh.length) % fresh.length];
-  const up = SKILL_KEYS.filter(id => owned.some(s => s && s.id === id && s.lv < SKILL_MAX_LV));
-  const src = up.length ? up : SKILL_KEYS;
+  const up = src0.filter(id => owned.some(s => s && s.id === id && s.lv < SKILL_MAX_LV));
+  const src = up.length ? up : src0;
   return src[Math.floor(rng() * src.length) % src.length];
 }

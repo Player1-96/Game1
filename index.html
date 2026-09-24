@@ -384,6 +384,10 @@
   </details>
 
 <script src="src/px.js"></script>
+<!-- 北欧内容包：必须在 px.js 之后（写色板要用 STYLE_PAL），
+     且在所有下游之前 —— skills / items / dungeon / entities 在**模块顶层**
+     就要读它的 NORDIC_SKILLS / NORDIC_ITEMS / STYLE_CONTENT。 -->
+<script src="src/nordic.js"></script>
 <script src="src/sprites.js"></script>
 <script src="src/skills.js"></script>
 <!-- 融合：必须在 items.js 之前（items.js 会把 FUSION_ITEMS 并进 ITEM_DEFS）

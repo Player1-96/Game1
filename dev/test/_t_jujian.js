@@ -73,26 +73,41 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   await page.waitForTimeout(150);
   ok('数字键 2 切到巨剑流', (await page.evaluate(() => window.Game.styleIdx)) === 1);
 
-  /* 选完流派要经过「风格地图」这一层。
-     第一期只有中式 ready → 面板**不弹**，直接开局并自动记录路径
-     （只有一个选项还给玩家弹窗＝空选择，见 `openStyleMenu` 里的说明）。
-     面板本身的三选一交互由 `_t_stylemap.js` 用注入的假风格表覆盖。 */
+  /* ⚠️ 这一段的期望随「可择风格数」变过一次：
+     第 1 期只有中式 ready → 面板不弹，Enter 直接开局（单选项不弹是刻意的，
+     见 openStyleMenu 的说明）；第 4 期北欧 ready 后变成 2 选 1，Enter 会先弹
+     风格面板。**这里的 pool 别写死 1**，写成「按 pool 判断是否该弹」才对。 */
+  st = await page.evaluate(() => ({
+    pool: STYLE_SYS.pickPool().length,
+    poolIds: STYLE_SYS.pickPool().slice()
+  }));
+  ok('测试前提：可择风格 ≥ 1（第 4 期起是中式 + 北欧 两个）', st.pool >= 1,
+    'pool=' + st.poolIds.join(','));
+
+  const poolCount = st.pool;
   await page.keyboard.press('Enter');
   await page.waitForTimeout(160);
+  // 多选项 → 弹面板待选；单选项 → 直接开局（两种都是对的，取决于 pool）
+  if (poolCount === 1) {
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(160);
+  } else {
+    // 面板已弹出：替玩家确认默认高亮项
+    await page.evaluate(() => window.Game.styleMenuConfirm());
+    await page.waitForTimeout(160);
+  }
   st = await page.evaluate(() => ({
     s: window.Game.state, style: window.Game.style, hasP: !!window.Game.player,
     path: window.Game.stylePath, seg: window.Game.seg,
-    spDisp: getComputedStyle(document.getElementById('stylePick')).display,
-    pool: STYLE_SYS.pickPool().length
+    spDisp: getComputedStyle(document.getElementById('stylePick')).display
   }));
-  ok('测试前提：第一期只有 1 个可择风格', st.pool === 1, 'pool=' + st.pool);
-  ok('Enter 确认 → 开局（单选项不弹面板）', st.s === 'play', 'state=' + st.s);
+  ok('Enter（+ 风格选择）→ 开局', st.s === 'play', 'state=' + st.s);
   ok('流派已设为巨剑流', st.style === 'jujian', 'style=' + st.style);
   ok('出生房间与玩家已就绪', st.hasP);
   ok('风格路径已自动记录第一段', Array.isArray(st.path) && st.path.length === 1 && st.seg === 0,
-     'path=' + (st.path || []).join('/') + ' seg=' + st.seg);
+    'path=' + (st.path || []).join('/') + ' seg=' + st.seg);
   ok('选择面板已隐藏', (await page.evaluate(() => getComputedStyle(document.getElementById('choose')).display)) === 'none');
-  ok('风格面板未显示（无空选择）', st.spDisp === 'none', 'display=' + st.spDisp);
+  ok('开局后面板收起', st.spDisp === 'none', 'display=' + st.spDisp);
 
   sec('T3  蓄力分段阈值');
   const chg = await page.evaluate(({ t1, t2, maxc }) => {

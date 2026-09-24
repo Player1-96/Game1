@@ -60,7 +60,8 @@
      "desc": "剑锋锋利，每次挥砍伤害 +1（突进连段同样吃到）"
     }
    },
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "yujian",
@@ -89,7 +90,8 @@
      "desc": "不分剑：挥砍弧度大幅加宽（+2 段弧度），单次伤害 -0.6"
     }
    },
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "chuanyun",
@@ -118,7 +120,8 @@
      "desc": "一次挥砍可多命中 2 个妖物（基础 3 个 → 5 个）"
     }
    },
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "hunyuan",
@@ -155,7 +158,8 @@
      "缠丝更紧：突进剑锋的触及范围累计 +17",
      "缠丝如网：触及范围累计 +21，擦着剑风也能斩中"
     ]
-   }
+   },
+   "world": "cn"
   },
   {
    "id": "taixu",
@@ -174,7 +178,8 @@
    "tally2": "护盾上限 3 格　受创 8 秒无伤补回一格",
    "tally3": "护盾上限 4 格　受创 6 秒无伤补回一格",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "lingxi",
@@ -203,7 +208,8 @@
      "desc": "挥砍速度 +35%，蓄势速度同步 +35%（一刀更快、蓄势更短）"
     }
    },
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "fengxing",
@@ -219,7 +225,8 @@
    "tally2": "身法 ×1.56",
    "tally3": "身法 ×1.95",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "xuantie",
@@ -248,7 +255,8 @@
      "desc": "伤害 +3.5（挥砍与突进连段都吃到），但挥砍与蓄势 -20%"
     }
    },
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "chiyan",
@@ -264,7 +272,8 @@
    "tally2": "灼烧层数 +4",
    "tally3": "灼烧层数 +6",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "hanbing",
@@ -283,7 +292,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "leifu",
@@ -299,7 +309,8 @@
    "tally2": "连锁 +2",
    "tally3": "连锁 +3",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "jingang",
@@ -315,7 +326,8 @@
    "tally2": "受创无敌 +80 帧",
    "tally3": "受创无敌 +120 帧",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "juling",
@@ -331,7 +343,8 @@
    "tally2": "灵石掉落 +4",
    "tally3": "灵石掉落 +6",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "qiankun",
@@ -347,7 +360,8 @@
    "tally2": "气运 +6",
    "tally3": "气运 +9",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "zhenhun",
@@ -376,7 +390,8 @@
      "desc": "挥砍击退大幅增强（基础击退 1.6，近战一刀推出半间屋）"
     }
    },
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "tianyan",
@@ -395,7 +410,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "xiangyun",
@@ -414,7 +430,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "fenying",
@@ -443,7 +460,8 @@
      "desc": "挥砍弧度更宽（+1 段弧度），单次伤害 -0.3"
     }
    },
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "xuanyuan",
@@ -480,7 +498,8 @@
      "照影更疾：打回去的术法伤害 ×1.8，并可多穿透 1 个妖物",
      "照影如潮：伤害 ×2.3，可多穿透 2 个妖物，且回敬的术法会自行追敌"
     ]
-   }
+   },
+   "world": "cn"
   },
   {
    "id": "shidu",
@@ -499,7 +518,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "jindan",
@@ -528,7 +548,8 @@
      "desc": "伤害 +0.8（挥砍与突进连段都吃到）、挥砍 +10%、身法 +8%、气运 +1"
     }
    },
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "liuli",
@@ -544,7 +565,8 @@
    "tally2": "每清一室回 1.0 点气血",
    "tally3": "每清一室回 1.5 点气血",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "shehun",
@@ -563,7 +585,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "yuyi",
@@ -579,7 +602,8 @@
    "tally2": "常驻护盾 +2　身法 ×1.10",
    "tally3": "常驻护盾 +3　身法 ×1.16",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "huiling",
@@ -595,7 +619,8 @@
    "tally2": "灵力自然回复 +2/秒",
    "tally3": "灵力自然回复 +3/秒",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "huichun",
@@ -611,7 +636,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "lingdan",
@@ -627,7 +653,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "xisui",
@@ -643,7 +670,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "jinchuang",
@@ -659,7 +687,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "jingyuan",
@@ -675,7 +704,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "tianlei",
@@ -691,7 +721,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "suodi",
@@ -707,7 +738,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "wuxing",
@@ -723,7 +755,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "huti",
@@ -739,7 +772,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "qinlong",
@@ -755,7 +789,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "liekong",
@@ -771,7 +806,93 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
+  },
+  {
+   "id": "thunderwrath",
+   "name": "雷神之怒",
+   "type": "gongfa",
+   "icon": "thunder",
+   "desc": "召下九道雷霆，重创全室妖物并引爆连锁　伤害 29（另加伤害 ×1.6）　冷却 6.0 秒",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "fimbulwinter",
+   "name": "芬布尔之冬",
+   "type": "gongfa",
+   "icon": "frost",
+   "desc": "寒冬降临，全室妖物冰封 2.5 秒（冰封期间行动迟缓）　冷却 10.0 秒",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "mistcloak",
+   "name": "雾隐",
+   "type": "gongfa",
+   "icon": "knot",
+   "desc": "化入雾中，3.0 秒内不染尘劫，身法 +30%　冷却 9.0 秒",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "runeward",
+   "name": "符文护壁",
+   "type": "gongfa",
+   "icon": "shield2",
+   "desc": "刻下符文，震退周身妖物并结 2 层护盾，5 秒后消散　范围 140　伤害 6　冷却 10 秒",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "ravenhost",
+   "name": "渡鸦群袭",
+   "type": "gongfa",
+   "icon": "raven",
+   "desc": "放出三只渡鸦，各拖一道贯通剑气　伤害 15（另加伤害 ×1.5）　冷却 5.5 秒",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
   },
   {
    "id": "leiji",
@@ -787,7 +908,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "binghuo",
@@ -803,7 +925,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "taixu_yuyi",
@@ -819,7 +942,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "wangui",
@@ -835,7 +959,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "shehunting",
@@ -851,7 +976,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "guanling",
@@ -867,7 +993,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "jingangjing",
@@ -883,7 +1010,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "dongming",
@@ -899,7 +1027,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "yufeng",
@@ -915,7 +1044,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "lingmai",
@@ -931,7 +1061,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "shuanglei",
@@ -947,7 +1078,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "leihuo",
@@ -963,7 +1095,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "fendu",
@@ -979,7 +1112,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "taixujing",
@@ -995,7 +1129,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "jubaopen",
@@ -1011,7 +1146,8 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
   },
   {
    "id": "luanpifeng",
@@ -1027,7 +1163,235 @@
    "tally2": "",
    "tally3": "",
    "byStyle": null,
-   "upByStyle": null
+   "upByStyle": null,
+   "world": "cn"
+  },
+  {
+   "id": "mjolnir",
+   "name": "妙尔尼尔",
+   "type": "fabao",
+   "icon": "hammer",
+   "desc": "命中之处引落雷法，连锁伤害，并将近旁妖物轰开",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.chain += 1; stats.knockback += 1.5",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "gungnir",
+   "name": "冈格尼尔",
+   "type": "fabao",
+   "icon": "spear",
+   "desc": "一击可贯穿 3 个妖物，排成一列时最痛",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.pierce += 3",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "freyr_sword",
+   "name": "弗雷之剑",
+   "type": "fabao",
+   "icon": "sword",
+   "desc": "刃光自行飞向妖物，不必瞄准",
+   "func": true,
+   "up": [
+    "自行追敌更疾（转向累计 0.22）",
+    "如影随形（转向累计 0.31，索敌范围 +60）"
+   ],
+   "cd": 0,
+   "apply": "stats.homing += (rank > 0 ? 0.09 : 0.13); if (rank >= 2) stats.homingRange += 60",
+   "rare": true,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "draupnir",
+   "name": "德罗普尼尔",
+   "type": "fabao",
+   "icon": "ring",
+   "desc": "每九夜自生八枚 —— 灵石掉落 +2、气运 +1",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.greed += 2; stats.luck += 1",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "idunn_apple",
+   "name": "伊登之苹果",
+   "type": "fabao",
+   "icon": "apple",
+   "desc": "气血上限 +2，并立刻回满",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "maxHP += 2; hp = maxHP",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "mimir_well",
+   "name": "密米尔之泉",
+   "type": "fabao",
+   "icon": "rune",
+   "desc": "饮下即得智慧 —— 灵力自然回复 +1/秒，气运 +2",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.mpRegen += 1; stats.luck += 2",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "fenrir_fang",
+   "name": "芬里尔之牙",
+   "type": "fabao",
+   "icon": "wolf",
+   "desc": "16% 概率撕出双倍伤害，且身法 +8%",
+   "func": true,
+   "up": [
+    "撕咬更狠：暴击率累计 28%（双倍伤害）",
+    "狼性尽显：暴击率累计 40%（双倍伤害）"
+   ],
+   "cd": 0,
+   "apply": "stats.crit += (rank > 0 ? 0.12 : 0.16); stats.speed *= (rank > 0 ? 1.03 : 1.08)",
+   "rare": true,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "raven_cloak",
+   "name": "鸦羽斗篷",
+   "type": "fabao",
+   "icon": "raven",
+   "desc": "受创后的无敌时间延长 30 帧，身法 +12%",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.iframe += 30; stats.speed *= 1.12",
+   "rare": true,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "jotun_plate",
+   "name": "约顿海姆之铠",
+   "type": "fabao",
+   "icon": "helm",
+   "desc": "常驻护盾 +2（受击才扣），受创不易踉跄",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "addShield(2); stats.speed *= 1.03",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "yggdrasil_seed",
+   "name": "世界树之种",
+   "type": "fabao",
+   "icon": "tree",
+   "desc": "每清一室回复 1 点气血，气血上限 +1",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "stats.regen += 1; maxHP += 1; hp += 1",
+   "rare": true,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "mead",
+   "name": "蜜酒",
+   "type": "dan",
+   "icon": "horn",
+   "desc": "饮下回复 4 点气血",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "heal(4)",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "rune_stone",
+   "name": "卢恩石",
+   "type": "dan",
+   "icon": "rune",
+   "desc": "立刻凝出 2 格常驻护盾",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "addShield(2)",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
+  },
+  {
+   "id": "einherjar_blood",
+   "name": "英灵之血",
+   "type": "dan",
+   "icon": "pill",
+   "desc": "气血上限 +2，并回满",
+   "func": false,
+   "up": [],
+   "cd": 0,
+   "apply": "maxHP += 2; hp = maxHP",
+   "rare": false,
+   "tally2": "",
+   "tally3": "",
+   "byStyle": null,
+   "upByStyle": null,
+   "world": "nordic"
   }
  ],
  "enemies": [
@@ -1651,7 +2015,8 @@
   "totalFloors": 15,
   "paths": 27,
   "pool": [
-   "cn"
+   "cn",
+   "nordic"
   ],
   "bossBySeg": [
    "xuemo",
@@ -1720,8 +2085,42 @@
     "id": "nordic",
     "name": "北欧神话",
     "cn": "北欧",
-    "ready": false,
-    "segs": []
+    "ready": true,
+    "segs": [
+     {
+      "idx": 1,
+      "key": "nordic_1",
+      "name": "霜铁",
+      "cn": "一重·霜铁",
+      "desc": "冰原初临，霜铁为骨",
+      "wall": "#232c3c",
+      "wallHi": "#465470",
+      "moss": "#4f9e86",
+      "rune": "#6fd0e8"
+     },
+     {
+      "idx": 2,
+      "key": "nordic_2",
+      "name": "血月",
+      "cn": "二重·血月",
+      "desc": "血月当空，战鼓未歇",
+      "wall": "#332936",
+      "wallHi": "#6a5270",
+      "moss": "#a86ab0",
+      "rune": "#e0674e"
+     },
+     {
+      "idx": 3,
+      "key": "nordic_3",
+      "name": "极光",
+      "cn": "三重·极光",
+      "desc": "极光裂天，诸神黄昏",
+      "wall": "#1f3540",
+      "wallHi": "#4a7080",
+      "moss": "#5cf0c0",
+      "rune": "#8ceaff"
+     }
+    ]
    },
    {
     "id": "cthulhu",
@@ -2813,20 +3212,20 @@
  "floors": [
   {
    "depth": 1,
-   "rooms": 13.9,
-   "normalRooms": 9.1,
-   "eliteRate": 40,
-   "secretRate": 43,
+   "rooms": 13.8,
+   "normalRooms": 8.9,
+   "eliteRate": 50,
+   "secretRate": 40,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 51,
    "sink": 60,
    "reserve": 12,
-   "eliteMult": 2.52,
+   "eliteMult": 2.61,
    "locks": 2,
-   "bombs": 1.6,
-   "enemies": 33.6,
+   "bombs": 1.5,
+   "enemies": 33.2,
    "enemiesPerRoom": 3.7,
    "hpScale": 1,
    "power": 1,
@@ -2837,105 +3236,105 @@
   },
   {
    "depth": 2,
-   "rooms": 15.1,
-   "normalRooms": 10.4,
-   "eliteRate": 35,
-   "secretRate": 38,
+   "rooms": 14.5,
+   "normalRooms": 9.7,
+   "eliteRate": 50,
+   "secretRate": 35,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 57,
    "sink": 67,
    "reserve": 14,
-   "eliteMult": 2.45,
+   "eliteMult": 2.38,
    "locks": 2,
-   "bombs": 1.6,
-   "enemies": 45.7,
+   "bombs": 1.4,
+   "enemies": 42.8,
    "enemiesPerRoom": 4.4,
    "hpScale": 1.36,
    "power": 1.8,
-   "threat": 2.02,
-   "mult": 1.372,
-   "count": 1.088,
+   "threat": 1.78,
+   "mult": 1.295,
+   "count": 1.071,
    "tag": "险"
   },
   {
    "depth": 3,
-   "rooms": 16,
-   "normalRooms": 11.4,
-   "eliteRate": 30,
-   "secretRate": 23,
+   "rooms": 15.9,
+   "normalRooms": 11,
+   "eliteRate": 48,
+   "secretRate": 40,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 65,
    "sink": 76,
-   "reserve": 16,
-   "eliteMult": 2.44,
+   "reserve": 15,
+   "eliteMult": 2.39,
    "locks": 2,
-   "bombs": 1.3,
-   "enemies": 62.1,
-   "enemiesPerRoom": 5.4,
-   "hpScale": 1.8,
-   "power": 3.1,
-   "threat": 2.77,
-   "mult": 1.581,
-   "count": 1.13,
+   "bombs": 1.5,
+   "enemies": 60.3,
+   "enemiesPerRoom": 5.5,
+   "hpScale": 1.69,
+   "power": 2.67,
+   "threat": 2.65,
+   "mult": 1.551,
+   "count": 1.124,
    "tag": "危"
   },
   {
    "depth": 4,
-   "rooms": 16,
-   "normalRooms": 10.9,
-   "eliteRate": 50,
-   "secretRate": 57,
+   "rooms": 16.1,
+   "normalRooms": 11.2,
+   "eliteRate": 60,
+   "secretRate": 35,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 71,
    "sink": 83,
-   "reserve": 15,
-   "eliteMult": 2.53,
+   "reserve": 18,
+   "eliteMult": 2.46,
    "locks": 2,
-   "bombs": 1.3,
-   "enemies": 71.1,
-   "enemiesPerRoom": 6.5,
-   "hpScale": 2.19,
-   "power": 4.32,
-   "threat": 5.07,
-   "mult": 2.076,
-   "count": 1.215,
-   "tag": "绝"
+   "bombs": 1.6,
+   "enemies": 74.8,
+   "enemiesPerRoom": 6.7,
+   "hpScale": 2.28,
+   "power": 4.8,
+   "threat": 4.25,
+   "mult": 1.917,
+   "count": 1.189,
+   "tag": "危"
   },
   {
    "depth": 5,
    "rooms": 15.9,
-   "normalRooms": 10.1,
-   "eliteRate": 43,
-   "secretRate": 48,
+   "normalRooms": 9.9,
+   "eliteRate": 55,
+   "secretRate": 40,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 78,
    "sink": 92,
-   "reserve": 16,
-   "eliteMult": 2.41,
+   "reserve": 17,
+   "eliteMult": 2.56,
    "locks": 2,
    "bombs": 1.4,
-   "enemies": 79.5,
-   "enemiesPerRoom": 7.9,
-   "hpScale": 2.6,
-   "power": 5.79,
-   "threat": 7.57,
-   "mult": 2.487,
-   "count": 1.275,
+   "enemies": 79.3,
+   "enemiesPerRoom": 8,
+   "hpScale": 2.61,
+   "power": 5.87,
+   "threat": 7.72,
+   "mult": 2.508,
+   "count": 1.278,
    "tag": "绝"
   },
   {
    "depth": 6,
-   "rooms": 16,
-   "normalRooms": 10.9,
-   "eliteRate": 60,
+   "rooms": 16.1,
+   "normalRooms": 11.1,
+   "eliteRate": 57,
    "secretRate": 48,
    "treasureRate": 100,
    "shopRate": 100,
@@ -2943,143 +3342,143 @@
    "budget": 84,
    "sink": 99,
    "reserve": 18,
-   "eliteMult": 2.44,
+   "eliteMult": 2.54,
    "locks": 2,
    "bombs": 1.5,
-   "enemies": 56,
-   "enemiesPerRoom": 5.1,
-   "hpScale": 3.16,
-   "power": 6.75,
-   "threat": 9.05,
-   "mult": 2.694,
-   "count": 1.303,
+   "enemies": 58,
+   "enemiesPerRoom": 5.2,
+   "hpScale": 3.35,
+   "power": 7.82,
+   "threat": 6.35,
+   "mult": 2.298,
+   "count": 1.248,
    "tag": "绝"
   },
   {
    "depth": 7,
-   "rooms": 16.1,
+   "rooms": 16,
    "normalRooms": 10.9,
-   "eliteRate": 63,
-   "secretRate": 60,
+   "eliteRate": 60,
+   "secretRate": 53,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 92,
    "sink": 108,
-   "reserve": 18,
-   "eliteMult": 2.55,
+   "reserve": 19,
+   "eliteMult": 2.46,
    "locks": 2,
    "bombs": 1.5,
-   "enemies": 68,
-   "enemiesPerRoom": 6.3,
-   "hpScale": 3.72,
-   "power": 8.99,
-   "threat": 12.39,
-   "mult": 3.103,
-   "count": 1.353,
+   "enemies": 69.8,
+   "enemiesPerRoom": 6.4,
+   "hpScale": 3.86,
+   "power": 9.87,
+   "threat": 12.22,
+   "mult": 3.084,
+   "count": 1.35,
    "tag": "绝"
   },
   {
    "depth": 8,
-   "rooms": 16,
-   "normalRooms": 10.7,
-   "eliteRate": 78,
-   "secretRate": 57,
+   "rooms": 15.6,
+   "normalRooms": 10.6,
+   "eliteRate": 63,
+   "secretRate": 40,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 98,
    "sink": 115,
-   "reserve": 19,
-   "eliteMult": 2.5,
+   "reserve": 21,
+   "eliteMult": 2.41,
    "locks": 2,
-   "bombs": 1.3,
-   "enemies": 79.5,
-   "enemiesPerRoom": 7.5,
-   "hpScale": 4.39,
-   "power": 12.02,
-   "threat": 13.61,
-   "mult": 3.238,
-   "count": 1.368,
+   "bombs": 1.5,
+   "enemies": 77.6,
+   "enemiesPerRoom": 7.3,
+   "hpScale": 4.41,
+   "power": 12.17,
+   "threat": 11.56,
+   "mult": 3.009,
+   "count": 1.341,
    "tag": "绝"
   },
   {
    "depth": 9,
-   "rooms": 15.7,
-   "normalRooms": 10.6,
-   "eliteRate": 63,
-   "secretRate": 45,
+   "rooms": 15.8,
+   "normalRooms": 10.7,
+   "eliteRate": 65,
+   "secretRate": 48,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 105,
    "sink": 124,
-   "reserve": 20,
-   "eliteMult": 2.53,
+   "reserve": 21,
+   "eliteMult": 2.51,
    "locks": 2,
-   "bombs": 1.5,
-   "enemies": 91,
-   "enemiesPerRoom": 8.6,
-   "hpScale": 4.8,
-   "power": 13.64,
-   "threat": 14.33,
-   "mult": 3.313,
-   "count": 1.376,
+   "bombs": 1.6,
+   "enemies": 94.3,
+   "enemiesPerRoom": 8.8,
+   "hpScale": 4.97,
+   "power": 15.13,
+   "threat": 17.57,
+   "mult": 3.632,
+   "count": 1.411,
    "tag": "绝"
   },
   {
    "depth": 10,
-   "rooms": 15.8,
-   "normalRooms": 9.6,
-   "eliteRate": 73,
-   "secretRate": 57,
+   "rooms": 16,
+   "normalRooms": 10,
+   "eliteRate": 60,
+   "secretRate": 43,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 111,
    "sink": 131,
-   "reserve": 20,
-   "eliteMult": 2.44,
+   "reserve": 22,
+   "eliteMult": 2.5,
    "locks": 2,
-   "bombs": 1.4,
-   "enemies": 90.8,
-   "enemiesPerRoom": 9.5,
-   "hpScale": 5.49,
-   "power": 17.2,
-   "threat": 16.65,
-   "mult": 3.545,
-   "count": 1.401,
+   "bombs": 1.7,
+   "enemies": 94,
+   "enemiesPerRoom": 9.4,
+   "hpScale": 5.46,
+   "power": 18.03,
+   "threat": 19.02,
+   "mult": 3.764,
+   "count": 1.424,
    "tag": "绝"
   },
   {
    "depth": 11,
-   "rooms": 15.7,
-   "normalRooms": 10.3,
-   "eliteRate": 83,
-   "secretRate": 60,
+   "rooms": 16,
+   "normalRooms": 10.4,
+   "eliteRate": 80,
+   "secretRate": 78,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 119,
    "sink": 140,
-   "reserve": 22,
-   "eliteMult": 2.56,
+   "reserve": 19,
+   "eliteMult": 2.53,
    "locks": 2,
    "bombs": 1.6,
-   "enemies": 72.3,
-   "enemiesPerRoom": 7,
-   "hpScale": 6.76,
-   "power": 21.79,
-   "threat": 19.85,
-   "mult": 3.837,
-   "count": 1.431,
+   "enemies": 72,
+   "enemiesPerRoom": 6.9,
+   "hpScale": 6.75,
+   "power": 21.69,
+   "threat": 23.25,
+   "mult": 4.12,
+   "count": 1.459,
    "tag": "绝"
   },
   {
    "depth": 12,
-   "rooms": 15.8,
-   "normalRooms": 10.3,
-   "eliteRate": 78,
+   "rooms": 16.2,
+   "normalRooms": 10.7,
+   "eliteRate": 83,
    "secretRate": 73,
    "treasureRate": 100,
    "shopRate": 100,
@@ -3087,86 +3486,86 @@
    "budget": 125,
    "sink": 147,
    "reserve": 20,
-   "eliteMult": 2.42,
+   "eliteMult": 2.51,
    "locks": 2,
-   "bombs": 1.4,
-   "enemies": 82.2,
-   "enemiesPerRoom": 8,
-   "hpScale": 7.29,
-   "power": 26.54,
-   "threat": 25.29,
-   "mult": 4.279,
-   "count": 1.473,
+   "bombs": 1.5,
+   "enemies": 87,
+   "enemiesPerRoom": 8.1,
+   "hpScale": 7.38,
+   "power": 25.79,
+   "threat": 25.1,
+   "mult": 4.264,
+   "count": 1.472,
    "tag": "绝"
   },
   {
    "depth": 13,
-   "rooms": 16.4,
-   "normalRooms": 10.9,
-   "eliteRate": 78,
-   "secretRate": 73,
+   "rooms": 15.8,
+   "normalRooms": 10.3,
+   "eliteRate": 80,
+   "secretRate": 65,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 133,
    "sink": 156,
    "reserve": 22,
-   "eliteMult": 2.49,
+   "eliteMult": 2.43,
    "locks": 2,
-   "bombs": 1.4,
-   "enemies": 102.2,
+   "bombs": 1.5,
+   "enemies": 97.8,
    "enemiesPerRoom": 9.4,
-   "hpScale": 7.93,
-   "power": 31.66,
-   "threat": 32.66,
+   "hpScale": 7.96,
+   "power": 31.83,
+   "threat": 29.77,
    "mult": 4.6,
    "count": 1.5,
    "tag": "绝"
   },
   {
    "depth": 14,
-   "rooms": 15.8,
-   "normalRooms": 10.2,
-   "eliteRate": 95,
-   "secretRate": 68,
+   "rooms": 16.2,
+   "normalRooms": 10.7,
+   "eliteRate": 80,
+   "secretRate": 70,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 139,
    "sink": 163,
    "reserve": 22,
-   "eliteMult": 2.42,
+   "eliteMult": 2.54,
    "locks": 2,
    "bombs": 1.6,
-   "enemies": 99.8,
-   "enemiesPerRoom": 9.8,
-   "hpScale": 8.41,
-   "power": 37.55,
-   "threat": 27.67,
-   "mult": 4.456,
-   "count": 1.49,
+   "enemies": 103.1,
+   "enemiesPerRoom": 9.7,
+   "hpScale": 8.36,
+   "power": 37.32,
+   "threat": 24.12,
+   "mult": 4.189,
+   "count": 1.465,
    "tag": "绝"
   },
   {
    "depth": 15,
-   "rooms": 16.7,
-   "normalRooms": 10.1,
-   "eliteRate": 83,
-   "secretRate": 83,
+   "rooms": 16.1,
+   "normalRooms": 9.7,
+   "eliteRate": 73,
+   "secretRate": 68,
    "treasureRate": 100,
    "shopRate": 100,
    "sacrificeRate": 100,
    "budget": 146,
    "sink": 172,
-   "reserve": 21,
-   "eliteMult": 2.49,
+   "reserve": 23,
+   "eliteMult": 2.53,
    "locks": 2,
    "bombs": 1.6,
-   "enemies": 98.8,
+   "enemies": 95.3,
    "enemiesPerRoom": 9.8,
-   "hpScale": 8.7,
-   "power": 46.89,
-   "threat": 38.24,
+   "hpScale": 8.66,
+   "power": 44.85,
+   "threat": 40,
    "mult": 4.6,
    "count": 1.5,
    "tag": "绝"
@@ -3520,6 +3919,156 @@
     "朝指针劈出一道贯通剑气，穿透妖物　伤害 24（另加伤害 ×1.5）　冷却 4.5 秒",
     "朝指针劈出一道贯通剑气，穿透妖物　伤害 28（另加伤害 ×1.5）　冷却 4.0 秒",
     "朝指针劈出一道贯通剑气，穿透妖物　伤害 32（另加伤害 ×1.5）　冷却 3.5 秒"
+   ],
+   "shopSlot": 4
+  },
+  {
+   "id": "thunderwrath",
+   "name": "雷神之怒",
+   "en": "THUNDER WRATH",
+   "cost": 36,
+   "maxLv": 5,
+   "vals": [
+    15,
+    21,
+    27,
+    33,
+    40
+   ],
+   "cd": [
+    360,
+    330,
+    300,
+    270,
+    240
+   ],
+   "dur": null,
+   "descs": [
+    "召下九道雷霆，重创全室妖物并引爆连锁　伤害 29（另加伤害 ×1.6）　冷却 6.0 秒",
+    "召下九道雷霆，重创全室妖物并引爆连锁　伤害 35（另加伤害 ×1.6）　冷却 5.5 秒",
+    "召下九道雷霆，重创全室妖物并引爆连锁　伤害 41（另加伤害 ×1.6）　冷却 5.0 秒",
+    "召下九道雷霆，重创全室妖物并引爆连锁　伤害 47（另加伤害 ×1.6）　冷却 4.5 秒",
+    "召下九道雷霆，重创全室妖物并引爆连锁　伤害 54（另加伤害 ×1.6）　冷却 4.0 秒"
+   ],
+   "shopSlot": 4
+  },
+  {
+   "id": "fimbulwinter",
+   "name": "芬布尔之冬",
+   "en": "FIMBULWINTER",
+   "cost": 32,
+   "maxLv": 5,
+   "vals": [
+    150,
+    180,
+    210,
+    240,
+    270
+   ],
+   "cd": [
+    600,
+    570,
+    540,
+    510,
+    480
+   ],
+   "dur": null,
+   "descs": [
+    "寒冬降临，全室妖物冰封 2.5 秒（冰封期间行动迟缓）　冷却 10.0 秒",
+    "寒冬降临，全室妖物冰封 3.0 秒（冰封期间行动迟缓）　冷却 9.5 秒",
+    "寒冬降临，全室妖物冰封 3.5 秒（冰封期间行动迟缓）　冷却 9.0 秒",
+    "寒冬降临，全室妖物冰封 4.0 秒（冰封期间行动迟缓）　冷却 8.5 秒",
+    "寒冬降临，全室妖物冰封 4.5 秒（冰封期间行动迟缓）　冷却 8.0 秒"
+   ],
+   "shopSlot": 4
+  },
+  {
+   "id": "mistcloak",
+   "name": "雾隐",
+   "en": "MIST CLOAK",
+   "cost": 28,
+   "maxLv": 5,
+   "vals": [
+    180,
+    225,
+    270,
+    315,
+    360
+   ],
+   "cd": [
+    540,
+    504,
+    468,
+    432,
+    396
+   ],
+   "dur": null,
+   "descs": [
+    "化入雾中，3.0 秒内不染尘劫，身法 +30%　冷却 9.0 秒",
+    "化入雾中，3.8 秒内不染尘劫，身法 +35%　冷却 8.4 秒",
+    "化入雾中，4.5 秒内不染尘劫，身法 +40%　冷却 7.8 秒",
+    "化入雾中，5.3 秒内不染尘劫，身法 +45%　冷却 7.2 秒",
+    "化入雾中，6.0 秒内不染尘劫，身法 +50%　冷却 6.6 秒"
+   ],
+   "shopSlot": 4
+  },
+  {
+   "id": "runeward",
+   "name": "符文护壁",
+   "en": "RUNEWARD",
+   "cost": 24,
+   "maxLv": 5,
+   "vals": [
+    2,
+    3,
+    3,
+    4,
+    4
+   ],
+   "cd": [
+    600,
+    600,
+    600,
+    600,
+    600
+   ],
+   "dur": 300,
+   "descs": [
+    "刻下符文，震退周身妖物并结 2 层护盾，5 秒后消散　范围 140　伤害 6　冷却 10 秒",
+    "刻下符文，震退周身妖物并结 3 层护盾，5 秒后消散　范围 160　伤害 9　冷却 10 秒",
+    "刻下符文，震退周身妖物并结 3 层护盾，5 秒后消散　范围 180　伤害 12　冷却 10 秒",
+    "刻下符文，震退周身妖物并结 4 层护盾，5 秒后消散　范围 200　伤害 15　冷却 10 秒",
+    "刻下符文，震退周身妖物并结 4 层护盾，5 秒后消散　范围 220　伤害 18　冷却 10 秒"
+   ],
+   "shopSlot": 4
+  },
+  {
+   "id": "ravenhost",
+   "name": "渡鸦群袭",
+   "en": "RAVEN HOST",
+   "cost": 30,
+   "maxLv": 5,
+   "vals": [
+    11,
+    15,
+    19,
+    23,
+    27
+   ],
+   "cd": [
+    330,
+    300,
+    270,
+    240,
+    210
+   ],
+   "dur": null,
+   "descs": [
+    "放出三只渡鸦，各拖一道贯通剑气　伤害 15（另加伤害 ×1.5）　冷却 5.5 秒",
+    "放出三只渡鸦，各拖一道贯通剑气　伤害 19（另加伤害 ×1.5）　冷却 5.0 秒",
+    "放出三只渡鸦，各拖一道贯通剑气　伤害 23（另加伤害 ×1.5）　冷却 4.5 秒",
+    "放出三只渡鸦，各拖一道贯通剑气　伤害 27（另加伤害 ×1.5）　冷却 4.0 秒",
+    "放出三只渡鸦，各拖一道贯通剑气　伤害 31（另加伤害 ×1.5）　冷却 3.5 秒"
    ],
    "shopSlot": 4
   }
@@ -4182,6 +4731,396 @@
    ]
   }
  },
- "exportedAt": "2026-09-24 03:53:40",
+ "worldContent": [
+  {
+   "id": "cn",
+   "tag": "中",
+   "name": "中式仙侠",
+   "typeName": {
+    "fabao": "法宝",
+    "dan": "丹药",
+    "gongfa": "小技能"
+   },
+   "roomLabel": {
+    "start": "静心阁",
+    "normal": "石室",
+    "boss": "魔窟",
+    "treasure": "藏珍阁",
+    "shop": "坊市",
+    "secret": "密室",
+    "sacrifice": "祭坛"
+   },
+   "mobsBySeg": [
+    {
+     "seg": 1,
+     "ids": [
+      "xiesui",
+      "chanchu",
+      "yinsha",
+      "xuefu"
+     ],
+     "cn": [
+      "邪祟",
+      "蟾蜍妖",
+      "阴煞",
+      "血蝠"
+     ]
+    },
+    {
+     "seg": 2,
+     "ids": [
+      "xiesui",
+      "chanchu",
+      "yinsha",
+      "xuefu",
+      "guixiu",
+      "shikui",
+      "bengyao"
+     ],
+     "cn": [
+      "邪祟",
+      "蟾蜍妖",
+      "阴煞",
+      "血蝠",
+      "鬼修",
+      "尸傀",
+      "蹦山魈"
+     ]
+    },
+    {
+     "seg": 3,
+     "ids": [
+      "xiesui",
+      "chanchu",
+      "yinsha",
+      "xuefu",
+      "guixiu",
+      "shikui",
+      "bengyao",
+      "jianling",
+      "yingmo",
+      "xuanguang",
+      "tiehun",
+      "xuanjia"
+     ],
+     "cn": [
+      "邪祟",
+      "蟾蜍妖",
+      "阴煞",
+      "血蝠",
+      "鬼修",
+      "尸傀",
+      "蹦山魈",
+      "剑灵",
+      "影魅",
+      "玄光瞳",
+      "铁魄妖",
+      "玄甲卫"
+     ]
+    }
+   ],
+   "elites": [
+    {
+     "id": "xiesha",
+     "cn": "血煞厉鬼",
+     "en": "BLOOD",
+     "base": "shikui",
+     "baseCn": "尸傀",
+     "hpMul": 3,
+     "perk": "blood",
+     "perkCn": "血箭（受创减免四成）",
+     "perkCd": 150,
+     "desc": "受创减免四成；周身喷薄血箭，死后化血雾",
+     "hpAtD1": 102
+    },
+    {
+     "id": "youyan",
+     "cn": "幽焰鬼修",
+     "en": "FLAME",
+     "base": "guixiu",
+     "baseCn": "鬼修",
+     "hpMul": 2.5,
+     "perk": "volley",
+     "perkCn": "符箓三连发+灼烧",
+     "perkCd": 120,
+     "desc": "符箓三连发并附带灼烧，死后留下火圈",
+     "hpAtD1": 40
+    },
+    {
+     "id": "jiying",
+     "cn": "疾影血蝠",
+     "en": "RUSH",
+     "base": "xuefu",
+     "baseCn": "血蝠",
+     "hpMul": 2.2,
+     "perk": "rush",
+     "perkCn": "瞬影突进",
+     "perkCd": 80,
+     "desc": "瞬影突进，来去无踪；殒命炸出十二枚血弹",
+     "hpAtD1": 22
+    },
+    {
+     "id": "wandu",
+     "cn": "万毒蟾尊",
+     "en": "VENOM",
+     "base": "chanchu",
+     "baseCn": "蟾蜍妖",
+     "hpMul": 3.4,
+     "perk": "venom",
+     "perkCn": "毒弹落地成沼",
+     "perkCd": 135,
+     "desc": "毒弹落地成沼，死后毒雾弥漫",
+     "hpAtD1": 61
+    },
+    {
+     "id": "duannian",
+     "cn": "剑灵·断念",
+     "en": "SWORD",
+     "base": "jianling",
+     "baseCn": "剑灵",
+     "hpMul": 2.7,
+     "perk": "swarm",
+     "perkCn": "环形剑气",
+     "perkCd": 145,
+     "desc": "环形剑气，殒命时召出两只小剑灵",
+     "hpAtD1": 38
+    }
+   ],
+   "bosses": [
+    {
+     "id": "xuemo",
+     "cn": "血魔尊者",
+     "en": "BLOOD",
+     "hp": 260,
+     "spd": 1,
+     "bolt": "blood",
+     "boltCn": "血珠",
+     "alt": "flame",
+     "altCn": "炼火",
+     "dash": 240,
+     "appear": "第 5 层",
+     "gimmick": "整圈血弹 + 无限爪牙，最基础的一课：绕着圈子走，别站在他对面。冲刺前会先站定蓄势 0.67 秒、在地上画出冲程带；带子变亮并浮出推进光点就是要撞了，当场横移就能躲"
+    },
+    {
+     "id": "baigu",
+     "cn": "白骨夫人",
+     "en": "BONE",
+     "hp": 300,
+     "spd": 0.85,
+     "bolt": "ice",
+     "boltCn": "寒冰",
+     "alt": "talisman",
+     "altCn": "符箓",
+     "dash": 240,
+     "appear": "第 10 层",
+     "gimmick": "定点冰符 + 蓄力冲刺，考验拉扯距离：贴脸会被冲，站远会被符箓封角"
+    },
+    {
+     "id": "liesha",
+     "cn": "裂煞魔尊",
+     "en": "FRACTURE",
+     "hp": 300,
+     "spd": 0.9,
+     "bolt": "flame",
+     "boltCn": "炼火",
+     "alt": "blood",
+     "altCn": "血珠",
+     "dash": 250,
+     "appear": "第 15 层",
+     "gimmick": "母弹裂成 2 枚中弹、每枚再裂成 3 枚小弹（一轮 9 枚），越躲越密，要提前找空当而不是追着弹缝钻"
+    }
+   ]
+  },
+  {
+   "id": "nordic",
+   "tag": "北",
+   "name": "北欧神话",
+   "typeName": {
+    "fabao": "神器",
+    "dan": "秘药",
+    "gongfa": "权能"
+   },
+   "roomLabel": {
+    "start": "英灵殿",
+    "normal": "冰原",
+    "boss": "巨人之厅",
+    "treasure": "龙巢",
+    "shop": "商栈",
+    "secret": "秘窖",
+    "sacrifice": "血祭石"
+   },
+   "mobsBySeg": [
+    {
+     "seg": 1,
+     "ids": [
+      "draugr",
+      "hrafn",
+      "nokk",
+      "isvarg"
+     ],
+     "cn": [
+      "尸鬼",
+      "渡鸦",
+      "水妖",
+      "霜狼"
+     ]
+    },
+    {
+     "seg": 2,
+     "ids": [
+      "draugr",
+      "hrafn",
+      "nokk",
+      "isvarg",
+      "volva",
+      "skuggi"
+     ],
+     "cn": [
+      "尸鬼",
+      "渡鸦",
+      "水妖",
+      "霜狼",
+      "女巫",
+      "影魅"
+     ]
+    },
+    {
+     "seg": 3,
+     "ids": [
+      "draugr",
+      "hrafn",
+      "nokk",
+      "isvarg",
+      "volva",
+      "skuggi",
+      "rimtroll",
+      "runestone"
+     ],
+     "cn": [
+      "尸鬼",
+      "渡鸦",
+      "水妖",
+      "霜狼",
+      "女巫",
+      "影魅",
+      "霜巨魔",
+      "符文石"
+     ]
+    }
+   ],
+   "elites": [
+    {
+     "id": "draugr_jarl",
+     "cn": "尸鬼首领",
+     "en": "BARROW",
+     "base": "draugr",
+     "baseCn": "尸鬼",
+     "hpMul": 3,
+     "perk": "blood",
+     "perkCn": "血箭（受创减免四成）",
+     "perkCd": 150,
+     "desc": "受创减免四成；周身喷薄血箭，死后化血雾",
+     "hpAtD1": 42
+    },
+    {
+     "id": "frost_jarl",
+     "cn": "霜巨魔战将",
+     "en": "RIME",
+     "base": "rimtroll",
+     "baseCn": "霜巨魔",
+     "hpMul": 2.7,
+     "perk": "swarm",
+     "perkCn": "环形剑气",
+     "perkCd": 145,
+     "desc": "环形冰针，殒命时召出两只霜狼",
+     "hpAtD1": 92
+    },
+    {
+     "id": "hrafn_king",
+     "cn": "渡鸦之王",
+     "en": "ROOK",
+     "base": "hrafn",
+     "baseCn": "渡鸦",
+     "hpMul": 2.2,
+     "perk": "rush",
+     "perkCn": "瞬影突进",
+     "perkCd": 80,
+     "desc": "瞬影突进，来去无踪；殒命炸出十二枚血弹",
+     "hpAtD1": 24
+    },
+    {
+     "id": "nokk_priest",
+     "cn": "溺灵祭司",
+     "en": "DROWNED",
+     "base": "nokk",
+     "baseCn": "水妖",
+     "hpMul": 3.4,
+     "perk": "venom",
+     "perkCn": "毒弹落地成沼",
+     "perkCd": 135,
+     "desc": "毒弹落地成沼，死后毒雾弥漫",
+     "hpAtD1": 61
+    },
+    {
+     "id": "rune_warden",
+     "cn": "符文守卫",
+     "en": "WARDEN",
+     "base": "runestone",
+     "baseCn": "符文石",
+     "hpMul": 3.2,
+     "perk": "volley",
+     "perkCn": "符箓三连发+灼烧",
+     "perkCd": 120,
+     "desc": "符文三连发并附带灼烧，死后留下火环",
+     "hpAtD1": 102
+    }
+   ],
+   "bosses": [
+    {
+     "id": "fenrir",
+     "cn": "芬里尔",
+     "en": "FENRIR",
+     "hp": 280,
+     "spd": 1.05,
+     "bolt": "ice",
+     "boltCn": "寒冰",
+     "alt": "blood",
+     "altCn": "血珠",
+     "dash": 220,
+     "appear": "第 5 层",
+     "gimmick": "巨狼贴地扑咬，越到后面越急：不贪刀、跟着它转圈，冲刺前横移一步就够"
+    },
+    {
+     "id": "jormungandr",
+     "cn": "耶梦加得",
+     "en": "JORMUNGANDR",
+     "hp": 320,
+     "spd": 0.72,
+     "bolt": "orb",
+     "boltCn": "灵珠",
+     "alt": "iron",
+     "altCn": "玄铁",
+     "dash": 0,
+     "appear": "第 10 层",
+     "gimmick": "尘世巨蟒盘住整座厅堂，以毒环封路：毒环缺口每轮换位，提前站位而不是临时躲"
+    },
+    {
+     "id": "surtr",
+     "cn": "苏尔特",
+     "en": "SURTR",
+     "hp": 350,
+     "spd": 0.8,
+     "bolt": "flame",
+     "boltCn": "炼火",
+     "alt": "talisman",
+     "altCn": "符箓",
+     "dash": 250,
+     "appear": "第 15 层",
+     "gimmick": "火巨人挥着烈焰之剑把厅堂烧成熔炉：火墙与符箓交替，绕着外圈走别贪中心"
+    }
+   ]
+  }
+ ],
+ "exportedAt": "2026-09-24 05:02:03",
  "errs": []
 }

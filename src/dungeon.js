@@ -23,6 +23,10 @@ const ROOM_LABEL = {
   start: '静心阁', normal: '石室', boss: '魔窟', treasure: '藏珍阁',
   shop: '坊市', secret: '密室', sacrifice: '祭坛'
 };
+/* ⚠️ 上面这张表**只作中式兜底**用。真正的房间名按世界风格取 ——
+   见 nordic.js 的 `STYLE_CONTENT[*].roomLabel` 与读取函数 `roomLabelOf(type, style)`。
+   game.js 的顶栏走 `roomLabelOf`；这张表留在这里是为了让老代码 / 导出脚本
+   在没传风格时也有个东西可读（且它必须与 STYLE_CONTENT.cn.roomLabel 一致）。 */
 
 /* ------------------------------------------------------------
  *  动态难度
@@ -113,12 +117,14 @@ function diffMaxOfSeg(seg) {
       现在 Boss 只在段末出现，索引 0 会算出第 1 层 —— 而第 1 层根本没有 Boss 房，
       挑战模式会开成一张没有头目的普通图（选了血魔却打空气）。
    `bossSlotOf` 反过来用：先由 id 求段，再由段求段末层。 */
-function bossFloorOf(id) {
-  const idx = Math.max(0, BOSS_KEYS.indexOf(id));
+function bossFloorOf(id, style) {
+  const keys = bossKeysOf(style || 'cn');
+  const idx = Math.max(0, keys.indexOf(id));
   return (Math.min(idx, SEG_COUNT - 1) + 1) * SEG_FLOORS;
 }
-function bossOrdinalOf(id) {           // 该尊者是第几个（0 起），非 BOSS_KEYS 里的一律 0
-  return Math.max(0, Math.min(BOSS_KEYS.length - 1, BOSS_KEYS.indexOf(id)));
+function bossOrdinalOf(id, style) {    // 该尊者是第几个（0 起），不在表里的一律 0
+  const keys = bossKeysOf(style || 'cn');
+  return Math.max(0, Math.min(keys.length - 1, keys.indexOf(id)));
 }
 
 function difficultyOf(depth, power) {
@@ -193,6 +199,9 @@ class Floor {
     this.opts = opts || {};
     this.owned = this.opts.owned || [];
     this.slots = this.opts.slots || [];      // 玩家的小技能槽，供坊市挑货时避开已满级的
+    /* 世界风格：决定本层用哪套杂兵 / 精英 / 尊者 / 道具（见 nordic.js 的 STYLE_CONTENT）。
+       缺省 'cn' —— 老调用点（测试里直接 `new Floor(depth, seed)`）不传也能跑。 */
+    this.style = this.opts.style || 'cn';
     /* Boss 覆写：挑战模式要能单挑任意一位尊者，而正常流程是「按段取人」。
        没有这个口子的话，选了烛龙（索引 4）会算出 depth=5 → 段 0，
        结果打的还是血魔尊者 —— 挑战模式静默失效。 */
@@ -348,7 +357,10 @@ class Floor {
     const roomy = src.filter(r => (cells || []).some(c => c.connects.some(k => k.n === r)));
     if (roomy.length) src = roomy;
     const r = src[Math.floor(rng() * src.length)];
-    r.elite = ELITE_KEYS[Math.floor(rng() * ELITE_KEYS.length)];
+    /* 精英取自**本风格**的表（北欧 5 种 / 中式 5 种）。
+       ⚠️ 不要直接用全局 `ELITE_KEYS` —— 那是中式的键表。 */
+    const ek = eliteKeysOf(this.style);
+    r.elite = ek[Math.floor(rng() * ek.length)];
     this.eliteRoom = r;
     this.hasElite = true;
   }
@@ -523,7 +535,10 @@ class Floor {
       case RT.NORMAL: {
         // 精英窟：一只精英 + 少量随从，怪少而凶
         if (r.elite) {
-          const E = ELITE_DEF[r.elite];
+          /* ⚠️ 必须走 `eliteDefOf` 而不是直接查 `ELITE_DEF`：
+             北欧精英**另表存**在 nordic.js（`NORDIC_ELITE_DEF`），直接查会得到
+             undefined → `E.base` 抛异常，地宫生成当场断在半路上。 */
+          const E = eliteDefOf(r.elite) || ELITE_DEF[ELITE_KEYS[0]];
           const wv = [{ type: E.base, x: ROOM_W / 2, y: 112, hpScale: hpBase, elite: r.elite }];
           const pool = this.enemyPool(depth);
           /* 随从数按【整局进度】而不是层数：原 `2 + floor(depth/2)` 在 15 层下会长到 9 只，
@@ -622,9 +637,12 @@ class Floor {
            段末 Boss 再叠一道 BOSS_SEG_MUL：它是一段的收束，要比同层杂兵更有一道坎，
            但**只作用于 Boss**，不抬高普通妖物（否则那一段整体变硬，手感错位）。 */
         const seg = segOf(depth);
+        const bk = bossKeysOf(this.style);
         r.waves.push([{ type: 'boss', x: ROOM_W / 2, y: 96,
-          /* bossOverride 优先：挑战模式点谁打谁（见 Floor 构造函数的注释） */
-          boss: this.bossOverride || BOSS_KEYS[Math.min(BOSS_KEYS.length - 1, seg)],
+          /* bossOverride 优先：挑战模式点谁打谁（见 Floor 构造函数的注释）
+             bk 是**本风格自己的**那几尊：中式 3 尊、北欧 3 尊 —— 长度都为 SEG_COUNT，
+             这里的 min 是给「将来某风格少于 3 尊」留的余量。 */
+          boss: this.bossOverride || bk[Math.min(bk.length - 1, seg)],
           hpScale: (1 + (segProgress(depth) + seg * 1) * 0.45 * (SEG_FLOORS / 5))
             * (1 + (dm - 1) * 0.6) * BOSS_SEG_MUL[seg] }]);
         break;
@@ -633,42 +651,41 @@ class Floor {
   }
 
   /* 妖物池：池内等概率，所以「加一种」等于「稀释全部」。
-     因此新妖物一律按层解锁、一次只放一两种进来 ——
-     既让后四层每层都有新面孔，又不至于把一层的池子冲淡到看不出性格。 */
-  /* 妖物池：池内等概率，所以「加一种」等于「稀释全部」。
      因此新妖物一律按【段】解锁、一次只放两三种进来 ——
      既让每一段都有新面孔，又不至于把一段的池子冲淡到看不出性格。
 
      ⚠️ 解锁点按段算，不按层：原来的 `depth >= 4` 在 15 层制下会让
         第 4~15 层共 12 层的池子完全不变（新面孔早早就全出来了），
         玩家在段二段三会遇到「同一批妖物打十层」。改成按段之后，
-        段一 5 种、段二 +3、段三 +4，每段都有一批新的要学。 */
+        段一 4 种、段二 +2~3、段三 +5，每段都有一批新的要学。
+
+     ⚠️ 池子本身**不再写在这里** —— 「哪个风格用哪些妖物」属于内容配置，
+        归 nordic.js 的 `STYLE_CONTENT[*].mobsBySeg` 统一管
+        （中式 4/7/12、北欧 4/6/8 都登在那张表里）。这里只负责按段取。
+        `_t_nordic.js` T4 有「中式池与老实现逐段一致」的对齐断言钉着。 */
   enemyPool(depth) {
-    const seg = segOf(depth);
-    const pool = ['xiesui', 'chanchu'];
-    pool.push('yinsha');
-    if (seg >= 0) pool.push('xuefu');
-    if (seg >= 1) { pool.push('guixiu'); pool.push('shikui'); pool.push('bengyao'); }
-    if (seg >= 2) { pool.push('jianling'); pool.push('yingmo'); pool.push('xuanguang'); pool.push('tiehun'); pool.push('xuanjia'); }
-    return pool;
+    const table = contentOf(this.style).mobsBySeg;
+    return table[clamp(segOf(depth), 0, table.length - 1)] || table[table.length - 1];
   }
 
   /* 坊市：4 件货，价格随深度递增 —— 这是本层灵石唯一的去处，
      也是灵石预算的基准。买得起两三件、买不全，取舍才成立。 */
   shopGoods(rng, depth) {
-    const dan = poolByType('dan');
-    const gong = poolByType('gongfa');
+    /* ⚠️ 所有抽取都要传**本层的世界风格** —— 不传的话商栈会在北欧卖青锋剑
+       （`poolByType` / `rollFabaoId` / `rollSkillId` 都以 style 过滤）。 */
+    const st = this.style;
+    const dan = poolByType('dan', st);
     const pick = a => a[Math.floor(rng() * a.length)] || a[0];
     const P = base => Math.round(base + depth * 2);
     // 法宝走统一抽取：优先没见过的，也允许数值型重复 / 功能型进阶
     const own = this.owned;
-    const fabao = () => rollFabaoId(rng, own);
+    const fabao = () => rollFabaoId(rng, own, st);
     return [
       { item: fabao(), price: P(13) },
       { item: pick(dan), price: Math.round(6 + depth * 1.5) },
       { item: fabao(), price: P(15) },
       // 4 号位多数时候卖小技能：这是技能最稳定的来源
-      { item: rng() < 0.6 ? rollSkillId(rng, this.slots) : fabao(), price: Math.round(17 + depth * 2.5) }
+      { item: rng() < 0.6 ? rollSkillId(rng, this.slots, st) : fabao(), price: Math.round(17 + depth * 2.5) }
     ];
   }
 

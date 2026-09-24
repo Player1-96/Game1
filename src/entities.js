@@ -820,11 +820,38 @@ const ELITE_DEF = {
 };
 const ELITE_KEYS = Object.keys(ELITE_DEF);
 
+/* ------------------------------------------------------------
+ *  按世界风格解析「这只妖物 / 这位尊者 / 这位精英」的数据
+ *
+ *  ⚠️ 北欧那批**不并进** `ENEMY_DEF` / `ELITE_DEF` / `BOSS_DEF`，而是留在
+ *     nordic.js 里另起一张表，靠这三个解析器合起来。原因有三个，每个都会
+ *     在不该出错的时刻炸掉：
+ *     ① `_t_foe` / `_t_spawn` 会**遍历 ENEMY_DEF 的全部键**逐个刷怪 ——
+ *        并进去就会在中式局里刷出北欧怪，而那时烘焙的是中式素材，
+ *        `SPR.enemies[draugr]` 是 undefined → `set[frame]` 直接抛异常。
+ *     ② `BOSS_KEYS` / `ELITE_KEYS` 的**长度**被挑战菜单与回归断言依赖着
+ *        （中式 5 尊 / 5 精英），并进去会把它们改成 8 / 10。
+ *     ③ 挑战模式点谁打谁走的是中式那 5 尊，不该被北欧的 3 尊挤进来。
+ * ---------------------------------------------------------- */
+function enemyDefOf(type) {
+  return ENEMY_DEF[type]
+    || (typeof NORDIC_ENEMY_DEF !== 'undefined' ? NORDIC_ENEMY_DEF[type] : null);
+}
+function eliteDefOf(key) {
+  return ELITE_DEF[key]
+    || (typeof NORDIC_ELITE_DEF !== 'undefined' ? NORDIC_ELITE_DEF[key] : null);
+}
+function bossDefOf(kind) {
+  return BOSS_DEF[kind]
+    || (typeof NORDIC_BOSS_DEF !== 'undefined' ? NORDIC_BOSS_DEF[kind] : null)
+    || BOSS_DEF.xuemo;                       // 兜底：别让一个拼错的键把整局打断
+}
+
 class Enemy {
   constructor(type, x, y, hpScale, eliteKey) {
-    const d = ENEMY_DEF[type];
+    const d = enemyDefOf(type) || ENEMY_DEF.xiesui;   // 拼错的键退到邪祟，别整局崩
     this.type = type;
-    const E = eliteKey ? ELITE_DEF[eliteKey] : null;
+    const E = eliteKey ? eliteDefOf(eliteKey) : null;
     this.eliteKey = E ? eliteKey : null;
     this.elite = E;
     // 精英：复制一份 def 再改，绝不污染共享的 ENEMY_DEF
@@ -1071,7 +1098,9 @@ class Enemy {
       case 'swarm':
         for (let i = 0; i < 2; i++) {
           const sp = g.safeSpawn(this.x + (i ? 22 : -22), this.y + 8, 8);
-          const e = new Enemy('jianling', sp.x, sp.y, 0.5);
+          /* ⚠️ 召唤物必须取自**该精英自己的世界**（`swarmMinion`）——
+              原先写死 'jianling'，于是「霜巨魔战将」死后掉出两只中式剑灵。 */
+          const e = new Enemy(this.elite.swarmMinion || 'jianling', sp.x, sp.y, 0.5);
           e.small = true;
           g.enemies.push(e);
         }
@@ -1595,7 +1624,7 @@ const BOSS_KEYS = Object.keys(BOSS_DEF);
 class Boss {
   constructor(kind, x, y, hpScale) {
     this.kind = kind;
-    this.bd = BOSS_DEF[kind] || BOSS_DEF.xuemo;
+    this.bd = bossDefOf(kind);
     this.x = x; this.y = y; this.r = 22;
     this.maxHp = Math.round(this.bd.hp * (hpScale || 1));
     this.hp = this.maxHp;

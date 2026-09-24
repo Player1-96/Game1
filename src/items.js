@@ -217,11 +217,32 @@ const ITEM_DEFS = [
   { id: 'liekong', name: '裂空斩', type: 'gongfa', icon: 'rift', c1: PAL.cyan, c2: PAL.white,
     desc: SKILL_DEF.liekong.desc(1) },
 
+  /* ---------- 北欧权能（Q 释放、消耗灵力） ----------
+     数值与释放效果全在 nordic.js 的 `NORDIC_SKILLS`（那边已并入 `SKILL_DEF`），
+     这里只留展示用的壳，与上面六门功法完全同构。
+     名称 / 说明由 `itemView()` 的 gongfa 分支按当前等级实时生成。 */
+  { id: 'thunderwrath', name: '雷神之怒', type: 'gongfa', world: 'nordic', icon: 'thunder',
+    c1: NORD.ice, c2: NORD.amberL, desc: NORDIC_SKILLS.thunderwrath.desc(1) },
+  { id: 'fimbulwinter', name: '芬布尔之冬', type: 'gongfa', world: 'nordic', icon: 'frost',
+    c1: NORD.iceL, c2: NORD.iceD, desc: NORDIC_SKILLS.fimbulwinter.desc(1) },
+  { id: 'mistcloak', name: '雾隐', type: 'gongfa', world: 'nordic', icon: 'knot',
+    c1: NORD.ironL, c2: NORD.runic, desc: NORDIC_SKILLS.mistcloak.desc(1) },
+  { id: 'runeward', name: '符文护壁', type: 'gongfa', world: 'nordic', icon: 'shield2',
+    c1: NORD.ice, c2: NORD.runicL, desc: NORDIC_SKILLS.runeward.desc(1) },
+  { id: 'ravenhost', name: '渡鸦群袭', type: 'gongfa', world: 'nordic', icon: 'raven',
+    c1: NORD.ironD, c2: NORD.iceL, desc: NORDIC_SKILLS.ravenhost.desc(1) },
+
   /* ---------- 融合产物（第 3 期） ----------
      定义在 src/fusion.js（那里还有配方表 / 图鉴 / 战斗钩子），
      这里并入 ITEM_DEFS 是为了让图标、ITEM_MAP、悬停说明这些既有设施
      零改动地认它们。⚠️ 必须在 ITEM_MAP 构建之前并入。 */
-  ...(typeof FUSION_ITEMS !== 'undefined' ? FUSION_ITEMS : [])
+  ...(typeof FUSION_ITEMS !== 'undefined' ? FUSION_ITEMS : []),
+
+  /* ---------- 北欧神器 / 秘药（第 4 期，数据在 nordic.js） ----------
+     一律带 `world: 'nordic'`，由 `poolByType(type, style)` 按世界风格过滤 ——
+     两界的道具**互不进对方的池子**（北欧的商栈不会卖青锋剑，反之亦然）。
+     中式那批没有 `world` 字段，视为 'cn'（迁移成本为零）。 */
+  ...(typeof NORDIC_ITEMS !== 'undefined' ? NORDIC_ITEMS : [])
 ];
 
 const ITEM_MAP = {};
@@ -309,7 +330,12 @@ function itemOtherStyles(def, style) {
 /* 说明浮层的 HTML —— 背包悬停与坊市预览共用，保证两处读到的效果一致 */
 function itemTipHTML(def, style, extraHTML, rank) {
   const v = itemView(def, style, rank);
-  const typeName = { fabao: '法宝', dan: '丹药', gongfa: '小技能', ult: '专属技能' }[def.type] || '';
+  /* 类型名按**该道具自己的世界**取：北欧的法器叫「神器」、功法叫「权能」。
+     用 `def.world` 而不是当前风格 —— 这样卡片在任何上下文（背包悬停 / 坊市 /
+     资源表导出）都自洽，不必把世界风格一路透传进来。
+     `typeNameOf` 见 nordic.js 的 STYLE_CONTENT。 */
+  const typeName = def.type === 'ult' ? '专属技能'
+    : typeNameOf(def.type, def.world || 'cn');
   let html = '<div class="tn">' + v.name + '<span class="tt">' + typeName + '</span></div>'
            + '<div class="td">' + v.desc + '</div>';
   /* 融合产物：把「由哪两件融成、材料的加成全部保留」摊开写出来。
@@ -349,14 +375,14 @@ function buildItemIcons() {
     if (d.icon === 'shield2') {
       // 护盾类图标单独绘制
       const p = new Px(16, 16);
-      p.rect(1, 1, 14, 14, ICON_BG); p.box(0, 0, 16, 16, PAL.wall); p.box(1, 1, 14, 14, PAL.wallHi);
+      p.rect(1, 1, 14, 14, iconBG()); p.box(0, 0, 16, 16, PAL.wall); p.box(1, 1, 14, 14, PAL.wallHi);
       p.rect(5, 2, 6, 1, d.c1); p.rect(3, 3, 10, 4, d.c1);
       p.rect(2, 7, 12, 3, d.c1); p.rect(4, 10, 8, 1, d.c1); p.rect(6, 11, 4, 1, d.c1);
       p.rect(4, 4, 2, 3, d.c2);
       ITEM_ICONS[d.id] = p.done();
     } else if (d.icon === 'ice') {
       const p = new Px(16, 16);
-      p.rect(1, 1, 14, 14, ICON_BG); p.box(0, 0, 16, 16, PAL.wall); p.box(1, 1, 14, 14, PAL.wallHi);
+      p.rect(1, 1, 14, 14, iconBG()); p.box(0, 0, 16, 16, PAL.wall); p.box(1, 1, 14, 14, PAL.wallHi);
       p.line(8, 2, 8, 14, d.c1, 2); p.line(3, 5, 13, 11, d.c2); p.line(13, 5, 3, 11, d.c2);
       p.set(7, 3, PAL.white); p.set(9, 13, PAL.white);
       ITEM_ICONS[d.id] = p.done();
@@ -365,7 +391,7 @@ function buildItemIcons() {
          刻意不走 makeItemIcon 的常规形状表：融合产物在背包里必须一眼可辨，
          否则玩家认不出「这是我融出来的那件」。 */
       const p = new Px(16, 16);
-      p.rect(1, 1, 14, 14, ICON_BG); p.box(0, 0, 16, 16, PAL.wall); p.box(1, 1, 14, 14, PAL.wallHi);
+      p.rect(1, 1, 14, 14, iconBG()); p.box(0, 0, 16, 16, PAL.wall); p.box(1, 1, 14, 14, PAL.wallHi);
       p.line(3, 12, 12, 3, d.c1, 2);
       p.line(3, 3, 12, 12, d.c2, 2);
       p.rect(6, 6, 4, 4, PAL.goldL);
@@ -383,10 +409,16 @@ function rollItem(rng, pool, taken) {
   if (!avail.length) return null;
   return avail[Math.floor(rng() * avail.length) % avail.length];
 }
-function poolByType(type) {
+/* 按类型抽取（不重复）。
+   ⚠️ **必须按世界风格过滤** —— 否则北欧的龙巢里会开出「青锋剑」，
+      而且它还能正常生效（道具效果是全局的），只是世界观彻底对不上。
+      中式那批没有 `world` 字段，视为 'cn'。 */
+function poolByType(type, style) {
+  const st = style || (typeof STYLE_CUR !== 'undefined' ? STYLE_CUR : 'cn');
   /* fusion 产物不进随机池 —— 只能靠融合得到。
      否则金匣/坊市/宝箱能直接开出融合产物，「锁得住」的取舍就没了。 */
-  return ITEM_DEFS.filter(d => d.type === type && !d.fusion).map(d => d.id);
+  return ITEM_DEFS.filter(d => d.type === type && !d.fusion
+    && (d.world || 'cn') === st).map(d => d.id);
 }
 
 /* ------------------------------------------------------------
@@ -406,16 +438,16 @@ function fabaoMaxRank(def) {
 }
 /* 金匣（需钥匙）专用：只出一件，但必定是珍稀法宝。
    珍稀池里挑不出（都拿过了）时才退回常规抽取。 */
-function rollRareFabaoId(rng, owned) {
+function rollRareFabaoId(rng, owned, style) {
   const own = owned || [];
-  const pool = poolByType('fabao');
+  const pool = poolByType('fabao', style);
   const rare = pool.filter(id => ITEM_MAP[id].rare && fabaoRank(own, id) < fabaoMaxRank(ITEM_MAP[id]));
   if (rare.length) return rare[Math.floor(rng() * rare.length) % rare.length];
   const avail = pool.filter(id => fabaoRank(own, id) < fabaoMaxRank(ITEM_MAP[id]));
-  return rollFabaoId(rng, own) || (avail[0] || pool[0]);
+  return rollFabaoId(rng, own, style) || (avail[0] || pool[0]);
 }
-function rollFabaoId(rng, owned) {
-  const pool = poolByType('fabao');
+function rollFabaoId(rng, owned, style) {
+  const pool = poolByType('fabao', style);
   const own = owned || [];
   const fresh = pool.filter(id => !own.includes(id));
   const avail = pool.filter(id => fabaoRank(own, id) < fabaoMaxRank(ITEM_MAP[id]));
