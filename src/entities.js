@@ -1919,7 +1919,21 @@ class Boss {
       }
     }
 
-    if (!p.dead && circleHit(this.x, this.y, this.r, p.x, p.y, p.r)) p.takeDamage(1, g, this.x, this.y);
+    /* 巨物的「贴身挤压」。
+       ⚠️ 这里每帧都会判定（无冷却），实际靠 `takeDamage` 里的无敌帧限流 ——
+       于是贴着站的结果是「每 1 秒无声地掉半颗心」。用户 2026-09-28 在第十层
+       带着 4 颗心 + 5 格盾被磨死，感觉就是「突然死」：因为**完全没有读数**。
+       两处改进：
+       ① 额外推力 —— 让玩家被明显弹开，「贴一下就得退」变成手感而不是伤害数字；
+          （近战流（巨剑）天然要贴脸，所以更需要这条把它们变成「打了就退」的节奏）
+       ② `contactHurtT` —— 只要还在接触就持续给屏幕泛红，
+          即使这一帧被无敌帧挡着也一样亮：它在说「你正贴在巨物身上」。 */
+    if (!p.dead && circleHit(this.x, this.y, this.r, p.x, p.y, p.r)) {
+      p.takeDamage(1, g, this.x, this.y);
+      const ka = Math.atan2(p.y - this.y, p.x - this.x);
+      p.vx += Math.cos(ka) * 4.5; p.vy += Math.sin(ka) * 4.5;
+      g.contactHurtT = 16;
+    }
     if (this.t % 20 === 0) this.frame = this.frame ? 0 : 1;
   }
   /* 烛龙睁眼：从当前朝向起手，把半个扇面扫一遍。

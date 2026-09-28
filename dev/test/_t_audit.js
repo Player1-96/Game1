@@ -547,6 +547,130 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('老存档的奇数血上限被归正为偶数（补 1 并同步回血）', t14.norm === 8, String(t14.norm));
 
   /* ---------------- ⑮ 全局错误 ---------------- */
+  /* ---------------- ⑮ 用户 2026-09-28 报的 4 个问题 ----------------
+     ① 融合界面缺光标（选中/未选无区别）② 传送门被石柱埋住踩不到
+     ③ 血条太长与右上角重合 ④ 满血满盾被 Boss 贴身磨死却毫无读数 */
+  sec('⑮  2026-09-28 四项反馈：光标 / 传送阵 / 血条长度 / 贴身读数');
+  const t15 = await page.evaluate(() => {
+    const G = window.Game;
+    const out = {};
+
+    /* ① 融合面板必须给「光标」一个独立的 class —— 以前渲染压根没用 f.idx，
+       玩家按方向键屏幕毫无反应，只能靠按 E 之后哪个格子变了来反推。 */
+    try {
+      const pool = G.fusionPool ? G.fusionPool() : [];
+      G.fusion = { forge: null, pool: pool.length ? pool : ['qingfeng'], idx: 0, slots: [null, null], msg: '' };
+      G.state = 'fusion';
+      renderFusionPanel();
+      const html = document.getElementById('fusion').innerHTML;
+      out.fusionHasCur = html.indexOf('fusItem cur') >= 0;
+      /* 光标移动后 cur 应该跟着换位置 */
+      if (pool.length > 1) {
+        G.fusionMove(1);
+        const html2 = document.getElementById('fusion').innerHTML;
+        const i1 = html.indexOf('fusItem cur');
+        const i2 = html2.indexOf('fusItem cur');
+        out.moveShiftsCur = i1 !== i2;
+      } else out.moveShiftsCur = null;
+      G.fusion = null; G.state = 'play'; renderFusionPanel();
+    } catch (e) { out.fusionErr = String(e.message).slice(0, 60); }
+
+    /* ② 传送阵必须落在不被石柱压住的地方（房中央立一根柱子来逼它让位） */
+    try {
+      G.newRun('feijian');
+      G.stylePath = ['cn']; G.seg = 0; G.applySegmentPalette();
+      G.newFloor(1); G.state = 'play';
+      G.enemies.length = 0;
+      /* 把房间正中央塞满石柱 —— 原实现写死 (240, 154) 会正好压在上面 */
+      G.room.obstacles.length = 0;
+      for (let i = -1; i <= 1; i++) {
+        for (let j = -1; j <= 1; j++) {
+          G.room.obstacles.push({ x: 240 + i * 30 - 14, y: 154 + j * 30 - 14, w: 28, h: 28, kind: 'rock' });
+        }
+      }
+      const sp = G.spotForProp(240, 154, 16);
+      const hit = G.room.obstacles.some(o =>
+        sp.x + 16 > o.x && sp.x - 16 < o.x + o.w && sp.y + 16 > o.y && sp.y - 16 < o.y + o.h);
+      out.portal = { x: Math.round(sp.x), y: Math.round(sp.y), inRock: hit,
+                     moved: Math.hypot(sp.x - 240, sp.y - 154) > 1 };
+    } catch (e) { out.portalErr = String(e.message).slice(0, 60); }
+
+    /* ③ 血条长度：monkey-patch drawImage 量 HUD 那颗血/盾图标的最大 x */
+    try {
+      G.newRun('feijian');
+      G.stylePath = ['cn']; G.seg = 0; G.applySegmentPalette();
+      G.newFloor(1); G.state = 'play';
+      G.enemies.length = 0; G.room.obstacles.length = 0;
+      const measure = (maxHP, shield) => {
+        G.player.maxHP = maxHP; G.player.hp = maxHP; G.player.shield = shield;
+        const xs = [];
+        const proto = CanvasRenderingContext2D.prototype;
+        const orig = proto.drawImage;
+        proto.drawImage = function (img, x, y) {
+          if (y === 8 && x < 460) xs.push(x);       // HUD 心血 / 护盾都在 y=8
+          return orig.apply(this, arguments);
+        };
+        G.draw();
+        proto.drawImage = orig;
+        return xs.length ? Math.max.apply(null, xs) : 0;
+      };
+      out.hud = { normal: measure(8, 3), huge: measure(40, 5), absurd: measure(80, 8) };
+    } catch (e) { out.hudErr = String(e.message).slice(0, 60); }
+
+    /* ④ Boss 贴身必须有持续读数（contactHurtT），否则「无声磨死」 */
+    try {
+      G.newRun('feijian');
+      G.stylePath = ['nordic', 'nordic', 'nordic']; G.seg = 1;
+      G.newFloor(10); G.state = 'play';
+      const pl = G.player;
+      pl.maxHP = 8; pl.hp = 8; pl.shield = 0; pl.invuln = 0;
+      G.enemies.length = 0; G.bullets.length = 0; G.room.obstacles.length = 0;
+      const br = [...G.floor.rooms.values()].find(x => x.type === RT.BOSS);
+      G.enterRoom(br, null); G.state = 'play';
+      pl.invuln = 0; G.contactHurtT = 0;
+      /* 把玩家按在 Boss 身上 */
+      if (G.bossRef) {
+        const b0 = G.bossRef;
+        /* ⚠️ Boss 有「登场凝形期」：`spawnT > 0` 时 update 直接 return，
+           连接触判定都不跑（那段是免费输出窗口）。测贴身读数必须先把凝形跳过去，
+           否则只会量到 0 —— 第一次写这条断言就是这么假失败的。 */
+        b0.spawnT = 0;
+        let maxT = 0;
+        for (let f = 0; f < 20; f++) {
+          pl.x = b0.x; pl.y = b0.y; pl.invuln = 0;      // 每帧按回去（否则被我加的推力弹开）
+          G.update();
+          if (G.contactHurtT > maxT) maxT = G.contactHurtT;
+        }
+        out.contact = { t: maxT, hasBoss: true, tNow: G.contactHurtT,
+                        inEnemies: G.enemies.indexOf(b0) >= 0,
+                        dist: +Math.hypot(pl.x - b0.x, pl.y - b0.y).toFixed(1),
+                        br: +b0.r.toFixed(1), pr: +pl.r.toFixed(1), dead: b0.dead };
+      } else out.contact = { hasBoss: false };
+    } catch (e) { out.contactErr = String(e.message).slice(0, 60); }
+
+    return out;
+  });
+  console.log('     血条图标最右 x：常态 ' + t15.hud.normal + '　20 颗心+5 盾 ' + t15.hud.huge
+    + '　40 颗心+8 盾 ' + t15.hud.absurd + '（右上角计数在 x=344）');
+  console.log('     传送阵落点：' + JSON.stringify(t15.portal));
+  console.log('     贴身读数 contactHurtT = ' + (t15.contact ? t15.contact.t : 'n/a'));
+
+  ok('① 融合面板渲染出独立的「光标」class（不再靠按 E 反推）',
+    t15.fusionHasCur === true, String(t15.fusionHasCur) + (t15.fusionErr ? ' err:' + t15.fusionErr : ''));
+  ok('① 光标会跟着方向键走（渲染位置真的变了）',
+    t15.moveShiftsCur !== false, String(t15.moveShiftsCur));
+  ok('② 房中央全是石柱时，传送阵自动让位到空地',
+    t15.portal && t15.portal.inRock === false && t15.portal.moved === true,
+    JSON.stringify(t15.portal));
+  ok('③ 血条再长也不会越过 x=200（右上角计数在 344）',
+    t15.hud.huge < 200 && t15.hud.absurd < 200,
+    'huge=' + t15.hud.huge + ' absurd=' + t15.hud.absurd);
+  ok('③ 血条没被压缩得太狠（常态照旧逐颗画）',
+    t15.hud.normal <= 8 + 12 * 8, 'normal=' + t15.hud.normal);
+  ok('④ Boss 贴身时给出持续读数（contactHurtT > 0）',
+    t15.contact && t15.contact.hasBoss && t15.contact.t > 0,
+    JSON.stringify(t15.contact));
+
   sec('⑮  全局错误检查');
   ok('全程无 pageerror / console.error', errs.length === 0, errs.slice(0, 3).join(' | '));
 

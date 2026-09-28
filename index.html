@@ -120,6 +120,22 @@
   .fusItem.can{ border-color:#9a8ce0; color:#eae8f6; background:rgba(58,48,108,.55); }
   .fusItem.on{ border-color:var(--gold); color:var(--gold); background:rgba(56,40,10,.7); box-shadow:0 0 12px rgba(242,199,97,.35); }
   .fusItem.no{ opacity:.28; border-style:dashed; cursor:default; }
+  /* ⚠️ 光标（.cur）必须和 .on / .can 明显不同 —— 用户 2026-09-28 反馈
+     「缺少光标提示，选中的和没选中的没区别，要按下去才知道光标在哪」。
+     根因是渲染时压根没用 f.idx。这里给光标：亮白描边 + 金色外发光 +
+     头顶一个三角指示器（absolute 定位，不占布局所以不会让格子抖动）。 */
+  .fusItem{ position:relative; }
+  .fusItem.cur{
+    border-color:#fff4cf; color:#fff8e6;
+    box-shadow:0 0 0 2px var(--gold), 0 0 18px rgba(242,199,97,.55);
+    transform:translateY(-2px);
+  }
+  .fusItem.cur::after{
+    content:'▲'; position:absolute; left:50%; top:-1.25em; transform:translateX(-50%);
+    color:var(--gold); font-size:.85em; text-shadow:0 0 8px rgba(242,199,97,.8);
+  }
+  /* 光标 + 已选 叠在一起时：保留金框，但底色再用已选的暖色区分 */
+  .fusItem.cur.on{ background:rgba(72,52,14,.85); }
   .fusItem .ic{ width:1.35em; height:1.35em; image-rendering:pixelated; }
   .fusItem .cnt{ font-size:.85em; color:var(--cyan,#57d6e0); }
   .pickTitle{ font-size:1.5em; color:var(--gold); letter-spacing:.34em; text-shadow:0 0 14px rgba(242,199,97,.35); }

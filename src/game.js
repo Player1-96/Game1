@@ -722,6 +722,9 @@ class GameCore {
     this.particles = []; this.floaters = []; this.zaps = []; this.props = [];
     this.dnums = [];
     this.placedBombs = []; this.slashes = [];
+    /* 正在被巨物贴身（Boss 接触伤害的持续读数）。只要还贴着就一直续期 ——
+       它是「你正在挨打」的唯一可视信号，比掉血本身更早被玩家看到。 */
+    this.contactHurtT = 0;
     /* 符文护壁（北欧）：立在释放点的一个符文领域，持续期间把进入范围的敌方弹幕抹掉。
        与中式「护体金光」是两种用途 —— 那个是**冲开**（瞬发护盾 + 击退），
        这个是**守住**（定点 5 秒的弹幕禁区）。 */
@@ -1049,6 +1052,33 @@ class GameCore {
    *  段末层（有 Boss 房）**不走这里** —— 它必须打完 Boss 才开阵，
    *  否则玩家清完杂兵房就能绕开 Boss 直接下潜。
    * ---------------------------------------------------------- */
+  /* 给「必须踩得到」的摆件（传送阵）找一块空地。
+     ⚠️ 原来传送阵写死 `(ROOM_W/2, ROOM_H/2+10)` —— 而房间中央可能有石柱，
+        阵图被压在石头里就**踩不进去**，玩家只会以为「这层压根没有出口」
+        （2026-09-28 用户反馈「传送门不要在场景里面的石头中间」）。
+        房间生成期的 `safeSpot()` 是局部闭包，运行时用不了，所以这里单写一个：
+        从期望点起螺旋向外找第一个不在障碍内、也不贴墙的点。 */
+  spotForProp(px, py, rad) {
+    const obs = (this.room && this.room.obstacles) || [];
+    const free = (x, y) => {
+      if (x < WALL_L + rad || x > WALL_R - rad || y < WALL_T + rad || y > WALL_B - rad) return false;
+      for (const o of obs) {
+        if (x + rad > o.x && x - rad < o.x + o.w && y + rad > o.y && y - rad < o.y + o.h) return false;
+      }
+      return true;
+    };
+    if (free(px, py)) return { x: px, y: py };
+    for (let ring = 1; ring <= 7; ring++) {
+      const step = ring * 14;
+      for (let k = 0; k < 12; k++) {
+        const a = k * Math.PI / 6;
+        const x = px + Math.cos(a) * step, y = py + Math.sin(a) * step;
+        if (free(x, y)) return { x: x, y: y };
+      }
+    }
+    return { x: px, y: py };      // 兜底：实在找不到就退回原点（不会跑出房间）
+  }
+
   maybeOpenPortal() {
     if (this.endless || this.chall) return;                 // 这两个模式另有流程，没有「下一层」
     if (this.props.some(pr => pr.kind === 'portal')) return; // 已经开过就别再开一个
@@ -1063,8 +1093,9 @@ class GameCore {
       if (!r.cleared) return;
     }
     this.room.portal = true;
-    this.props.push(new Prop('portal', ROOM_W / 2, ROOM_H / 2 + 10, {}));
-    this.floaters.push(new Floater(ROOM_W / 2, ROOM_H / 2 - 56, '传送阵已开 · 前往下一层', PAL.jade));
+    const sp = this.spotForProp(ROOM_W / 2, ROOM_H / 2 + 10, 16);
+    this.props.push(new Prop('portal', sp.x, sp.y, {}));
+    this.floaters.push(new Floater(sp.x, sp.y - 56, '传送阵已开 · 前往下一层', PAL.jade));
   }
   onBossDead() {
     const r = this.room;
@@ -1081,7 +1112,9 @@ class GameCore {
     }
     r.portal = true;
     for (let d = 0; d < 4; d++) if (r.doors[d] && !r.doorHidden[d]) r.doorOpen[d] = true;
-    this.props.push(new Prop('portal', ROOM_W / 2, ROOM_H / 2 + 10, {}));
+    /* 同上：Boss 房的中央也可能立着石柱，阵图不能埋在石头里 */
+    const sp = this.spotForProp(ROOM_W / 2, ROOM_H / 2 + 10, 16);
+    this.props.push(new Prop('portal', sp.x, sp.y, {}));
     if (r.coinPool > 0) this.takeCoins(ROOM_W / 2, ROOM_H / 2, r.coinPool);
     // 法器二选一：只取其一，另一件随之消散（不再堆一地的法宝）
     this.chooseSeq = (this.chooseSeq || 0) + 1;
@@ -2298,6 +2331,7 @@ class GameCore {
     }
     this.tick++;
     if (this.shakeAmt > 0) this.shakeAmt *= 0.86;
+    if (this.contactHurtT > 0) this.contactHurtT--;
     if (this.hurtFlash > 0) this.hurtFlash--;
     if (this.itemPopup) { this.itemPopup.t--; if (this.itemPopup.t <= 0) this.itemPopup = null; }
     if (this.doorLock > 0) this.doorLock--;
@@ -2699,6 +2733,18 @@ class GameCore {
       g.fillStyle = 'rgba(220,40,60,' + (this.hurtFlash / 12 * 0.35) + ')';
       g.fillRect(0, 0, 480, 320);
     }
+    /* 被巨物贴身：**四边**泛红 + 脉动，而不是整屏红 ——
+       玩家此刻最需要看清周围好脱身，整屏红会把视野糊掉。
+       与上面「受伤红闪」的分工：那个是「这一下」的反馈（12 帧），
+       这个只要还贴着就一直亮，是「你正贴在巨物身上」的持续状态。 */
+    if (this.contactHurtT > 0) {
+      const k = Math.min(1, this.contactHurtT / 16) * (0.62 + 0.38 * Math.sin(this.tick * 0.4));
+      const rg = g.createRadialGradient(240, 160, 96, 240, 160, 300);
+      rg.addColorStop(0, 'rgba(220,40,60,0)');
+      rg.addColorStop(1, 'rgba(220,40,60,' + (0.5 * k).toFixed(3) + ')');
+      g.fillStyle = rg;
+      g.fillRect(0, 0, 480, 320);
+    }
     // 房间未清时门上红光提示
     this.drawHUD(g);
     // 局内长按 R 重开：底部进度条
@@ -2801,21 +2847,42 @@ class GameCore {
     g.drawImage(ic, -ic.width / 2, -ic.height / 2);
     g.restore();
 
-    // 气血（半心单位）
+    /* ---------------- 气血 + 护盾（半心单位） ----------------
+       ⚠️ 图标位有**硬上限**，别再改回「有多少画多少」——
+       用户 2026-09-28 反馈「血条太长之后和别的元素重合」。
+       原来是无脑逐颗画：maxHP 涨到 40（20 颗心）再加 8 格护盾 = 28 个图标 × 12px
+       = 336px，直接顶到右上角的「灵石/钥匙/雷符」计数（x=344）上。
+       现在：心最多 8 颗、盾最多 4 个（合计 12 位 = 144px，右边留足 200px）。
+       超出部分压成一行数字（余数），读数从「数格子」变成「看数字」，
+       但**血线告急时前几颗心照样一眼可见** —— 那才是需要马上反应的信息。 */
+    const HEART_MAX = 8, SHIELD_MAX = 4;
     let hx = 8;
     const total = Math.ceil(p.maxHP / 2);
-    for (let i = 0; i < total; i++) {
+    const drawHeart = (i) => {
       const left = p.hp - i * 2;
       const st = left >= 2 ? 2 : (left === 1 ? 1 : 0);
       g.drawImage(SPR.heart[st], hx, 8);
       hx += 12;
+    };
+    if (total <= HEART_MAX) {
+      for (let i = 0; i < total; i++) drawHeart(i);
+    } else {
+      /* 留最后一格给数字：画 HEART_MAX-1 颗 + 余数（如「15」= 后面还有 15 颗） */
+      for (let i = 0; i < HEART_MAX - 1; i++) drawHeart(i);
+      drawPixelText(g, String(total - (HEART_MAX - 1)), hx, 9, 1, PAL.redL);
+      hx += String(total - (HEART_MAX - 1)).length * 6 + 6;
     }
     // 护盾：常驻护盾（不闪）+ 限时护盾（护体金光，将散时闪一下提醒）
     const shBlink = p.tShield > 0 && p.shieldT > 0 && p.shieldT <= 90 && (this.tick % 20 < 10);
-    for (let i = 0; i < Math.min(8, p.shield + p.tShield); i++) {
+    const shN = p.shield + p.tShield;
+    const shDraw = Math.min(SHIELD_MAX, shN);
+    for (let i = 0; i < shDraw; i++) {
       const timed = i < p.tShield;               // 限时护盾画在前，与「先消耗它」一致
       if (!(timed && shBlink)) g.drawImage(SPR.shield[1], hx, 8);
       hx += 12;
+    }
+    if (shN > SHIELD_MAX) {
+      drawPixelText(g, String(shN - SHIELD_MAX), hx, 9, 1, PAL.jadeL);
     }
 
     /* 灵力条：紧贴心血下方，跟血量一起构成需要实时盯的资源区 */
@@ -3925,7 +3992,11 @@ function renderFusionPanel() {
        ⚠️ 这条判断就是「可融性可见」的落点，别为了神秘感把它一起去掉。 */
     const can = !f.slots[0] || !!fusionRecipeOf(f.slots[0], id);
     const on = f.slots[0] === id || f.slots[1] === id;
-    const cls = 'fusItem' + (on ? ' on' : (can ? ' can' : ' no'));
+    /* ⚠️ `cur` 是**光标**（键盘当前指着的那个），和 `on`（已经放进槽位）是两回事。
+       少了 cur 的话，玩家按方向键时屏幕上什么都不动，只能靠「按 E 之后
+       哪个格子变了」来反推光标在哪 —— 2026-09-28 用户就是这么卡的。 */
+    const cur = i === f.idx;
+    const cls = 'fusItem' + (cur ? ' cur' : '') + (on ? ' on' : (can ? ' can' : ' no'));
     const u = itemIconURL(id);
     h += '<span class="' + cls + '" data-i="' + i + '">'
       + (u ? '<img class="ic" src="' + u + '" alt="">' : '')
