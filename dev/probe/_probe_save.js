@@ -82,10 +82,14 @@ const SNAP = `(() => {
   await p2.waitForTimeout(300);
 
   const hasSave = await p2.evaluate(() => window.Game.hasSave());
+  /* 2026-09-29 起标题页改成两级菜单（原来的 #saveTip 已删除）：
+     有没有存档看主菜单第 2 行「加载游戏」—— 有存档 → 「续 前 缘」且不置灰。 */
   const tipShown = await p2.evaluate(() => {
     updateOverlay();
-    const el = document.getElementById('saveTip');
-    return el ? getComputedStyle(el).display : null;
+    const row = document.querySelectorAll('#titleMenu .titleRow')[1];
+    if (!row) return null;
+    const v = row.querySelector('.setVal');
+    return (v ? v.textContent.trim() : '') + (row.className.includes('off') ? '（置灰）' : '（可点）');
   });
   const after = await p2.evaluate((snapSrc) => {
     const G = window.Game;
@@ -126,7 +130,7 @@ const SNAP = `(() => {
   console.log('存档体积            : ' + rawLen + ' 字节');
   console.log('开局自动存档        : ' + before.__autoSavedOnNewRun + (before.__autoSavedOnNewRun ? '  ✓ 进第一间房就写档了' : '  ✗ 没写'));
   console.log('重开后 hasSave()    : ' + hasSave);
-  console.log('标题界面续档入口    : display = ' + tipShown + (tipShown === 'block' ? '  ✓ 已挂出' : '  ✗ 没显示'));
+  console.log('标题菜单「加载游戏」 : ' + tipShown + (String(tipShown).includes('可点') ? '  ✓ 已点亮' : '  ✗ 没点亮'));
   console.log('continueGame()      : ' + after.__continued);
   console.log();
   console.log('字段                   存前                 读后                 结果');

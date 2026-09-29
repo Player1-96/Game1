@@ -531,6 +531,38 @@ const ENDLESS_MODS = [
    行的 id 与 SETTINGS 的字段同名（range / toggle 直接按 id 取值），
    例外是 full 与 clear —— 那两个读的是浏览器状态和存档，不在 SETTINGS 里。
 */
+/* ---------------- 标题页两级菜单（2026-09-29 用户要求重排） ----------------
+   原来是「按任意键开新局 + C 续档 + B 挑战 + K 无尽」—— 三个模式藏在快捷键里，
+   新玩家根本不知道有 Boss 挑战和无尽试炼。改成分组菜单：
+
+     ① 开始游戏 → 普通模式 / Boss 挑战 / 无尽试炼
+     ② 加载游戏 → 续上次未完成的普通模式进度（无存档时置灰）
+     ③ 设置     → 操作说明 / 背景音乐开关 / 完整设置（音量·全屏·清档）
+
+   键盘习惯沿用既有面板：↑↓ 或 W S 择项、Enter 确认、Esc 退一层、数字键直选。
+   ⚠️ `full` 这一项是刻意留下的：全屏与「清空存档」原先只在 O 面板里有，
+      只留「操作说明 + BGM」会把它们藏起来（标题页并没有别的地方能开 O）。
+   `continue` 无存档时不隐藏、只置灰 —— 让玩家知道有这功能，比默默消失好。 */
+const TITLE_MENU = {
+  root: [
+    { id: 'start',    name: '开始游戏', desc: '普通模式 · Boss 挑战 · 无尽试炼' },
+    { id: 'continue', name: '加载游戏', desc: '继续上次未完成的进度' },
+    { id: 'settings', name: '设置',     desc: '操作说明 · 背景音乐 · 音量与全屏' }
+  ],
+  start: [
+    { id: 'normal',  name: '普通模式',  desc: '15 层 · 3 段 · 每 5 层择一方天地' },
+    { id: 'boss',    name: 'Boss 挑战', desc: '跳过前几层，单挑某位尊者（不写存档）' },
+    { id: 'endless', name: '无尽试炼', desc: '无限刷怪，看能杀多少只、撑多久（不写存档）' },
+    { id: 'back',    name: '返回',      desc: '' }
+  ],
+  settings: [
+    { id: 'help', name: '操作说明', desc: '键位与玩法一览（页面下方展开）' },
+    { id: 'bgm',  name: '背景音乐', desc: '三首曲子随场景切换' },
+    { id: 'full', name: '完整设置', desc: '总音量 · 背景音乐 · 音效 · 全屏 · 清空存档' },
+    { id: 'back', name: '返回',      desc: '' }
+  ]
+};
+
 const SET_ROWS = [
   { id: 'master', kind: 'range', name: '总音量', desc: '音效与音乐一起调' },
   { id: 'music', kind: 'range', name: '背景音乐', desc: '三首曲子随场景切换' },
@@ -3539,6 +3571,86 @@ class GameCore {
   /* ---------------- 设置菜单 ----------------
      settingsOpen 时不推进世界（见 update 开头），等价于暂停；
      但**不动 this.paused** —— 这样关掉面板能回到「原来在跑 / 原来已暂停」的状态。 */
+  /* ---------------- 标题页菜单 ---------------- */
+  titleMenuStep() {
+    if (!this.titleMenu || !TITLE_MENU[this.titleMenu.step]) this.titleMenu = { step: 'root', idx: 0 };
+    return this.titleMenu;
+  }
+  titleList() { return TITLE_MENU[this.titleMenuStep().step]; }
+  titleMove(d) {
+    const m = this.titleMenuStep(), list = this.titleList();
+    m.idx = (m.idx + d + list.length) % list.length;
+    SFX.ensure();
+    SFX.tone(430, 0.04, 'square', 0.07);
+    updateOverlay();
+  }
+  /* 数字键 / 点击直选：选中态再点一次 = 确认（与设置面板同一套手感） */
+  titlePick(i) {
+    const m = this.titleMenuStep(), list = this.titleList();
+    if (i < 0 || i >= list.length) return;
+    if (m.idx === i) { this.titleConfirm(); return; }
+    m.idx = i;
+    SFX.ensure(); SFX.tone(430, 0.04, 'square', 0.07);
+    updateOverlay();
+  }
+  titleConfirm() {
+    const m = this.titleMenuStep();
+    const e = this.titleList()[m.idx];
+    if (!e) return;
+    SFX.ensure();
+    switch (e.id) {
+      case 'start':
+      case 'settings':
+        this.titleMenu = { step: e.id, idx: 0 };
+        SFX.tone(640, 0.06, 'square', 0.09);
+        break;
+      case 'back':
+        this.titleBack(); return;
+      case 'continue':
+        /* 无存档时只是「按了没反应」太含糊 —— 给一声闷响 + 面板上本来就有「无进行中」 */
+        if (!this.hasSave()) { SFX.tone(200, 0.09, 'square', 0.08); return; }
+        this.continueGame(); return;
+      case 'normal':
+        this.styleIdx = 0;
+        this.state = 'choose';
+        break;
+      case 'boss':
+        this.openChallMenu(); return;
+      case 'endless':
+        this.startEndless(this.style); return;
+      case 'help': {
+        const h = document.getElementById('help');
+        if (h) {
+          h.open = !h.open;
+          if (h.open && h.scrollIntoView) h.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+        SFX.tone(560, 0.05, 'square', 0.08);
+        updateOverlay();
+        return;
+      }
+      case 'bgm':
+        this.settingsToggle('bgm');     // 复用设置面板那套（会写偏好 + 立刻改增益）
+        updateOverlay();
+        return;
+      case 'full':
+        this.openSettings(); return;
+    }
+    updateOverlay();
+  }
+  titleBack() {
+    const m = this.titleMenuStep();
+    if (m.step !== 'root') {
+      this.titleMenu = { step: 'root', idx: 0 };
+      SFX.tone(320, 0.05, 'square', 0.08);
+      /* 退出子菜单时顺手把「操作说明」收起，免得它一直摊在页面下方 */
+      const h = document.getElementById('help');
+      if (h) h.open = false;
+      updateOverlay();
+      return;
+    }
+    const h = document.getElementById('help');
+    if (h && h.open) { h.open = false; SFX.tone(320, 0.05, 'square', 0.08); updateOverlay(); }
+  }
   openSettings() {
     if (this.settingsOpen) return;
     this.settingsOpen = true;
@@ -3705,13 +3817,20 @@ function bindInput(canvas, game) {
       return;
     }
     if (game.state === 'title') {
-      // 有存档时按 C 直接续档；B 进 Boss 挑战；K 进无尽试炼；其余任意键仍是开新局
-      if (k === 'c' && game.hasSave()) { game.continueGame(); return; }
-      if (k === 'b') { SFX.ensure(); game.openChallMenu(); return; }
-      if (k === 'k') { SFX.ensure(); game.startEndless(game.style); return; }
-      game.styleIdx = 0;
-      game.state = 'choose';
-      SFX.ensure();
+      /* 标题页是两级菜单（2026-09-29 重排）。键位沿用既有面板的习惯：
+         ↑↓ / WS 择项、Enter 确认、Esc 退一层、数字键直选。
+         ⚠️ 「按任意键开局」这条已经**不存在了** —— 那正是这次要改掉的：
+            三个模式藏在快捷键里，新玩家不知道有 Boss 挑战和无尽试炼。
+         旧的 C / B / K 快捷键仍然保留（老玩家肌肉记忆），但它们不再是唯一入口。 */
+      if (k === 'arrowup' || k === 'w') game.titleMove(-1);
+      else if (k === 'arrowdown' || k === 's') game.titleMove(1);
+      else if (k === 'enter' || k === ' ') game.titleConfirm();
+      else if (k === 'escape' || k === 'backspace') game.titleBack();
+      else if (k >= '1' && k <= '9') game.titlePick(+k - 1);
+      else if (k === 'c' && game.hasSave()) game.continueGame();
+      else if (k === 'b') { SFX.ensure(); game.openChallMenu(); }
+      else if (k === 'k') { SFX.ensure(); game.startEndless(game.style); }
+      return;
     } else if (game.state === 'chall') {
       /* 挑战菜单：三级（流派 → 魔头 → 难度），←→ / 数字切换、Enter 确认、Esc 退一层
          （键位习惯与 #pick 面板保持一致） */
@@ -4189,6 +4308,48 @@ function setRowValue(row) {
   return '';
 }
 
+/* 标题页菜单渲染。行样式直接复用设置面板的 .setRow —— 选中态、置灰态、
+   点击手感全都现成，也保证两处菜单长得一样。 */
+function renderTitleMenu() {
+  const el = document.getElementById('titleMenu');
+  if (!el) return;
+  const m = Game.titleMenuStep();
+  const list = TITLE_MENU[m.step];
+  const hasSave = Game.hasSave();
+  let h = '';
+  if (m.step !== 'root') {
+    h += '<div class="titleCrumb">' + (m.step === 'start' ? '开 始 游 戏' : '设 置') + '</div>';
+  }
+  list.forEach((e, i) => {
+    /* 「加载游戏」没存档时不隐藏、只置灰 —— 让玩家知道有这功能，比默默消失好 */
+    const off = (e.id === 'continue' && !hasSave);
+    const sel = i === m.idx && !off;
+    let val = '';
+    if (e.id === 'continue') val = hasSave ? '续 前 缘' : '无进行中';
+    else if (e.id === 'bgm') val = SETTINGS.bgm ? '开' : '关';
+    else if (e.id === 'help') val = (document.getElementById('help') || {}).open ? '收起' : '展开';
+    else if (e.id === 'start' || e.id === 'settings') val = '›';
+    h += '<div class="setRow titleRow' + (sel ? ' sel' : '') + (off ? ' off' : '') + '" data-i="' + i + '">'
+      + '<div class="setName">' + e.name + (e.desc ? '<small>' + e.desc + '</small>' : '') + '</div>'
+      + (val ? '<div class="setVal wide">' + val + '</div>' : '')
+      + '</div>';
+  });
+  el.innerHTML = h;
+  el.querySelectorAll('.titleRow').forEach(rowEl => {
+    rowEl.addEventListener('click', () => {
+      const i = +rowEl.getAttribute('data-i');
+      const mm = Game.titleMenuStep();
+      if (mm.idx === i) Game.titleConfirm(); else Game.titlePick(i);
+    });
+  });
+  const hintEl = document.getElementById('titleHint');
+  if (hintEl) {
+    hintEl.innerHTML = m.step === 'root'
+      ? '<span class="kbd">↑</span><span class="kbd">↓</span> 择项　<span class="kbd">Enter</span> 确认'
+      : '<span class="kbd">↑</span><span class="kbd">↓</span> 择项　<span class="kbd">Enter</span> 确认　<span class="kbd">Esc</span> 返回';
+  }
+}
+
 function renderSettings() {
   const el = document.getElementById('settings');
   if (!el) return;
@@ -4321,9 +4482,7 @@ function updateOverlay() {
   if (Game.state === 'title') {
     title.style.display = 'flex';
     if (choose) choose.style.display = 'none';
-    // 有存档才挂出「续前缘」的入口
-    const saveTip = document.getElementById('saveTip');
-    if (saveTip) saveTip.style.display = Game.hasSave() ? 'block' : 'none';
+    renderTitleMenu();
     floorName.textContent = ''; hint.textContent = ''; card.style.display = 'none';
     st.textContent = '';
     return;

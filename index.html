@@ -67,13 +67,15 @@
   #title .sub{ font-size:1.2em; color:var(--gold); letter-spacing:.3em; }
   #title .tip{ margin-top:1em; font-size:1.05em; color:#a9a5c0; line-height:1.9; }
   /* 续档提示：只在 localStorage 里有存档时显示 */
-  #title .saveTip{
-    margin-top:.4em; font-size:1.05em; color:var(--gold); letter-spacing:.12em; line-height:1.95;
-    text-shadow:0 0 12px rgba(242,199,97,.35);
-    border:1px dashed #6b5a2e; border-radius:4px; padding:.45em .9em; background:rgba(30,24,10,.55);
-  }
-  #title .saveTip small{ display:block; font-size:.78em; color:#a9a5c0; letter-spacing:.06em; margin-bottom:.15em; }
   #title .blink{ color:var(--jade); animation:bl 1.1s steps(2,end) infinite; }
+  /* —— 标题页两级菜单（2026-09-29 重排）——
+     原来三个模式藏在 B / K 快捷键里，新玩家根本不知道有 Boss 挑战和无尽试炼。
+     现在：① 开始游戏（→ 普通 / Boss / 无尽）② 加载游戏 ③ 设置。 */
+  #titleMenu{ display:flex; flex-direction:column; gap:.45em; width:min(88vw, 25em); margin:.9em 0 .3em; }
+  .titleRow{ padding:.62em .95em; }
+  .titleRow .setName{ font-size:1.06em; letter-spacing:.1em; }
+  .titleCrumb{ font-size:.92em; color:var(--gold); letter-spacing:.3em; margin-bottom:.15em; }
+  .setRow.off{ opacity:.55; }        /* 标题页背景有光环穿过，太淡会读不清 */
   @keyframes bl{50%{opacity:.15}}
   /* 流派选择 / 技能替换 / 专属升级 / 无尽结算：同一套卡片样式 */
   #choose, #pick, #chall, #endless, #stylePick, #fusion{
@@ -364,25 +366,12 @@
       <div id="title">
         <div class="big">九劫录</div>
         <div class="sub">飞 剑 问 仙</div>
-        <div class="saveTip" id="saveTip" style="display:none">
-          <small>检测到上次未完成的进度</small>
-          <span class="kbd">C</span> 续 前 缘　　其他任意键开新局
-        </div>
-        <div class="tip">
-          <span class="kbd">W</span><span class="kbd">A</span><span class="kbd">S</span><span class="kbd">D</span> 身法移动<br>
-          <span class="kbd">↑</span><span class="kbd">↓</span><span class="kbd">←</span><span class="kbd">→</span> 或 <span class="kbd">鼠标左键</span> 御剑斩妖<br>
-          <span class="kbd">空格</span> 专属技能　<span class="kbd">Q</span> 小技能　<span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span> 切换小技能<br>
-          <span class="kbd">E</span> 交互（坊市 / 祭坛）　<span class="kbd">F</span> 埋设雷符（炸妖 / 开裂缝 / 炸箱 / 碎石柱）<br>
-          <span class="kbd">P</span> 或 <span class="kbd">Esc</span> 暂停　<span class="kbd">R</span> 重入轮回（局内长按 1 秒可重开并换流派）<br>
-          <span class="kbd">O</span> 设置（音量 / 全屏 / 存档）　<span class="kbd">M</span> 静音<br>
-          <span class="kbd">B</span> <b style="color:var(--gold)">Boss 挑战</b>　跳过前几层，直接单挑某位尊者（自带配装，不写存档）<br>
-          <span class="kbd">K</span> <b style="color:var(--cyan,#57d6e0)">无尽试炼</b>　无限刷怪，看能杀多少只、撑多久（不写存档）
-        </div>
+        <div id="titleMenu"></div>
         <div class="tip" style="color:#8f8ba8">
           共 <b style="color:var(--jade)">15</b> 层 · <b style="color:var(--jade)">3</b> 段　—— 开局择一方天地，之后每 5 层可再择一次，
           <b>同一风格可连选</b>（3 段 → <b style="color:var(--gold)">27</b> 条路径）
         </div>
-        <div class="tip blink">按任意键入山门</div>
+        <div class="tip" id="titleHint"></div>
       </div>
     </div>
   </div>
@@ -390,7 +379,7 @@
     <summary>操 作 说 明 <span class="more">点击展开 / 收起</span></summary>
     <div class="body">
       <div><b>洞天探秘</b><br>石室清空妖物后石门自开；魔窟（Boss）需斩杀尊者，届时传送阵显现，踏入即入下一层。共十五层，皆可随机生成。</div>
-      <div><b>Boss 挑战</b><br>标题界面按 <b style="color:var(--gold)">B</b> 进入，跳过前几层直接单挑某位尊者 —— 方便单独调试头目的行动。三级菜单：先择流派（三派任选），再择魔头（五位，标着它所属段的段末层与基础血），最后择难度（<b>险</b> / <b>危</b> / <b>绝</b>）。难度同时决定你的配装与它的血量：<b>法宝 3 × 系数</b> 件、<b>功法 1 × 系数</b> 个、<b>专属技 Lv. 系数</b>，头目血量再乘 <b>×1.0 / ×1.6 / ×2.4</b>。专属技的进境每档都给 <b>3 次三选一，全部由你手选</b>。<br>挑战与真实进度<b>完全隔离</b>：不写存档、阵亡也不销档，胜负都在演出后直接回选择菜单（并留下上次的战果）。挑战中长按 <b>R</b> 是放弃并回菜单。</div>
+      <div><b>Boss 挑战</b><br>标题菜单 <b>开始游戏 → Boss 挑战</b>（或直接按 <b style="color:var(--gold)">B</b>）进入，跳过前几层直接单挑某位尊者 —— 方便单独调试头目的行动。三级菜单：先择流派（三派任选），再择魔头（五位，标着它所属段的段末层与基础血），最后择难度（<b>险</b> / <b>危</b> / <b>绝</b>）。难度同时决定你的配装与它的血量：<b>法宝 3 × 系数</b> 件、<b>功法 1 × 系数</b> 个、<b>专属技 Lv. 系数</b>，头目血量再乘 <b>×1.0 / ×1.6 / ×2.4</b>。专属技的进境每档都给 <b>3 次三选一，全部由你手选</b>。<br>挑战与真实进度<b>完全隔离</b>：不写存档、阵亡也不销档，胜负都在演出后直接回选择菜单（并留下上次的战果）。挑战中长按 <b>R</b> 是放弃并回菜单。</div>
       <div><b>设置与音乐</b><br>任何界面按 <span class="kbd">O</span> 打开设置：<b>总音量 / 背景音乐 / 音效</b> 三层各自可调、<b>全屏</b>、以及<b>清空存档</b>（需连按两次确认，免得手滑）。偏好会自动记住，与游戏存档分开存。<br>背景音乐共三首，随场景切换：<b>标题</b>（慢）→ <b>石室</b>（中速）→ <b>魔窟</b>（快，头目在场时）。暂停时音乐自动压低，阵亡与飞升时静场。</div>
       <div><b>三大流派</b><br>
         <b style="color:var(--gold)">飞剑流</b>：按住鼠标持续御剑，出手极快、转向灵动，以频次压制全场。<br>

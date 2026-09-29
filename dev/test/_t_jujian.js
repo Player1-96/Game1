@@ -39,11 +39,80 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('初始状态为 title', await page.evaluate(() => window.Game.state) === 'title');
   ok('巨剑精灵已构建', await page.evaluate(() => !!window.Game && !!document.getElementById('game')));
 
-  sec('T2  开局流派选择');
-  await page.keyboard.press('Space');
-  await page.waitForTimeout(60);
+  sec('T2  标题菜单（两级）→ 开局流派选择');
+  /* ⚠️ 2026-09-29 起「按任意键开局」**不存在了**：标题页改成两级菜单
+     （开始游戏 → 普通/Boss/无尽 ｜ 加载游戏 ｜ 设置）。
+     这条断言跟着改，因为旧行为正是这次要修掉的：
+     三个模式原本藏在 B / K 快捷键里，新玩家不知道有 Boss 挑战和无尽试炼。 */
+  const menuNames = () => page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#titleMenu .titleRow')];
+    return {
+      step: window.Game.titleMenuStep().step,
+      names: rows.map(r => r.querySelector('.setName').firstChild.textContent),
+      off: rows.map(r => r.className.includes('off'))
+    };
+  });
+
+  const tm0 = await menuNames();
+  ok('标题页是三项主菜单：开始游戏 / 加载游戏 / 设置',
+    tm0.step === 'root' && tm0.names.join('|') === '开始游戏|加载游戏|设置', tm0.names.join(' / '));
+  ok('无存档时「加载游戏」置灰（不隐藏，玩家才知道有这功能）',
+    tm0.off[1] === true, String(tm0.off[1]));
+
+  await page.keyboard.press('Space');            // 开始游戏
+  await page.waitForTimeout(150);
+  const tm1 = await menuNames();
+  ok('「开始游戏」二级是 普通模式 / Boss 挑战 / 无尽试炼 / 返回',
+    tm1.step === 'start'
+    && tm1.names.join('|') === '普通模式|Boss 挑战|无尽试炼|返回', tm1.names.join(' / '));
+
+  await page.keyboard.press('Escape');           // 退回主菜单
+  await page.waitForTimeout(150);
+  ok('Esc 从二级退回主菜单', (await menuNames()).step === 'root');
+
+  /* 设置二级：操作说明 / 背景音乐 / 完整设置，并验 BGM 真的能就地开关 */
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.waitForTimeout(150);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(150);
+  const tm2 = await menuNames();
+  ok('「设置」二级是 操作说明 / 背景音乐 / 完整设置 / 返回',
+    tm2.step === 'settings'
+    && tm2.names.join('|') === '操作说明|背景音乐|完整设置|返回', tm2.names.join(' / '));
+
+  await page.keyboard.press('ArrowDown');        // 移到「背景音乐」
+  await page.waitForTimeout(150);
+  const bgm0 = await page.evaluate(() => SETTINGS.bgm);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(150);
+  const bgm1 = await page.evaluate(() => SETTINGS.bgm);
+  ok('设置页可直接开关背景音乐', bgm1 === !bgm0, bgm0 + ' → ' + bgm1);
+  await page.keyboard.press('Enter');            // 切回来，别影响后面的用例
+  await page.waitForTimeout(150);
+
+  /* 操作说明：就地展开页面下方的帮助（内容不复制一份，直接复用 #help） */
+  await page.keyboard.press('ArrowUp');          // 回到「操作说明」
+  await page.waitForTimeout(150);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(300);
+  ok('设置 → 操作说明 会展开页面下方的帮助',
+    (await page.evaluate(() => document.getElementById('help').open)) === true);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(300);
+  ok('再按一次收起（读数从「展开」变「收起」）',
+    (await page.evaluate(() => document.getElementById('help').open)) === false);
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+  ok('Esc 从设置退回主菜单', (await menuNames()).step === 'root');
+
+  await page.keyboard.press('Space');            // 开始游戏
+  await page.waitForTimeout(150);
+  await page.keyboard.press('Enter');            // 普通模式
+  await page.waitForTimeout(150);
   let st = await page.evaluate(() => ({ s: window.Game.state, i: window.Game.styleIdx }));
-  ok('标题按任意键 → 进入流派选择', st.s === 'choose', 'state=' + st.s);
+  ok('开始游戏 → 普通模式 → 进入流派选择', st.s === 'choose', 'state=' + st.s);
   ok('默认高亮飞剑流', st.i === 0, 'styleIdx=' + st.i);
 
   // 选择面板应当可见且渲染出两张卡
