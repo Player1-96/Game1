@@ -3241,7 +3241,12 @@ const STYLES = {
       const s = pl.stats;
       const C = STYLES.wujian.consts;
       const a = aimAngleOf(pl, input);
-      const arc = C.arc + s.spread * C.spreadArc;
+      /* 乱披风的「乱弧」在这里也要生效 —— 原先 Fusion.spreadArcOf 只在飞剑流的
+         扇形里调用，于是这件法宝在舞剑流下只剩 spread/fireRate 两条普通加成，
+         招牌机制整条是哑的（用户 2026-09-29 反馈「对舞剑流没有实际作用」）。
+         近战的「弧度忽宽忽窄」比远程更有手感：一刀扫到几只全看这一刀怎么来。
+         ⚠️ 命中数仍受 maxHits（基础 3 + pierce）封顶，所以扫得再宽也不会变成无脑清场。 */
+      const arc = Fusion.spreadArcOf(s.fus, C.arc + s.spread * C.spreadArc);
       const reach = C.reach + (s.range - 210) * C.rangePer;
       const maxHits = C.baseHits + s.pierce;
       pl.shootCd = Math.max(C.swingMin, Math.round(60 / s.fireRate));

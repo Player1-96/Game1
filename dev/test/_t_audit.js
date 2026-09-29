@@ -671,7 +671,86 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     t15.contact && t15.contact.hasBoss && t15.contact.t > 0,
     JSON.stringify(t15.contact));
 
-  sec('⑮  全局错误检查');
+  /* ----------------------------------------------------------------
+   *  ⑯  2026-09-29：顶栏布局 + 点阵字体的可读性 + 乱披风的乱弧接线
+   * ------------------------------------------------------------- */
+  sec('⑯  顶栏：道具不压血条 / 字模画得出来 / 乱披风对舞剑流真的有效');
+  const t16 = await page.evaluate(() => {
+    const G = window.Game;
+    G.newRun('wujian');
+    G.newFloor(1);
+    G.state = 'play';
+    const pl = G.player;
+    pl.maxHP = 14; pl.hp = 14; pl.shield = 4; pl.mp = 100; pl.maxMP = 100;
+    const cv = document.getElementById('game');
+    const ctx = cv.getContext('2d');
+
+    /* ① 抓 drawHUD 里画的字符串，验每个字符都有字模 ——
+       缺字模时 drawPixelText 会**静默跳过**（还照推 6px），
+       「灵力 100/100」就是这么变成「100  100」的。 */
+    const texts = [];
+    const origText = drawPixelText;
+    window.drawPixelText = function (g, text, x, y, sc, c) { texts.push(String(text)); return origText(g, text, x, y, sc, c); };
+    /* ② 抓气血/护盾的落点，验它们不和灵力条抢同一块地方 */
+    const icons = [];
+    const origImg = ctx.drawImage.bind(ctx);
+    ctx.drawImage = function (img, ...a) {
+      if (img === SPR.heart[0] || img === SPR.heart[1] || img === SPR.heart[2] || img === SPR.shield[1]) {
+        icons.push(a.length >= 4 ? { x: a[0], y: a[1], h: a[3] } : { x: a[0], y: a[1], h: img.height });
+      }
+      return origImg(img, ...a);
+    };
+    G.drawHUD(ctx);
+    ctx.drawImage = origImg;
+    window.drawPixelText = origText;
+
+    /* 灵力条几何：与源码保持一致，改了哪边另一边都会红 */
+    const MP_X = 22, MP_Y = 19, MP_W = 76, MP_H = 11;
+    const badGlyph = [], overlap = [];
+    for (const t of texts) {
+      for (const ch of t.toUpperCase()) {
+        if (!FONT5[ch]) { badGlyph.push(t + ' ← ' + JSON.stringify(ch)); break; }
+      }
+    }
+    for (const ic of icons) {
+      const hit = ic.y + ic.h > MP_Y && ic.y < MP_Y + MP_H && ic.x + 12 > MP_X && ic.x < MP_X + MP_W;
+      if (hit) overlap.push('x' + ic.x + ' y' + ic.y);
+    }
+    const mpLabel = texts.filter(t => t.indexOf('MP') === 0)[0] || null;
+    return { texts: texts.slice(0, 6), badGlyph: badGlyph.slice(0, 4), badN: badGlyph.length,
+             iconN: icons.length, overlap: overlap.slice(0, 4), overlapN: overlap.length, mpLabel: mpLabel };
+  });
+  ok('顶栏画出的每个字符都有字模（缺字模会被静默吞掉）', t16.badN === 0, t16.badGlyph.join('；'));
+  ok('★ 气血/护盾图标不再压到灵力条上', t16.overlapN === 0,
+    t16.iconN + ' 个图标，重叠 ' + t16.overlapN + ' 处 ' + t16.overlap.join('；'));
+  ok('灵力条标签是画得出来的「MP x/y」', /^MP \d+\/\d+$/.test(String(t16.mpLabel)), String(t16.mpLabel));
+
+  const t16b = await page.evaluate(() => {
+    const G = window.Game;
+    G.newRun('wujian');
+    G.newFloor(1);
+    G.state = 'play';
+    const pl = G.player;
+    pl.items.length = 0; pl.recomputeStats('wujian');
+    G.enemies.length = 0;
+    if (G.room && G.room.obstacles) G.room.obstacles.length = 0;
+    let calls = 0;
+    const orig = Fusion.spreadArcOf;
+    Fusion.spreadArcOf = function (F, base) { calls++; return orig.apply(this, arguments); };
+    const swing = () => { pl.shootCd = 0; STYLES.wujian.attack(pl, G, { shooting: true, aiming: true, aimAngle: 0 }); };
+    swing();
+    const plain = calls;
+    pl.give('luanpifeng', G); G.itemPopup = null;
+    calls = 0;
+    swing();
+    Fusion.spreadArcOf = orig;
+    return { plain: plain, withItem: calls, wildArc: !!(pl.stats.fus && pl.stats.fus.wildArc) };
+  });
+  ok('★ 乱披风之后，舞剑流的挥砍也会走「乱弧」', t16b.withItem > 0,
+    '带法宝时调用 ' + t16b.withItem + ' 次（未接线时是 0）');
+  ok('乱披风确实置上了 wildArc 标记', t16b.wildArc === true, String(t16b.wildArc));
+
+  sec('⑰  全局错误检查');
   ok('全程无 pageerror / console.error', errs.length === 0, errs.slice(0, 3).join(' | '));
 
   console.log('\n========================================');

@@ -309,6 +309,17 @@ FONT5[':'] = ['00000', '00100', '00100', '00000', '00100', '00100', '00000'];
 FONT5['!'] = ['00100', '00100', '00100', '00100', '00100', '00000', '00100'];
 // 减号：击杀返还的「−N 秒」要用，此前 FONT5 里没有这个字模（整串会被静默跳过）
 FONT5['-'] = ['00000', '00000', '00000', '11111', '00000', '00000', '00000'];
+/* 2026-09-29 补齐：斜杠（「MP 100/100」）、加号（「MAX MP +10」）、点（「SKILL Lv.3」）、
+   乘号（「COIN x2.4」）。
+   ⚠️ 缺字模的字符**不会报错**：drawPixelText 直接跳过，但仍然推进 6px ——
+      于是「灵力 100/100」渲染成「100  100」（中间那个空档就是被吞掉的「灵力 /」）。
+      用 dev/tools/_check_glyphs.js 扫源码可以一次抓出全部这类问题。 */
+FONT5['/'] = ['00001', '00001', '00010', '00100', '01000', '10000', '10000'];
+FONT5['+'] = ['00000', '00100', '00100', '11111', '00100', '00100', '00000'];
+FONT5['.'] = ['00000', '00000', '00000', '00000', '00000', '01100', '01100'];
+FONT5['x'] = ['00000', '10001', '01010', '00100', '01010', '10001', '00000'];
+/* toUpperCase() 之后 '×' 仍然是 '×'，所以单独给它一个字模（「COIN ×2.4」） */
+FONT5['×'] = ['00000', '10001', '01010', '00100', '01010', '10001', '00000'];
 
 /* ---------------- 输入 ---------------- */
 const input = {
@@ -2893,18 +2904,12 @@ class GameCore {
     g.fillStyle = PAL.gold; g.globalAlpha = 0.35; g.fillRect(0, 30, 480, 1); g.globalAlpha = 1;
 
     const p = this.player;
-    // 流派标识：放在资源行右侧，避开居中的楼层名。
-    // ⚠️ 英文名（FEIJIAN…）别画在这儿 —— 它会和居中的 `#floorName` 抢位置，
-    // 层名一长（如「第十一层 · 英灵殿　北·三」）就被压成「FEIJ第十…」。
-    // 流派信息已有两处可读：右下 #stats 的「飞剑流」+ 顶栏风格标识「北·三」。
-    const stl = STYLES[this.style] || STYLES.feijian;
-    const isJu = this.style === 'jujian';
-    const ic = styleIcon(this.style);
-    g.save();
-    g.translate(130, 12);
-    g.scale(isJu ? 0.8 : 0.85, isJu ? 0.8 : 0.85);
-    g.drawImage(ic, -ic.width / 2, -ic.height / 2);
-    g.restore();
+    /* ⚠️ 顶栏这里原本还画了一个「流派图标」（圆点中心 130,12）—— 2026-09-29 删掉。
+       原因：它**压在气血/护盾那一排上面**。巨剑流的图标是 30×14，缩放后占
+       x≈117~143、y≈6~18；而气血排最多能排到 x≈170（7 心 + 4 盾），
+       两者直接重叠 —— 用户截图里盾牌上那个「白点」就是它。
+       而且它是**三重冗余**：右下 #stats 有流派名、居中楼层名带「北·三」、
+       右上专属技格子里画的也是同一个 styleIcon。删掉之后这一整类碰撞都没了。 */
 
     /* ---------------- 气血 + 护盾（半心单位） ----------------
        ⚠️ 图标位有**硬上限**，别再改回「有多少画多少」——
@@ -2917,10 +2922,13 @@ class GameCore {
     const HEART_MAX = 8, SHIELD_MAX = 4;
     let hx = 8;
     const total = Math.ceil(p.maxHP / 2);
+    /* 图标基线上移到 y=5：原来 y=8 时心是 8~19，而灵力条在 y=20 —— 只隔 1px，
+       看起来像糊成一团。现在 5~16 + 19~30，上下各留出 3px。 */
+    const HY = 5;
     const drawHeart = (i) => {
       const left = p.hp - i * 2;
       const st = left >= 2 ? 2 : (left === 1 ? 1 : 0);
-      g.drawImage(SPR.heart[st], hx, 8);
+      g.drawImage(SPR.heart[st], hx, HY);
       hx += 12;
     };
     if (total <= HEART_MAX) {
@@ -2928,7 +2936,7 @@ class GameCore {
     } else {
       /* 留最后一格给数字：画 HEART_MAX-1 颗 + 余数（如「15」= 后面还有 15 颗） */
       for (let i = 0; i < HEART_MAX - 1; i++) drawHeart(i);
-      drawPixelText(g, String(total - (HEART_MAX - 1)), hx, 9, 1, PAL.redL);
+      drawPixelText(g, String(total - (HEART_MAX - 1)), hx, HY + 1, 1, PAL.redL);
       hx += String(total - (HEART_MAX - 1)).length * 6 + 6;
     }
     // 护盾：常驻护盾（不闪）+ 限时护盾（护体金光，将散时闪一下提醒）
@@ -2937,15 +2945,24 @@ class GameCore {
     const shDraw = Math.min(SHIELD_MAX, shN);
     for (let i = 0; i < shDraw; i++) {
       const timed = i < p.tShield;               // 限时护盾画在前，与「先消耗它」一致
-      if (!(timed && shBlink)) g.drawImage(SPR.shield[1], hx, 8);
+      if (!(timed && shBlink)) g.drawImage(SPR.shield[1], hx, HY);
       hx += 12;
     }
     if (shN > SHIELD_MAX) {
-      drawPixelText(g, String(shN - SHIELD_MAX), hx, 9, 1, PAL.jadeL);
+      drawPixelText(g, String(shN - SHIELD_MAX), hx, HY + 1, 1, PAL.jadeL);
     }
 
-    /* 灵力条：紧贴心血下方，跟血量一起构成需要实时盯的资源区 */
-    const mx0 = 8, my0 = 20, mw = 88, mh = 10;
+    /* 灵力条：紧贴心血下方，跟血量一起构成需要实时盯的资源区。
+       ⚠️ 三处 2026-09-29 的修正，都因为「挡住了/看不清」：
+       ① 条内原本嵌着一颗 8×8 的灵力珠 —— 它是把 11×11 的精灵压到 8×8（非整数缩放，
+          边缘发糊），而且**盖住了条最左边 1/11 的进度**。现在挪到条**外面**左侧，
+          按原生 11×11 画，既不遮进度也不糊。
+       ② 标签原本是 '灵力 100/100' —— 「灵力」是中文、'/' 没有字模，
+          两者都被 drawPixelText 静默吞掉，屏幕上只剩「100  100」（中间一个空档）。
+          改成 'MP 100/100' 并补上 '/' 字模。
+       ③ 整条上移到 y=19，与上方的气血排拉开 3px。 */
+    const mx0 = 22, my0 = 19, mw = 76, mh = 11;
+    if (SPR.mana) g.drawImage(SPR.mana, 8, my0);          // 原生 11×11，与条同高
     g.fillStyle = PAL.ink2; g.fillRect(mx0, my0, mw, mh);
     const mpk = clamp(p.mp / p.maxMP, 0, 1);
     g.fillStyle = mpk >= 1 ? PAL.cyan : '#3f8fd0';
@@ -2955,9 +2972,7 @@ class GameCore {
     g.fillStyle = 'rgba(8,6,18,0.4)';
     for (let i = 1; i < 10; i++) g.fillRect(mx0 + mw * i / 10 - 0.5, my0, 1, mh);
     g.strokeStyle = PAL.wallHi; g.lineWidth = 1; g.strokeRect(mx0 + 0.5, my0 + 0.5, mw - 1, mh - 1);
-    // 条内嵌一颗灵力珠：和地上掉的那种是同一个精灵，一眼对上号
-    if (SPR.mana) g.drawImage(SPR.mana, mx0 + 1, my0 + 1, 8, 8);
-    drawPixelText(g, '灵力 ' + Math.floor(p.mp) + '/' + p.maxMP, mx0 + mw + 5, my0 + 1, 1, PAL.cyan);
+    drawPixelText(g, 'MP ' + Math.floor(p.mp) + '/' + p.maxMP, mx0 + mw + 5, my0 + 2, 1, PAL.cyan);
 
     this.itemHits = [];                       // 供鼠标悬停说明做命中判定
     this.ultHit = null;
@@ -3016,7 +3031,7 @@ class GameCore {
         g.globalAlpha = 1;
       }
     } else {
-      drawPixelText(g, '空格', ux + 2, uy + 9, 1, PAL.wallHi);
+      drawPixelText(g, 'SPACE', ux, uy + 9, 1, PAL.wallHi);
     }
 
     /* 小技能槽（右下）：1/2/3 切换、Q 释放 */
