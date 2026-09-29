@@ -194,6 +194,82 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('FUS_SHIELD 与 items.js 的 TAIXU 对齐（防两边漂移）', t2b.shieldAligned === true);
 
 
+  /* ----------------------------------------------------------------
+   *  T2c ⭐ 融合不许变弱（扩到「件数组合」）+ 产物阶位 + 整条线消耗
+   *
+   *      T2b 只验了「两件各 1 件」这一种输入。2026-09-29 起产物继承的是
+   *      材料**各自的件数**（逐侧继承，见 recomputeStats），于是不变式必须在
+   *      全部输入上成立 —— 只要有一处净亏，玩家就会开始不敢融。
+   *
+   *      ⚠️ 这里刻意**不用**「给产物一个标量倍率」的做法：产物是一件东西，
+   *         按 L 倍对称放大时两侧份量一样多，要逐字段不亏就得 L ≥ max(a,b)，
+   *         于是 min 会亏、平均在差 ≥ 2 时也会亏（引雷符×3 + 青锋剑×1 → Lv2 < 3）。
+   *         逐侧继承 = 数值精确等于材料之和，永远不会亏。
+   * ------------------------------------------------------------- */
+  sec('T2c  ★ 件数组合扫描：产物阶位 / 逐字段不变弱 / 整条线消耗 / 掉出本局池');
+  const t2c = await page.evaluate(() => {
+    const NUM = ['damage', 'fireRate', 'speed', 'shotSpeed', 'range', 'pierce', 'spread',
+      'homing', 'homingRange', 'knockback', 'luck', 'burn', 'frost', 'chain', 'iframe',
+      'greed', 'crit', 'poison', 'regen', 'mpRegen', 'soul', 'deflect', 'reflect'];
+    const grab = p => { const o = {}; for (const k of NUM) o[k] = +(+p.stats[k]).toFixed(6); return o; };
+    /* 材料之和（含数值型每多一件的 +0.5 伤害精炼补偿） */
+    const matSum = (rec, a, b) => {
+      const q = new Player(0, 0);
+      for (let k = 0; k < a; k++) ITEM_MAP[rec.a].apply(q, k, 'feijian');
+      for (let k = 0; k < b; k++) ITEM_MAP[rec.b].apply(q, k, 'feijian');
+      q.stats.damage += 0.5 * ((a - 1) + (b - 1));
+      return grab(q);
+    };
+    const G = window.Game;
+    const weak = [], stray = [], badLv = [];
+    let pairs = 0;
+    for (const rec of FUSION_DEF) {
+      for (let a = 1; a <= 4; a++) {
+        for (let b = 1; b <= 4; b++) {
+          pairs++;
+          G.newRun('feijian');
+          const pl = G.player;
+          for (let k = 0; k < a; k++) pl.give(rec.a, G);
+          for (let k = 0; k < b; k++) pl.give(rec.b, G);
+          const want = matSum(rec, a, b);
+          const res = fusionExecute(G, rec.a, rec.b);
+          if (!res.ok) { weak.push(rec.id + '(' + a + ',' + b + ') 融合失败'); continue; }
+          if (res.lv !== fusionLevel(a, b)) badLv.push(rec.id + '(' + a + ',' + b + ') → lv' + res.lv);
+          const got = grab(pl);
+          for (const k of NUM) {
+            if (got[k] < want[k] - 1e-9) {
+              weak.push(rec.id + '(' + a + ',' + b + ') ' + k + ' ' + want[k] + '→' + got[k]);
+              break;
+            }
+          }
+          const left = pl.items.filter(x => x === rec.a || x === rec.b).length;
+          if (left || pl.items.length !== 1) {
+            stray.push(rec.id + '(' + a + ',' + b + ') 残留 ' + left + ' / 背包 ' + pl.items.length);
+          }
+          if (!pl.usedMats[rec.a] || !pl.usedMats[rec.b]) stray.push(rec.id + '(' + a + ',' + b + ') 未禁抽');
+        }
+      }
+    }
+    const lv = { '1+1': fusionLevel(1, 1), '1+2': fusionLevel(1, 2), '2+2': fusionLevel(2, 2),
+      '3+3': fusionLevel(3, 3), '3+1': fusionLevel(3, 1), '9+9封顶': fusionLevel(9, 9) };
+    /* 禁抽：真抽 3000 次，看材料还会不会冒出来 */
+    let leak = 0;
+    const ban = {};
+    ban[FUSION_DEF[0].a] = true; ban[FUSION_DEF[0].b] = true;
+    for (let i = 0; i < 3000; i++) if (ban[rollFabaoId(Math.random, [], 'cn', ban)]) leak++;
+    return { pairs: pairs, weak: weak.slice(0, 6), weakN: weak.length,
+      stray: stray.slice(0, 6), strayN: stray.length,
+      badLv: badLv.slice(0, 6), badLvN: badLv.length, lv: lv, leak: leak };
+  });
+  ok('件数组合扫描：' + t2c.pairs + ' 种输入一条都没变弱', t2c.weakN === 0, t2c.weak.join('；'));
+  ok('★ 整条线被消耗：融完背包里只剩产物（材料一件不留）', t2c.strayN === 0, t2c.stray.join('；'));
+  ok('产物阶位 = 两件件数的平均（向上取整）', t2c.badLvN === 0, t2c.badLv.join('；'));
+  ok('阶位表 1+1=1 / 1+2=2 / 2+2=2 / 3+3=3 / 3+1=2 / 封顶 9+9=5',
+    t2c.lv['1+1'] === 1 && t2c.lv['1+2'] === 2 && t2c.lv['2+2'] === 2
+    && t2c.lv['3+3'] === 3 && t2c.lv['3+1'] === 2 && t2c.lv['9+9封顶'] === 5,
+    JSON.stringify(t2c.lv));
+  ok('★ 材料喂过融合阵后不再从掉落池出现（抽 3000 次 0 泄漏）', t2c.leak === 0, String(t2c.leak));
+
   sec('T3  融合产物不进随机池');
   const t3 = await page.evaluate(() => {
     const fusionIds = FUSION_DEF.map(r => r.id);

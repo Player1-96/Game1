@@ -11,9 +11,15 @@
  *     跨局永久解锁（图鉴 localStorage），之后每次都完整显示。
  *     这让同一个配方产生两种体验：首次是 discovery，之后是 building block。
  *  3) **锁得住**：融合不可逆、没有拆分；产物是新 id，不能再融进别的配方（一阶）。
+ *     2026-09-29 起再收紧一层：消耗的是**整条线**（材料的全部件数），
+ *     且材料**从本局掉落池消失**（见 fusionExecute 的注释）——
+ *     因为产物从此带等级，只烧各 1 件会让等级变成白送。
  *  4) ⚠️ **材料被吃掉，它加过的 stats 必须能撤销** —— 见 Player.recomputeStats()。
  *     这是本次唯一的架构级改动：`give()` 是即时生效且不可逆的，
  *     所以融合前必须按「持有列表」把 stats 整体重算一遍。
+ *  5) **产物带等级**：等级 = 两件材料等级的**平均**（见 fusionLevel）。
+ *     等级只放大产物的**数值**，机制（stats.fus.*）与开关恒定 ——
+ *     产物仍然是「靠机制说话」，等级只是让它的量跟得上你投入的材料。
  *
  *  扩展位（**接口已留好，内容都还没做**）：
  *  - 二阶（A+B→C，C+D→E）：把某条产物的 id 写进另一条的 a / b 即可，无需改代码。
@@ -424,6 +430,43 @@ function fusionNeed(recipe, id) {
   return (recipe.a === id ? 1 : 0) + (recipe.b === id ? 1 : 0);
 }
 
+/* ---------------- 产物等级（2026-09-29 用户拍板） ----------------
+   材料各有件数 a / b（件数就是它的等级），产物**阶位** = 两件等级的平均（向上取整）。
+
+   ⚠️ 阶位只是**标签**，产物的数值不靠它缩放 —— 数值走「逐侧继承」：
+      产物 = 材料 A 的 a 件之和 + 材料 B 的 b 件之和 + 融合机制（见 recomputeStats）。
+      为什么不能用一个标量倍率：产物是**一件**东西，按 L 倍对称放大时，
+      两侧拿到的份量一样多（各 L 份），而材料是 a 份 A + b 份 B。
+      要逐字段不亏就必须 L ≥ max(a,b)，于是：
+        · 取 min  → 两件件数不等时净亏（这正是「高级的低阶技能没用」的复现）
+        · 取平均  → 差 ≤ 1 时恒等于较高的一件（1+2=2、2+2=2 都成立），
+                    但**差 ≥ 2 时仍会低一级**（引雷符×3 + 青锋剑×1 → Lv2 < 3），高侧净亏
+        · 取 max  → 永不亏，但 2+2 与 1+2 同阶，「两件都养」的收益没了
+      逐侧继承把三个毛病一次解决：数值**精确等于材料之和**（T2b 恒等号），
+      两件都养都有收益（1+1 < 1+2 < 2+2），且永远不可能变弱。
+
+   阶位用平均，于是 1+1=1、2+2=2、1+2=2 —— 与用户给的直觉一致。
+   上限 FUSION_LV_CAP：材料件数再多也不往上堆标签。 */
+const FUSION_LV_CAP = 5;
+function fusionLevel(a, b) {
+  return Math.max(1, Math.min(FUSION_LV_CAP, Math.ceil((a + b) / 2)));
+}
+
+/* 这次融合将消耗多少件。**整条线烧掉**，所以面板必须把件数写明白 ——
+   不写清楚就是坑玩家：他以为只花 1 件，结果 3 件引雷符一起没了。 */
+function fusionSpent(recipe, items) {
+  const cnt = {};
+  for (const i of items) cnt[i] = (cnt[i] || 0) + 1;
+  return { a: cnt[recipe.a] || 0, b: cnt[recipe.b] || 0 };
+}
+
+/* 这件材料**除了当前这条**之外还能通向哪几条路。
+   融合面板据此做「枢纽件」警告：融掉之后，另几条路本局一并作废
+   （材料从掉落池消失 + 不可逆 + 阵一层只一座 = 三重惩罚，不提示就是坑）。 */
+function fusionOtherRoutes(id, outId) {
+  return fusionsWith(id).filter(x => x.recipe.id !== outId).map(x => x.recipe);
+}
+
 /* 玩家现在能不能凑出这条配方（数量够不够） */
 function fusionReady(recipe, items) {
   const cnt = {};
@@ -434,31 +477,50 @@ function fusionReady(recipe, items) {
 
 /* ---------- 执行 ---------- */
 
-/* 把两件材料换成产物。返回 { ok, first, out, recipe } ——
+/* 把两件材料换成产物。返回 { ok, first, out, recipe, lv, spent } ——
    first 为 true 表示这是该配方的首次合成（演出要揭示 + 收录图鉴）。
-   调用方负责演出与提示；这里只做「判定 + 扣材料 + 给产物 + 写图鉴」。 */
+   调用方负责演出与提示；这里只做「判定 + 扣材料 + 给产物 + 写图鉴」。
+
+   ⚠️ 2026-09-29 起的规则变化（用户拍板）：
+   ① 消耗的是**整条线**（A 的全部 a 件 + B 的全部 b 件），不是各 1 件。
+      只烧各 1 件的话「产物带等级」就是白送：你既留着余件、又拿到高阶产物。
+      整条烧 + 等级取平均 = 等价交换（2L ≥ a+b 恒成立）。
+   ② 材料融掉后**从本局掉落池消失**（p.usedMats）—— 融合 = 把两条线合并成一条，
+      池子变小，后面反而更容易抽到「还没见过的东西」，加速凑出下一个配方。
+      代价是枢纽件（引雷符通向 3 条路）一融就废掉另两条，面板上有警告。 */
 function fusionExecute(g, idA, idB) {
   const r = fusionRecipeOf(idA, idB);
   if (!r) return { ok: false, why: '这两件之间没有机缘' };
   const pl = g.player;
   if (!fusionReady(r, pl.items)) return { ok: false, why: '材料不足' };
 
-  /* 先扣材料，再重算 —— 顺序不能反：重算是按 items 列表推的 */
+  const cntOf = id => pl.items.filter(x => x === id).length;
+  const a = cntOf(r.a), b = cntOf(r.b);
+  const lv = fusionLevel(a, b);
+
+  /* 先扣材料，再重算 —— 顺序不能反：重算是按 items 列表推的。
+     r.a === r.b（单件配方）时 drop 会被调两次，第二次找不到直接空转，安全。 */
   const drop = (id, n) => {
     for (let k = 0; k < n; k++) {
       const i = pl.items.indexOf(id);
       if (i >= 0) pl.items.splice(i, 1);
     }
   };
-  drop(r.a, fusionNeed(r, r.a));
-  drop(r.b, fusionNeed(r, r.b));
+  drop(r.a, a);
+  drop(r.b, b);
   pl.recomputeStats(g.style);
+
+  /* 材料退出本局池：此后 rollFabao 不会再抽出它们。
+     ⚠️ 记在 Player 上而不是 Game 上 —— 它必须随存档一起回来。 */
+  pl.usedMats = pl.usedMats || {};
+  pl.usedMats[r.a] = true;
+  pl.usedMats[r.b] = true;
 
   const first = FusionCodex.unlock(r.id);
   /* ⚠️ 产物 id 就是 r.id（配方以产物命名），不是 r.out —— 
      这里曾写成 r.out，结果是 give(undefined) 静默返回：材料照扣、产物不给了。 */
-  pl.give(r.id, g);                  // 产物走正常通道：图标、弹窗、进阶文案全都自动生效
-  return { ok: true, first: first, out: r.id, recipe: r };
+  pl.give(r.id, g, { a: a, b: b });  // 产物走正常通道：图标、弹窗、进阶文案全都自动生效
+  return { ok: true, first: first, out: r.id, recipe: r, lv: lv, spent: { a: a, b: b } };
 }
 
 /* 「风势」蓄满所需的移动距离（像素）。御风踏云用。

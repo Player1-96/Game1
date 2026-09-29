@@ -708,6 +708,8 @@ class GameCore {
     this.floor = new Floor(depth, seed != null ? (seed >>> 0) : ((Math.random() * 0xffffffff) >>> 0), {
       power: this.powerScore(),
       owned: this.player ? this.player.items.slice() : [],
+      /* 已喂给融合阵的材料：本层的铺货（宝箱/坊市/金匣）也不能再抽到它们 */
+      banned: this.bannedMats(),
       slots: this.player ? this.player.slots.map(s => (s ? { id: s.id, lv: s.lv } : null)) : [],
       boss: (opts && opts.boss) || null,
       /* 世界风格：本层用哪套杂兵 / 精英 / 尊者 / 道具都由它定
@@ -778,6 +780,9 @@ class GameCore {
           shield: p.shield, tShield: p.tShield, shieldT: p.shieldT, soulBuff: p.soulBuff,
           stats: { ...p.stats },
           items: p.items.slice(),                       // 字符串 id 数组，重复即阶数
+          /* 融合产物只有一件，等级另存；usedMats 是「已喂给融合阵」的材料，
+             不清掉的话读档回来那些材料会重新从池里冒出来（融合的取舍就白做了）。 */
+          fusionMem: { ...(p.fusionMem || {}) }, usedMats: { ...(p.usedMats || {}) },
           slots: p.slots.map(s => (s ? { id: s.id, lv: s.lv } : null)),
           slotIdx: p.slotIdx, skillCd: p.skillCd.slice(),
           ult: p.ult ? { style: p.ult.style, paths: { ...p.ult.paths } } : null,
@@ -853,6 +858,8 @@ class GameCore {
     // 直接盖上去而不是走 give()：法宝效果早已计入 stats，再 apply 一次会重复叠加
     Object.assign(p.stats, sp.stats || {});
     p.items = (sp.items || []).slice();
+    p.fusionMem = { ...(sp.fusionMem || {}) };
+    p.usedMats = { ...(sp.usedMats || {}) };
     p.slots = (sp.slots || [null, null, null]).map(x => (x ? { id: x.id, lv: x.lv } : null));
     p.slotIdx = sp.slotIdx || 0;
     p.skillCd = (sp.skillCd || [0, 0, 0]).slice();
@@ -1998,12 +2005,32 @@ class GameCore {
   rollSkill() {
     return rollSkillId(Math.random, this.player ? this.player.slots : [], this.worldStyle());
   }
+  /* 展示用的阶数（0 = 一重）。普通法宝 = 持有件数 - 1；融合产物 = 融合等级 - 1。
+     ⚠️ 所有 itemView 调用点都该走这里 —— 否则 Lv3 的融合产物会显示成「没有等级」，
+        而玩家正是靠这个后缀判断「我这一把有多强」。 */
+  itemRank(id) {
+    const p = this.player;
+    if (!p) return 0;
+    const def = ITEM_MAP[id];
+    if (def && def.fusion) {
+      const mem = (p.fusionMem || {})[id];
+      return mem ? fusionLevel(mem.a, mem.b) - 1 : 0;
+    }
+    let n = 0;
+    for (const x of p.items) if (x === id) n++;
+    return n - 1;
+  }
+  /* 本局已经喂给融合阵的材料 —— 它们从掉落池消失（见 fusionExecute）。
+     记在 Player 上，所以随存档回来；这里只是取出来传给抽取函数。 */
+  bannedMats() {
+    return (this.player && this.player.usedMats) || {};
+  }
   rollFabao() {
-    return rollFabaoId(Math.random, this.player ? this.player.items : [], this.worldStyle());
+    return rollFabaoId(Math.random, this.player ? this.player.items : [], this.worldStyle(), this.bannedMats());
   }
   /* 金匣专用：单件珍稀法宝 */
   rollRareFabao() {
-    return rollRareFabaoId(Math.random, this.player ? this.player.items : [], this.worldStyle());
+    return rollRareFabaoId(Math.random, this.player ? this.player.items : [], this.worldStyle(), this.bannedMats());
   }
 
   /* ---------------- 功法（主动技） ---------------- */
@@ -3029,13 +3056,18 @@ class GameCore {
           g.restore();
         }
         g.globalAlpha = 0.9; g.drawImage(ic, bx, by); g.globalAlpha = 1;
-        const n = cnt[id];
-        if (n > 1) {
-          const lab = 'Lv' + n;
+        /* ⚠️ 融合产物的「件数」永远是 1，它的阶位要从 fusionMem 推 ——
+           这里如果只看 cnt[id]，产物在 HUD 上就**永远不显示 Lv**，
+           玩家会以为「合出来的东西没有等级」（2026-09-29 用户就是这么提的）。 */
+        const idDef = ITEM_MAP[id];
+        const idMem = (idDef && idDef.fusion) ? (this.player.fusionMem || {})[id] : null;
+        const lvShown = idMem ? fusionLevel(idMem.a, idMem.b) : cnt[id];
+        if (lvShown > 1) {
+          const lab = 'Lv' + lvShown;
           g.fillStyle = 'rgba(8,6,18,0.8)'; g.fillRect(bx, by + 10, 17, 6);
           drawPixelText(g, lab, bx + 1, by + 11, 1, PAL.goldL);
         }
-        this.itemHits.push({ id, x: bx, y: by, w: 16, h: 16, rank: n - 1 });
+        this.itemHits.push({ id, x: bx, y: by, w: 16, h: 16, rank: this.itemRank(id) });
       }
       bx += 19;
       if (bx > 228) { bx = 6; by -= 19; }
@@ -3114,8 +3146,7 @@ class GameCore {
     const def = ITEM_MAP[hit.id];
     if (!def) { el.style.display = 'none'; return; }
     // 小技能槽带自己的等级；背包里的法宝则按持有件数算阶数
-    const rank = hit.rank !== undefined ? hit.rank
-      : Math.max(0, this.player.items.filter(i => i === hit.id).length - 1);
+    const rank = hit.rank !== undefined ? hit.rank : this.itemRank(hit.id);
     let html = itemTipHTML(def, this.style, null, rank);
     /* 融合机缘：告诉玩家「这件能和什么融」，但**不剧透产物内容** ——
        未解锁时只显示 ？？？。这正是本次设计的边界：
@@ -3124,10 +3155,12 @@ class GameCore {
     if (fus.length && this.player) {
       const rows = fus.map(pair => {
         const otherDef = ITEM_MAP[pair.other];
-        const oName = otherDef ? (itemView(otherDef, this.style, 0).name || otherDef.name) : pair.other;
+        const oName = otherDef ? (itemView(otherDef, this.style, this.itemRank(pair.other)).name || otherDef.name) : pair.other;
+        /* 产物还没到手时 itemRank() 会给 1（=一重），所以这里照常显示基础名；
+           已经有一件同名产物时才把阶数带上。 */
         const outDef = ITEM_MAP[pair.recipe.id] || {};
         const outName = FusionCodex.has(pair.recipe.id)
-          ? (itemView(outDef, this.style, 0).name || outDef.name)
+          ? (itemView(outDef, this.style, this.itemRank(pair.recipe.id)).name || outDef.name)
           : '？？？';
         const have = fusionReady(pair.recipe, this.player.items);
         return (have ? '可融　' : '缺料　') + '<b>' + oName + '</b> → ' + outName;
@@ -3947,19 +3980,26 @@ function renderFusionPanel() {
   const recipe = Game.fusionCurrent();
   const revealed = recipe ? FusionCodex.has(recipe.id) : false;
 
+  /* 这次融合将消耗多少件、产物是几阶 —— 两槽齐了才有意义。
+     ⚠️ 消耗的是**整条线**，所以这里必须把件数写死出来：不写明白就是坑玩家
+        （他以为只花 1 件，结果 3 件引雷符一起没了）。 */
+  const spent = recipe ? fusionSpent(recipe, Game.player.items) : null;
+  const outLv = spent ? fusionLevel(spent.a, spent.b) : 0;
+
   const slotHTML = k => {
     const id = f.slots[k];
     if (!id) return '<span class="fusSlot">' + (k === 0 ? '材料 一' : '材料 二') + '</span>';
-    const v = itemView(ITEM_MAP[id] || {}, Game.style, cnt[id] - 1);
+    const v = itemView(ITEM_MAP[id] || {}, Game.style, Game.itemRank(id));
     const u = itemIconURL(id);
+    /* 件数一律显示 —— 因为它**全部**会被烧掉，不再只是「你有几件」的备注 */
     return '<span class="fusSlot has">' + (u ? '<img class="ic" src="' + u + '" alt="">' : '')
-      + v.name + (cnt[id] > 1 ? ' ×' + cnt[id] : '') + '</span>';
+      + v.name + ' <b>×' + (cnt[id] || 1) + '</b></span>';
   };
 
   let h = '';
   h += '<div class="pickTitle">融 合 阵</div>';
   h += '<div class="pickSub">已解机缘 <b>' + FusionCodex.count() + '</b> / ' + FUSION_DEF.length
-    + '　·　合而<b>不可逆</b>，两件材料从此消散</div>';
+    + '　·　合而<b>不可逆</b>：材料的<b>整条线</b>（持有几件烧几件）从此消散，本局不再掉落</div>';
 
   h += '<div class="fusRow">' + slotHTML(0) + '<span class="fusArrow">＋</span>' + slotHTML(1)
     + '<span class="fusArrow">→</span>';
@@ -3967,9 +4007,11 @@ function renderFusionPanel() {
     const outDef = ITEM_MAP[recipe.id] || {};
     const ou = itemIconURL(recipe.id);
     h += '<span class="fusProd">' + (ou ? '<img class="ic" src="' + ou + '" alt="">' : '')
-      + itemView(outDef, Game.style, 0).name + '</span>';
+      + itemView(outDef, Game.style, Math.max(0, outLv - 1)).name + '</span>';
   } else {
-    h += '<span class="fusProd unknown">？？？</span>';
+    /* 名字/数值/效果仍然照旧藏起来（首次是赌博）；但**阶数**是纯机械推导，
+       提前告诉玩家「这一融能出几阶」才让他能对「值不值得现在融」做判断。 */
+    h += '<span class="fusProd unknown">？？？' + (outLv > 1 ? ' Lv' + outLv : '') + '</span>';
   }
   h += '</div>';
 
@@ -3984,10 +4026,26 @@ function renderFusionPanel() {
     h += '<div class="fusDesc">' + (f.msg || '选中两件持有之物，若有缘分自会显现') + '</div>';
   }
 
+  /* 消耗摘要与枢纽件警告：材料从池里消失 + 不可逆 + 一层只一座 = 三重惩罚，
+     不提示就是坑。特别是引雷符这类「一条材料通向 3 条路」的枢纽件。 */
+  if (recipe) {
+    h += '<div class="fusSpent">此次将消耗　'
+      + (ITEM_MAP[recipe.a] || {}).name + ' ×' + spent.a + '　＋　'
+      + (ITEM_MAP[recipe.b] || {}).name + ' ×' + spent.b
+      + '　→　产物 <b>Lv' + outLv + '</b></div>';
+    for (const id of [recipe.a, recipe.b]) {
+      const others = fusionOtherRoutes(id, recipe.id);
+      if (!others.length) continue;
+      h += '<div class="twarn">⚠️ ' + (ITEM_MAP[id] || {}).name
+        + ' 还能通向 ' + others.map(r => (ITEM_MAP[r.id] || {}).name).join(' / ')
+        + '　——　融掉后本局不再掉落，那几条路一并作废</div>';
+    }
+  }
+
   h += '<div class="fusGrid">';
   f.pool.forEach((id, i) => {
     const def = ITEM_MAP[id] || {};
-    const v = itemView(def, Game.style, cnt[id] - 1);
+    const v = itemView(def, Game.style, Game.itemRank(id));
     /* can：还没选第一件时全都可选；选了之后就只亮「与它有配方」的那些。
        ⚠️ 这条判断就是「可融性可见」的落点，别为了神秘感把它一起去掉。 */
     const can = !f.slots[0] || !!fusionRecipeOf(f.slots[0], id);

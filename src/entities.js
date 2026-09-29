@@ -2352,6 +2352,13 @@ class Player {
     this.dashTrail = [];          // 突进残影（纯表现）
     this.swingT = 0;              // 挥剑动作剩余帧数（舞剑流平A的姿态切换）
     this.items = [];
+    /* 融合产物 id → { a, b }（两件材料当时各有几件）。产物在 items 里只有**一件**
+       （它不进掉落池，不可能靠重复获得自然升阶），所以它继承了「材料之和」这件事
+       必须被记下来，否则读档/重算时算不回去。 */
+    this.fusionMem = {};
+    /* 已经喂给融合阵的材料 id —— 融合 = 把两条线合并成一条，这些材料
+       本局不再从掉落池出现。记在 Player 上，所以随存档一起回来。 */
+    this.usedMats = {};
     /* 小技能：最多 SLOT_COUNT 个，按 1/2/3 切换、Q 释放，消耗灵力 */
     this.mp = MP_START; this.maxMP = MP_MAX;
     this.slots = [null, null, null];     // 每项 { id, lv }
@@ -2384,6 +2391,23 @@ class Player {
     for (const id of this.items) {
       const def = ITEM_MAP[id];
       if (!def || def.type !== 'fabao' || !def.apply) continue;
+      /* 融合产物：items 里只有一件，它继承的是「两件材料当时各自的件数」（fusionMem）。
+         ⚠️ 用**逐侧继承**而不是给产物一个标量倍率 —— 标量倍率在 |a−b| ≥ 2 时
+            会低于材料里件数高的那一侧，那一侧就净亏（违反 T2b 不许变弱）。
+            逐侧补件数 = 产物数值精确等于「两件材料全部件数之和」，永远不亏。 */
+      if (def.fusion) {
+        def.apply(this, 0, style);                     // 基础 = A 一件 + B 一件 + 机制
+        const mem = this.fusionMem && this.fusionMem[id];
+        const rec = mem && fusionDefOf(id);
+        if (rec) {
+          for (let k = 1; k < mem.a; k++) ITEM_MAP[rec.a].apply(this, k, style);
+          for (let k = 1; k < mem.b; k++) ITEM_MAP[rec.b].apply(this, k, style);
+          /* 数值型法宝每多一件的「精炼补偿」也要跟着给 ——
+             少了它，a=b=2 的产物会比「两件各 2 件都留着」少 1 点伤害（T2b 会红）。 */
+          this.stats.damage += 0.5 * ((mem.a - 1) + (mem.b - 1));
+        }
+        continue;
+      }
       const rank = cnt[id] || 0;
       def.apply(this, rank, style);
       cnt[id] = rank + 1;
@@ -2455,10 +2479,23 @@ class Player {
       g.floaters.push(new Floater(this.x, this.y - 28, '剑势溃散', PAL.redL));
     }
   }
-  give(id, g) {
+  give(id, g, memOpt) {
     const def = ITEM_MAP[id];
     if (!def) return;
     if (def.type === 'fabao') {
+      /* 融合产物：items 里只放**一件**，它继承的是「两件材料当时各有几件」（memOpt）。
+         ⚠️ 不能走下面「数值型重复叠加」那条：产物不进掉落池，拿不到第二件，
+            继承的件数只能由融合时给定。登记完直接 recomputeStats —— 属性只有一个真相来源。 */
+      if (def.fusion) {
+        this.fusionMem = this.fusionMem || {};
+        const mem = { a: (memOpt && memOpt.a) || 1, b: (memOpt && memOpt.b) || 1 };
+        this.fusionMem[id] = mem;
+        this.items.push(id);
+        this.recomputeStats(g.style);
+        g.itemPopup = { def, t: 220, rank: fusionLevel(mem.a, mem.b) - 1 };
+        SFX.pickup();
+        return;
+      }
       const rank = this.items.filter(i => i === id).length;   // 已持有几件 = 当前阶数
       this.items.push(id);
       if (def.func) {

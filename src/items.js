@@ -445,16 +445,24 @@ function fabaoMaxRank(def) {
 }
 /* 金匣（需钥匙）专用：只出一件，但必定是珍稀法宝。
    珍稀池里挑不出（都拿过了）时才退回常规抽取。 */
-function rollRareFabaoId(rng, owned, style) {
+function rollRareFabaoId(rng, owned, style, banned) {
   const own = owned || [];
-  const pool = poolByType('fabao', style);
+  const ban = banned || {};
+  const pool = poolByType('fabao', style).filter(id => !ban[id]);      // 已融掉的材料不再出（金匣同理）
+  if (!pool.length) return rollFabaoId(rng, own, style, banned);
   const rare = pool.filter(id => ITEM_MAP[id].rare && fabaoRank(own, id) < fabaoMaxRank(ITEM_MAP[id]));
   if (rare.length) return rare[Math.floor(rng() * rare.length) % rare.length];
   const avail = pool.filter(id => fabaoRank(own, id) < fabaoMaxRank(ITEM_MAP[id]));
-  return rollFabaoId(rng, own, style) || (avail[0] || pool[0]);
+  return rollFabaoId(rng, own, style, banned) || (avail[0] || pool[0]);
 }
-function rollFabaoId(rng, owned, style) {
-  const pool = poolByType('fabao', style);
+/* banned = 已经喂给融合阵的材料（Player.usedMats）：融合把两条线合并成一条，
+   这些材料本局从池里消失 —— 池子变小，后面反而更容易抽到「还没见过的」，
+   于是下一个配方更快凑齐。这是「整条线烧掉」的补偿，不是惩罚。
+   ⚠️ 兜底：ban 到池子空了就退回原池，绝不返回 undefined（调用方会 give(undefined) 静默失败）。 */
+function rollFabaoId(rng, owned, style, banned) {
+  const ban = banned || {};
+  let pool = poolByType('fabao', style).filter(id => !ban[id]);
+  if (!pool.length) pool = poolByType('fabao', style);
   const own = owned || [];
   const fresh = pool.filter(id => !own.includes(id));
   const avail = pool.filter(id => fabaoRank(own, id) < fabaoMaxRank(ITEM_MAP[id]));

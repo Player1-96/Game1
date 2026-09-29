@@ -198,6 +198,8 @@ class Floor {
     this.size = depth >= 4 ? 8 : 7;
     this.opts = opts || {};
     this.owned = this.opts.owned || [];
+    /* 已喂给融合阵的材料 —— 本层铺货（宝箱/坊市/金匣）都不再抽到它们 */
+    this.banned = this.opts.banned || {};
     this.slots = this.opts.slots || [];      // 玩家的小技能槽，供坊市挑货时避开已满级的
     /* 世界风格：决定本层用哪套杂兵 / 精英 / 尊者 / 道具（见 nordic.js 的 STYLE_CONTENT）。
        缺省 'cn' —— 老调用点（测试里直接 `new Floor(depth, seed)`）不传也能跑。 */
@@ -679,7 +681,7 @@ class Floor {
     const P = base => Math.round(base + depth * 2);
     // 法宝走统一抽取：优先没见过的，也允许数值型重复 / 功能型进阶
     const own = this.owned;
-    const fabao = () => rollFabaoId(rng, own, st);
+    const fabao = () => rollFabaoId(rng, own, st, this.banned);
     return [
       { item: fabao(), price: P(13) },
       { item: pick(dan), price: Math.round(6 + depth * 1.5) },
