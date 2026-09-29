@@ -741,6 +741,135 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('产物总数 = 配方总数（一条配一条产物，图鉴会跟着涨）',
     t9c.codexTotal === t9c.total, t9c.codexTotal + ' / ' + t9c.total);
 
+  /* ----------------------------------------------------------------
+   *  T9d ⭐ 第四批「弹道形状」三条（2026-09-29 用户挑的 A1 / A2 / A3）
+   *      全部是**行为断言**，不是「有没有这个属性」——
+   *      属性断言拦不住「接线接了一半」（spreadArcOf 那次就是这么漏的）。
+   * ------------------------------------------------------------- */
+  sec('T9d  ★ 往复梭（原路折返）/ 回鸣镜（撞墙弹开）/ 剑影环（命中充能）');
+  const t9d = await page.evaluate(() => {
+    const G = window.Game;
+    const clean = (style, items) => {
+      G.newRun(style); G.newFloor(1); G.state = 'play';
+      const pl = G.player;
+      G.enemies.length = 0; G.bullets.length = 0; G.orbits.length = 0; G.hazards.length = 0;
+      if (G.room && G.room.obstacles) G.room.obstacles.length = 0;
+      (items || []).forEach(id => { pl.give(id, G); G.itemPopup = null; });
+      G.orbits.length = 0;
+      pl.x = 240; pl.y = 150; pl.shootCd = 0;
+      return pl;
+    };
+    const mkFoe = (x, y) => {
+      const e = new Enemy('xiesui', x, y, 1);
+      e.spawnT = 0; e.speed = 0; e.maxHp = 99999; e.hp = 99999; e.touch = 0; e.cd = 999999;
+      G.enemies.push(e); return e;
+    };
+
+    /* ---------- 往复梭 ---------- */
+    const pl1 = clean('feijian', ['wangfu']);
+    const foe = mkFoe(240, 80);
+    STYLES.feijian.attack(pl1, G, { shooting: true, aiming: true, aimAngle: -Math.PI / 2 });
+    const b1 = G.bullets[0];
+    const vy0 = b1 ? b1.vy : 0;
+    let turned = -1, hits = 0, prev = foe.hp, pierceAtTurn = null;
+    for (let f = 0; f < 140; f++) {
+      G.update();
+      if (foe.hp < prev - 0.01) { hits++; prev = foe.hp; }
+      if (turned < 0 && b1 && b1.vy * vy0 < 0) {
+        turned = f;
+        /* ⚠️ 穿透只能在**折返那一帧**采样：跑完再看的话回程又打了两遍，
+           数值早就被消耗掉了（第一版就是这么假失败的）。 */
+        pierceAtTurn = (b1.pierce === b1.pierceMax);
+      }
+      if (!b1 || b1.dead) break;
+    }
+    const boom = { turned: turned, hits: hits, back: b1 ? b1.boomBack : false,
+                   pierceReset: pierceAtTurn === true };
+
+    /* ---------- 回鸣镜：撞墙 ---------- */
+    const pl2 = clean('feijian', ['huiming']);
+    const b2 = new Bullet(420, 150, 8, 0, { friendly: true, dmg: 3, r: 5, life: 120, fus: pl2.stats.fus, kind: 'sword', sprite: SPR.sword });
+    G.bullets.push(b2);
+    const d0 = b2.dmg, n0 = b2.bounce;
+    let flipped = -1;
+    for (let f = 0; f < 60; f++) { G.update(); if (b2.vx < 0) { flipped = f; break; } if (b2.dead) break; }
+    const wall = { flipped: flipped, alive: !b2.dead, dmgUp: +(b2.dmg / d0).toFixed(3), used: n0 - b2.bounce };
+
+    /* ---------- 回鸣镜：撞石柱（选轴要用速度主导，不能用重叠深度） ---------- */
+    const pl3 = clean('feijian', ['huiming']);
+    G.room.obstacles.push({ x: 300, y: 140, w: 20, h: 20 });
+    const b3 = new Bullet(250, 150, 6, 0, { friendly: true, dmg: 2, r: 5, life: 120, fus: pl3.stats.fus, kind: 'sword', sprite: SPR.sword });
+    G.bullets.push(b3);
+    let obFlip = -1;
+    for (let f = 0; f < 40; f++) { G.update(); if (b3.vx < 0) { obFlip = f; break; } if (b3.dead) break; }
+    const stone = { flipped: obFlip, vx: +b3.vx.toFixed(1), alive: !b3.dead };
+    /* 没有回鸣镜的对照：应该撞碎 */
+    const plc = clean('feijian', []);
+    G.room.obstacles.push({ x: 300, y: 140, w: 20, h: 20 });
+    const bc = new Bullet(250, 150, 6, 0, { friendly: true, dmg: 2, r: 5, life: 120, fus: plc.stats.fus, kind: 'sword', sprite: SPR.sword });
+    G.bullets.push(bc);
+    for (let f = 0; f < 40; f++) { G.update(); if (bc.dead) break; }
+    const stoneCtl = { dead: bc.dead };
+
+    /* ---------- 剑影环：命中充能 ---------- */
+    const pl4 = clean('feijian', ['jianying']);
+    const timeline = [];
+    for (let n = 1; n <= ORBIT_NEED * 4; n++) {
+      const e = mkFoe(pl4.x, pl4.y - 40);
+      Fusion.onHit(e, { fus: pl4.stats.fus, dmg: 3, chain: 0, crit: false }, G);
+      timeline.push(G.orbits.length);
+      G.enemies.length = 0;
+    }
+    /* 环剑真的会砍：放一只在环上跑一段 */
+    const pl5 = clean('feijian', ['jianying']);
+    for (let n = 0; n < ORBIT_NEED; n++) {
+      const e = mkFoe(pl5.x, pl5.y - 40);
+      Fusion.onHit(e, { fus: pl5.stats.fus, dmg: 3, chain: 0, crit: false }, G);
+      G.enemies.length = 0;
+    }
+    const target = mkFoe(pl5.x + ORBIT_R, pl5.y);
+    const hp0 = target.hp;
+    for (let f = 0; f < 240; f++) G.update();
+    const orbitDmg = +(hp0 - target.hp).toFixed(2);
+    const orbitLeft = G.orbits.length;
+    for (let f = 0; f < ORBIT_LIFE + 20; f++) G.update();
+    const orbitGone = G.orbits.length;
+
+    /* ---------- 舞剑流：近战命中也要触发 onHit（雷火焚天 = 命中即点燃） ---------- */
+    const pl6 = clean('wujian', ['leihuo']);
+    const foe6 = mkFoe(pl6.x + 40, pl6.y);
+    STYLES.wujian.attack(pl6, G, { shooting: true, aiming: true, aimAngle: 0 });
+    const melee = { burn: foe6.burn, burnDmg: +(foe6.burnDmg || 0).toFixed(2) };
+
+    return { boom: boom, wall: wall, stone: stone, stoneCtl: stoneCtl,
+             orbit: { timeline: timeline.join(''), cap: ORBIT_MAX, need: ORBIT_NEED,
+                      dmg: orbitDmg, left: orbitLeft, gone: orbitGone },
+             melee: melee };
+  });
+  ok('往复梭：飞到一半**原路折返**（vy 取反）', t9d.boom.turned >= 0, '第 ' + t9d.boom.turned + ' 帧折返');
+  ok('★ 往复梭：同一只妖物被**穿两遍**（去一遍、回一遍）', t9d.boom.hits === 2, t9d.boom.hits + ' 次');
+  ok('往复梭：回程清空命中记录 + 重置穿透（否则「再穿一遍」是假的）',
+    t9d.boom.back === true && t9d.boom.pierceReset === true);
+  ok('回鸣镜：撞墙不碎、按原路弹开、每弹一次重四成',
+    t9d.wall.flipped >= 0 && t9d.wall.alive && t9d.wall.dmgUp >= 1.39,
+    '第 ' + t9d.wall.flipped + ' 帧弹开，伤害 ×' + t9d.wall.dmgUp);
+  ok('★ 回鸣镜：撞石柱也会弹（选轴走「速度主导」，不是「重叠深度」）',
+    t9d.stone.flipped >= 0 && t9d.stone.vx < 0 && t9d.stone.alive,
+    '第 ' + t9d.stone.flipped + ' 帧，vx ' + t9d.stone.vx);
+  ok('对照组：没有回鸣镜时撞石柱会碎（证明上面那条不是白过）', t9d.stoneCtl.dead === true);
+  /* ⚠️ timeline 是 join('') 之后的**字符串**：索引拿到的是字符 '1' 不是数字 1，
+     直接跟数字比会永远 false（第一版就是这么假失败的）。 */
+  const tl = t9d.orbit.timeline, need = t9d.orbit.need;
+  ok('★ 剑影环：每命中 ' + need + ' 次生一柄，封顶 ' + t9d.orbit.cap + ' 柄',
+    tl[0] === '0' && tl[need - 1] === '1' && tl[need * 2 - 1] === '2'
+    && tl[need * 3 - 1] === '3' && tl[need * 4 - 1] === '3',
+    '柄数序列 ' + tl);
+  ok('剑影环：环剑真的会砍（贴着的妖物掉血）', t9d.orbit.dmg > 0, t9d.orbit.dmg + ' 点');
+  ok('剑影环：到期会消失（不是永久挂件）', t9d.orbit.gone === 0, t9d.orbit.gone + ' 柄');
+  ok('★ 舞剑流的近战命中也会触发 onHit 机制（雷火焚天当场点燃）',
+    t9d.melee.burn > 0 && t9d.melee.burnDmg > 0,
+    'burn ' + t9d.melee.burn + ' / burnDmg ' + t9d.melee.burnDmg);
+
   sec('T10  运行期无报错');
   ok('没有页面错误', errs.length === 0, errs.slice(0, 3).join(' | '));
 

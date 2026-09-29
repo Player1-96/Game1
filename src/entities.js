@@ -321,6 +321,20 @@ class Bullet {
     this.reAimT = 0;
     this.reAimFlash = 0;
     this.folded = false;      // 已经折返过一次（双生剑的「回身一击」靠它判暴击）
+    /* 往复梭：boom 时飞够 BOOM_FLY 帧**原路折返**（回到发射点）。
+       与 reAim 的分工 —— reAim 是「折向妖物」（继续往外飞），这是「原路回去」。
+       回程清空命中记录并重置穿透，所以同一只妖物会被穿两遍。 */
+    /* ⚠️ 这两个标志**从 fus 表自动继承**，不用每个发射点手写 ——
+       飞剑流 / 巨剑流 / 御风风刃 / 摄魂魂弹 / 舞剑流的剑影……全都是「玩家的剑」，
+       给它们统一生效才对。少写一处就会出现「某个流派的往复梭不折返」这种哑火。 */
+    this.boom = opt.boom !== undefined ? !!opt.boom : !!(opt.fus && opt.fus.boom);
+    this.boomT = this.boom ? BOOM_FLY : 0;
+    this.boomBack = false;
+    this.pierceMax = opt.pierceMax !== undefined ? opt.pierceMax : (opt.pierce || 0);
+    /* 回鸣镜：撞墙/石柱不死，按法线弹开，每弹一次伤害 ×BOUNCE_MUL。 */
+    this.bounce = opt.bounce !== undefined ? opt.bounce : ((opt.fus && opt.fus.bounce) ? BOUNCE_MAX : 0);
+    /* 拐点/弹点的读数（折回与弹开共用一格，颜色区分） */
+    this.turnFlash = 0; this.turnCol = PAL.jadeL;
     this.knockback = opt.knockback || 0;
     this.burn = opt.burn || 0;
     this.frost = opt.frost || 0;
@@ -356,6 +370,13 @@ class Bullet {
       g.splitBullet(this);
       return;
     }
+    /* 往复梭：飞够 BOOM_FLY 帧就原路折返。
+       ⚠️ 三件事必须一起做，少一件「回程再穿一遍」的承诺就是假的：
+         ① 速度取反 ② 清空 hit（否则回来时每只都被标记成「打过」） ③ 重置穿透
+         ④ 补 life —— 去程已经烧掉一半寿命，不补的话飞不回来。 */
+    if (this.boom && this.friendly && --this.boomT <= 0) this.turnBack(g);
+    if (this.turnFlash > 0) this.turnFlash--;
+
     /* 重新转向（弗雷之剑）—— 与下面 `homing` 是**两种手感**，别写成一个东西：
        homing 是每帧微调、一路黏着目标（制导）；reAim 是直飞一段后**猛地折一次**（回身再斩）。
        触发时机：飞出 RE_AIM_DELAY 帧之后，若索敌范围内还有没打过的妖物，就折一次。
@@ -410,14 +431,47 @@ class Bullet {
     this.trail.push(this.x, this.y);
     if (this.trail.length > 8) this.trail.splice(0, 2);
     if (--this.life <= 0) this.dead = true;
-    // 撞墙（裂缝墙例外：飞剑要能打到裂缝判定区）
+    /* 撞墙（裂缝墙例外：飞剑要能打到裂缝判定区）
+       回鸣镜：撞哪面墙就翻哪个轴，不碎。**裂缝墙优先**（那是秘境的一部分，
+       撞上去该开裂缝，不该弹）—— 顺序反了会把「打裂缝」整条路堵死。 */
     if (this.x < WALL_L || this.x > WALL_R || this.y < WALL_T || this.y > WALL_B) {
-      if (!this.friendly || g.crackHitDir(this) < 0) { this.dead = true; g.burst(this.x, this.y, 4, this.friendly ? PAL.jade : PAL.red); }
+      const crack = this.friendly ? g.crackHitDir(this) : -1;
+      if (crack >= 0) {
+        /* 交给裂缝判定，不弹 */
+      } else if (this.friendly && this.boom && !this.boomBack) {
+        /* 往复梭：还没到折返点就撞墙 —— 那就**在墙上折返**。
+           否则朝墙打一发就碎，玩家会觉得「这法宝时灵时不灵」。 */
+        if (this.x < WALL_L || this.x > WALL_R) this.x = clamp(this.x, WALL_L + 1, WALL_R - 1);
+        if (this.y < WALL_T || this.y > WALL_B) this.y = clamp(this.y, WALL_T + 1, WALL_B - 1);
+        this.turnBack(g);
+      } else if (this.friendly && this.bounce > 0) {
+        if (this.x < WALL_L || this.x > WALL_R) { this.vx = -this.vx; this.x = clamp(this.x, WALL_L + 1, WALL_R - 1); }
+        if (this.y < WALL_T || this.y > WALL_B) { this.vy = -this.vy; this.y = clamp(this.y, WALL_T + 1, WALL_B - 1); }
+        this.bounceOff(g);
+      } else {
+        this.dead = true; g.burst(this.x, this.y, 4, this.friendly ? PAL.jade : PAL.red);
+      }
     }
-    // 撞障碍
+    // 撞障碍（石柱）：回鸣镜同样弹开 —— 否则「窄室里反而更凶」这句话只对空房间成立
     for (const o of g.room.obstacles) {
       if (aabb(this.x - 2, this.y - 2, 4, 4, o.x, o.y, o.w, o.h)) {
-        this.dead = true; g.burst(this.x, this.y, 5, PAL.stoneHi); return;
+        if (this.friendly && (this.boom && !this.boomBack)) {
+          /* 撞石柱同理：没到折返点就折 */
+          if (Math.abs(this.vx) >= Math.abs(this.vy)) this.x += (this.vx > 0 ? -4 : 4);
+          else this.y += (this.vy > 0 ? -4 : 4);
+          this.turnBack(g);
+        } else if (this.friendly && this.bounce > 0) {
+          /* ⚠️ 选轴用**速度主导方向**，绝不要用「重叠深度」——
+             弹体只有 4px 而石柱 20px，从侧面扎进去时两个方向的深度会打平，
+             于是横着飞的子弹被判成「撞在顶面上」：翻 vy 而 vy 本来就是 0，
+             结果原地扣 3 次弹数**然后直接从石柱里穿过去**。
+             （2026-09-29 探针 `_probe_vfx3.js` 撞出来的，肉眼看就是「石柱不反弹」。） */
+          if (Math.abs(this.vx) >= Math.abs(this.vy)) { this.vx = -this.vx; this.x += (this.vx > 0 ? 3 : -3); }
+          else { this.vy = -this.vy; this.y += (this.vy > 0 ? 3 : -3); }
+          this.bounceOff(g);
+        } else {
+          this.dead = true; g.burst(this.x, this.y, 5, PAL.stoneHi); return;
+        }
       }
     }
     if (this.friendly) {
@@ -471,8 +525,55 @@ class Bullet {
       }
     }
   }
+  /* 往复梭：结束去程、转入回程。折返的**四件事必须一起做**，
+     少一件「回程再穿一遍」的承诺就是假的（探针逐条量过）：
+       ① 速度取反（原路回去，而不是折向妖物 —— 那是 reAim）
+       ② 清空 hit（否则回来时每只都被标记成「打过」）③ 重置穿透 ④ 补 life */
+  turnBack(g, col) {
+    if (this.boomBack) return;
+    this.boom = false;
+    this.boomBack = true;
+    this.vx = -this.vx; this.vy = -this.vy;
+    this.hit.clear();
+    this.pierce = this.pierceMax;
+    this.life = Math.max(this.life, 60);
+    this.turnFlash = 10; this.turnCol = col || PAL.jadeL;
+    g.burst(this.x, this.y, 8, PAL.jadeL);
+    if (SFX.tone) SFX.tone(620, 0.06, 'triangle', 0.05, 380);
+  }
+  /* 回鸣镜的反弹结算：翻轴已由调用方做完，这里管「加重 + 清命中 + 读数」 */
+  bounceOff(g) {
+    this.bounce--;
+    this.dmg *= BOUNCE_MUL;
+    this.hit.clear();
+    this.life = Math.max(this.life, 60);
+    this.turnFlash = 10; this.turnCol = PAL.cyan;
+    g.burst(this.x, this.y, 7, PAL.cyan);
+    if (SFX.tone) SFX.tone(520, 0.05, 'square', 0.05);
+  }
   draw(g2) {
     const s = this.sprite;
+    /* 拐点 / 弹点的读数：炸一圈环，颜色区分「折回（青玉）」与「弹开（青）」。
+       没有它，玩家只看到剑莫名其妙改了方向 —— 和 reAim 那条注释同一个道理。 */
+    if (this.turnFlash > 0) {
+      const k = this.turnFlash / 10;
+      g2.save();
+      g2.globalAlpha = k * 0.8;
+      g2.strokeStyle = this.turnCol; g2.lineWidth = 2;
+      g2.beginPath(); g2.arc(this.x, this.y, this.r + 3 + (1 - k) * 16, 0, Math.PI * 2); g2.stroke();
+      g2.restore();
+    }
+    /* 回程标记：剑身后拖一小段青尾 —— 「它回来了」要一眼看得出 */
+    if (this.boomBack) {
+      g2.save();
+      g2.globalAlpha = 0.45 + 0.3 * Math.sin(this.spin * 0.9);
+      g2.strokeStyle = PAL.cyan; g2.lineWidth = 2;
+      g2.beginPath();
+      g2.moveTo(this.x - this.vx * 1.8, this.y - this.vy * 1.8);
+      g2.lineTo(this.x - this.vx * 0.7, this.y - this.vy * 0.7);
+      g2.stroke();
+      g2.restore();
+    }
     if (this.reflected) {
       // 照影：被打回去的术法裹一圈脉动青光，免得跟敌弹看混
       const k = 1 + Math.sin(this.spin * 0.8) * 0.18;
@@ -3344,6 +3445,13 @@ const STYLES = {
         // 传一个带落点的来源对象：玄甲卫的旋盾要按「从哪边打过来」判定格挡，
         // 近战没有弹丸，只能把玩家位置当作来向
         e.hurt(dmg, g, { x: pl.x, y: pl.y }, crit);
+        /* ⚠️ **近战也必须走 Fusion.onHit**（2026-09-29 修的既有 bug）。
+           在此之前只有子弹命中会调它 → 「雷火焚天 / 洞冥珠 / 冰火两仪 / 焚毒 /
+           无尽财源 / 剑影环」这些**命中时**机制对舞剑流**整条静默失效**
+           （和乱披风那次是同一个病：机制接线只接了一半）。
+           onHit 只读 fus / dmg / chain / crit，所以这里传一个同形的轻量对象即可，
+           不必造一发假子弹。 */
+        Fusion.onHit(e, { fus: s.fus, dmg: dmg, chain: s.chain, crit: crit }, g);
         const ang = Math.atan2(e.y - pl.y, e.x - pl.x);
         const kb = C.lungeKnock + s.knockback;
         e.kbx += Math.cos(ang) * kb; e.kby += Math.sin(ang) * kb;
@@ -3362,6 +3470,12 @@ const STYLES = {
         if (!circleHit(pl.x, pl.y - 2, dr, b.x, b.y, b.r)) continue;
         // 玄铁弹：剑罡斩上去只会迸火星，弹丸照旧飞 —— 给足反馈，免得被当成判定失灵
         if (b.hard) { g.burst(b.x, b.y, 5, PAL.greyL); continue; }
+        /* 回鸣镜（舞剑流化用）：近战没有飞剑可弹，这条改成「还手」——
+           斩落术法的同时炸出一圈刃光。不化用的话它对舞剑流又是一张废牌。 */
+        if (s.fus && s.fus.bounce) {
+          g.hazards.push(new Hazard(pl.x, pl.y, 62, 0, 12, 1.2, PAL.cyan, true));
+          g.burst(b.x, b.y, 8, PAL.cyan);
+        }
         if (s.reflect > 0) { reflectBullet(b, pl, g); continue; }
         b.dead = true; g.burst(b.x, b.y, 9, PAL.cyan);
       }
@@ -3372,6 +3486,22 @@ const STYLES = {
       g.slashes.push(new Slash(pl.x, pl.y, a, arc, reach,
         { col: col, life: SWING_ANIM, sweep: true, wild: wild, tier: wildTier }));
       if (wild) g.burst(pl.x + Math.cos(a) * reach * 0.6, pl.y + Math.sin(a) * reach * 0.6, 7, PAL.cyan);
+      /* 往复梭：近战本来没有投射物，「原路折返」无从谈起 —— 于是**补一柄剑影**给它。
+         不补的话这件法宝对舞剑流就是一张废牌（skill 里那条规矩：
+         别做出「某流派拿它没用」的法宝）。 */
+      if (s.fus && s.fus.boom) {
+        const bs = Math.max(5.2, s.shotSpeed);
+        g.bullets.push(new Bullet(
+          pl.x + Math.cos(a) * 12, pl.y + Math.sin(a) * 12,
+          Math.cos(a) * bs, Math.sin(a) * bs,
+          {
+            friendly: true, dmg: base * 0.6, r: 6, life: 90,
+            pierce: 2, boom: true, knockback: s.knockback * 0.6,
+            crit: Math.random() < s.crit, fus: s.fus,
+            kind: 'sword', sprite: SPR.sword, scale: 0.85
+          }
+        ));
+      }
       if (pl.soulBuff > 0) g.slashes.push(new Slash(pl.x, pl.y, a, arc * 0.7, reach * 1.12,
         { col: PAL.purpleL, life: 8 }));
       if (!pl.dashing) { pl.vx += Math.cos(a) * C.step; pl.vy += Math.sin(a) * C.step; }

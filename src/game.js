@@ -659,6 +659,9 @@ class GameCore {
     this.msg = '';
     this.placedBombs = []; this.bombs = 0; this.keys = 0; this.coins = 0;
     this.slashes = [];               // 舞剑流的斩击刃光（纯表现，伤害即时结算）
+    /* 剑影环：绕玩家旋转的剑影（融合产物「剑影环」）。
+       它**跟着玩家走**，所以不放进 newFloor 的数组重置里 —— 换层不掉。 */
+    this.orbits = [];
     this.beams = [];                 // 玄光（激光束）：蓄力预告 + 扫射，见 Beam
     this.dnums = [];                 // 伤害数字（暴击为朱红大字，见 DamageNum）
     this.restartHold = 0;            // 局内长按 R 的累计帧数
@@ -710,6 +713,7 @@ class GameCore {
     this.applySegmentPalette();       // 按路径把色板 + 素材对齐，再生成第 1 层
     this.coins = 0; this.keys = 0; this.bombs = 0; this.kills = 0;
     this.time = 0;
+    this.orbits = [];                 // 开新局清空：环剑挂在旧 Player 上，不能留给新局
     this.player = new Player(ROOM_W / 2, ROOM_H / 2 + 20);
     // 先切到 play 再 newFloor：newFloor → enterRoom 里会写存档，
     // 此时 state 还是 'title'/'choose' 的话那次存档会被跳过（开局第一间房丢档）
@@ -781,7 +785,6 @@ class GameCore {
     /* 符文护壁（北欧）：立在释放点的一个符文领域，持续期间把进入范围的敌方弹幕抹掉。
        与中式「护体金光」是两种用途 —— 那个是**冲开**（瞬发护盾 + 击退），
        这个是**守住**（定点 5 秒的弹幕禁区）。 */
-    this.runeWall = null;
     this.ultWarn = null; this.ultSword = null;   // 换层即作废，避免预警圈/巨剑残留到下一层
     this.runeWall = null;                        // 符文壁同理：它是定点的，换个层就无从谈起
     this.bossRef = null; this.doorLock = 0;   // 清掉上一层的 Boss 引用，否则血条会残留到重开后
@@ -1135,6 +1138,21 @@ class GameCore {
       }
     }
     return { x: px, y: py };      // 兜底：实在找不到就退回原点（不会跑出房间）
+  }
+
+  /* 剑影环：从玩家身上生出一柄绕身而转的剑影。
+     起始角按已有柄数错开 —— 否则三柄会叠成一柄，看着像没生效。 */
+  addOrbit() {
+    const p = this.player;
+    const n = this.orbits.length;
+    this.orbits.push({
+      a: -Math.PI / 2 + n * (Math.PI * 2 / ORBIT_MAX),
+      t: ORBIT_LIFE, cd: 0, x: p.x, y: p.y,
+      dmg: (p.stats.damage + 1) * 0.85
+    });
+    this.floaters.push(new Floater(p.x, p.y - 30, '剑影环', PAL.jadeL));
+    this.burst(p.x, p.y, 12, PAL.jadeL);
+    SFX.tone(880, 0.08, 'triangle', 0.06, 1180);
   }
 
   maybeOpenPortal() {
@@ -2498,6 +2516,28 @@ class GameCore {
     for (const bm of this.beams) if (!bm.dead) bm.update(this);
     for (const pr of this.props) if (!pr.dead) pr.update(this);
     for (const bm of this.placedBombs) if (!bm.dead) bm.update(this);
+    /* 剑影环：绕玩家转，撞到就砍。同一柄有 ORBIT_CD 的判定间隔 ——
+       没有它，一柄剑贴在一只妖物身上会每帧连续结算，伤害直接翻十倍。 */
+    if (this.orbits.length) {
+      const p = this.player;
+      for (const o of this.orbits) {
+        o.a += ORBIT_SPIN;
+        if (--o.t <= 0) { o.dead = true; continue; }
+        o.x = p.x + Math.cos(o.a) * ORBIT_R;
+        o.y = p.y + Math.sin(o.a) * ORBIT_R;
+        if (o.cd > 0) { o.cd--; continue; }
+        for (const e of this.enemies) {
+          if (e.dead) continue;
+          if (!circleHit(o.x, o.y, 6, e.x, e.y, e.r)) continue;
+          e.hurt(o.dmg, this, { x: p.x, y: p.y });
+          o.cd = ORBIT_CD;
+          this.burst(o.x, o.y, 5, PAL.jadeL);
+          break;
+        }
+      }
+      this.orbits = this.orbits.filter(o => !o.dead);
+    }
+
     for (const pt of this.particles) pt.update();
     for (const f of this.floaters) f.update();
     for (const d of this.dnums) d.update();
@@ -2783,6 +2823,36 @@ class GameCore {
 
     // 斩击刃光（舞剑流）：压在人物之上，扫过去的那道弧才看得清
     for (const sl of this.slashes) sl.draw(g);
+
+    /* 剑影环：正体 + 一段淡青拖尾。将散时淡出（剩余寿命是它唯一的时间读数）。 */
+    if (this.orbits.length) {
+      const p = this.player;
+      for (const o of this.orbits) {
+        const k = Math.min(1, o.t / 45);
+        g.save();
+        g.globalAlpha = 0.3 + 0.45 * k;
+        g.strokeStyle = PAL.jadeL; g.lineWidth = 2;
+        g.beginPath(); g.arc(p.x, p.y - 2, ORBIT_R, o.a - 0.55, o.a); g.stroke();
+        g.globalAlpha = 0.85 + 0.15 * k;
+        g.translate(o.x, o.y - 2);
+        g.rotate(o.a + Math.PI / 2);
+        g.drawImage(SPR.sword, -SPR.sword.width / 2, -SPR.sword.height / 2,
+          SPR.sword.width, SPR.sword.height);
+        g.restore();
+      }
+      /* 充能进度：环外一小段金弧。没有这个读数，玩家会以为剑影是随机冒出来的
+         （「机制看得见」那条规矩：数值在涨、画面不动 = 玩家当 bug）。 */
+      const chg = Math.min(1, (this.player.orbitChg || 0) / ORBIT_NEED);
+      if (this.orbits.length < ORBIT_MAX && chg > 0) {
+        g.save();
+        g.globalAlpha = 0.75;
+        g.strokeStyle = PAL.goldL; g.lineWidth = 2;
+        g.beginPath();
+        g.arc(p.x, p.y - 2, ORBIT_R + 5, -Math.PI / 2, -Math.PI / 2 + chg * Math.PI * 2);
+        g.stroke();
+        g.restore();
+      }
+    }
     // 玄光：压在人物与妖物之上 —— 它是光，被谁挡住都说不过去，
     // 而且「能不能站得住」全靠这条线读得清不清楚
     for (const bm of this.beams) bm.draw(g);

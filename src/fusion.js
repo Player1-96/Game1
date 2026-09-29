@@ -35,6 +35,25 @@
    TAIXU = { caps: [2, 3, 4], gaps: [600, 480, 360] } */
 const FUS_SHIELD = { cap: 2, gap: 600, capBig: 3, gapBig: 480 };
 
+/* ---------------- 第四批（2026-09-29 用户拍板）的三个「弹道形状」参数 ----------------
+   这一批改的不是数值，是**子弹怎么飞 / 剑怎么存在**，所以参数都放在这里，
+   由 entities.js 的 Bullet 与 Game.orbits 消费。 */
+/* ⚠️ 14 这个数字是**量出来的**，不是拍的：石室只有 480×288，可行区竖着
+   从玩家脚下到上墙约 116px，而飞剑速度约 6.9px/帧 → 17 帧就撞墙。
+   原来写 26，结果是「折返从来没触发过」（探针 `_probe_vfx3.js` 打出来的）。
+   另外 Bullet 里补了一条兜底：还没到点就撞墙，那就**在墙上折返**。 */
+const BOOM_FLY = 14;        // 往复梭：飞出去多少帧后原路折返
+/* 剑影环：**靠命中充能**，满了才生一柄（用户 2026-09-29 的改法 ——
+   不能白送，要有「打出来」的过程）。 */
+const ORBIT_NEED = 8;       // 每命中 8 次生一柄
+const ORBIT_MAX = 3;        // 至多同时 3 柄
+const ORBIT_LIFE = 420;     // 每柄存续 7 秒
+const ORBIT_R = 34;         // 环绕半径
+const ORBIT_SPIN = 0.042;   // 每帧转过的弧度
+const ORBIT_CD = 18;        // 同一柄剑的两次判定间隔（防连帧刷伤害）
+const BOUNCE_MAX = 3;       // 回鸣镜：最多弹 3 次
+const BOUNCE_MUL = 1.4;     // 每弹一次伤害 ×1.4
+
 /* ---------- 融合产物 ----------
    与普通法宝同构（type:'fabao'），但带 fusion:true。
    poolByType() 会把它排除在随机池外 —— 只能靠融合得到，掉落/商店/金匣都抽不到。 */
@@ -313,6 +332,63 @@ const FUSION_ITEMS = [
       p.maxHP += 2; p.hp = p.maxHP;
       p.stats.layerHeal = true;
       p.stats.fus.frostSpread = 1;
+    } },
+
+  /* ══════════════════════════════════════════════════════════════
+   *  第四批 …… 「弹道形状」（2026-09-29 用户从第二批设计稿里挑的 A1 / A2 / A3）
+   *  判据同前：说明能用「伤害 +X%」写完的就是假的。这三条改的都是**路径形状**。
+   * ══════════════════════════════════════════════════════════════ */
+  { id: 'wangfu', name: '往复梭', type: 'fabao', fusion: true, icon: 'needle',
+    c1: PAL.jadeL, c2: NORD.iceL,
+    /* 与「双生剑」的区别（同为折返，但形状不同）：
+       双生剑是**追敌去折**（折完继续往外飞）；往复梭是**原路折回**——
+       路径封闭、回程清空命中记录，同一只妖物能被穿两遍，背后来的敌人也躲不掉。 */
+    byStyle: {
+      feijian: { name: '往复梭', desc: '飞剑飞到尽头**原路折回**，回程把路上的妖物再穿一遍' },
+      jujian: { name: '往复重剑', desc: '巨剑飞到尽头折返，回程再碾一遍（去与回各结算一次）' },
+      wujian: { name: '往复梭', desc: '每次挥砍额外甩出一柄**去而复返**的剑影（近战没有投射物，这条给你补一个）' }
+    },
+    desc: '一梭去而复返：飞到尽头再原路折回，回程把路上的妖物再穿一遍',
+    apply: p => {
+      p.stats.pierce += 2;              // ≥ 穿云梭（pierce +2）
+      p.stats.shotSpeed *= 1.08;
+      p.stats.reAim = Math.max(p.stats.reAim, 1);   // ≥ 弗雷之剑（reAim 1）
+      p.stats.fus.boom = 1;
+    } },
+
+  { id: 'jianying', name: '剑影环', type: 'fabao', fusion: true, icon: 'fused',
+    c1: PAL.jadeL, c2: NORD.iron,
+    /* 用户 2026-09-29 的改法：**每命中 8 次生一柄**，至多 3 柄 ——
+       不是「拿到就白给 3 柄」。这样它是**打出来的**，鼓励贴脸输出。 */
+    byStyle: {
+      feijian: { name: '剑影环', desc: '每命中 8 次，一柄剑影离体环身而转（至多 3 柄），碰到就砍' },
+      jujian: { name: '剑影环', desc: '每命中 8 次，一柄剑影离体环身而转（至多 3 柄）—— 巨剑挥得慢，攒得也稳' },
+      wujian: { name: '剑影环', desc: '每命中 8 次，一柄剑影离体环身而转（至多 3 柄）—— 横扫一片时攒得飞快' }
+    },
+    desc: '每命中 8 次，一柄剑影离体环身而转（至多 3 柄），碰到就砍',
+    apply: p => {
+      p.stats.speed *= 1.288;           // ≥ 祥云履(×1.15) × 鸦羽斗篷(×1.12)
+      p.stats.iframe += 30;             // ≥ 鸦羽斗篷
+      p.stats.fly = true;               // ≥ 祥云履（免疫地面秽气）
+      p.stats.fus.orbit = 1;
+    } },
+
+  { id: 'huiming', name: '回鸣镜', type: 'fabao', fusion: true, icon: 'mirror',
+    c1: PAL.cyan, c2: NORD.runic,
+    /* 与「玄元镜 / 太虚镜」的区别：那两件处理的是**敌方弹幕**（击落 / 吸收），
+       回鸣镜管的是**自己的飞剑** —— 撞墙不碎、按法线弹开、每弹一次更重。
+       房间越窄越强，这是一条会改变走位偏好的机制。 */
+    byStyle: {
+      feijian: { name: '回鸣镜', desc: '飞剑撞墙不碎，按原路弹开，每弹一次重四成（至多 3 次）' },
+      jujian: { name: '回鸣重镜', desc: '巨剑撞墙不碎、弹开且更重（至多 3 次）—— 窄室里反而更凶' },
+      wujian: { name: '回鸣镜', desc: '斩落术法的同时炸出一圈回鸣刃光（近战没有飞剑可弹，这条改成还手）' }
+    },
+    desc: '飞剑撞墙不碎，按原路弹开，每弹一次重四成（至多 3 次）',
+    apply: (p, rank, style) => {
+      p.stats.mpRegen += 1; p.stats.luck += 2;      // ≥ 密米尔之泉
+      // ≥ 玄元镜（那一件本身就分流派：舞剑流走 reflect）
+      if (style === 'wujian') p.stats.reflect += 1; else p.stats.deflect += 1;
+      p.stats.fus.bounce = 1;
     } }
 ];
 
@@ -372,7 +448,12 @@ const FUSION_DEF = [
   { id: 'twin_blade',     a: 'hunyuan', b: 'freyr_sword'    },
   { id: 'aegis_wall',     a: 'taixu',   b: 'jotun_plate'    },
   { id: 'endless_wealth', a: 'juling',  b: 'draupnir'       },
-  { id: 'frost_seed',     a: 'hanbing', b: 'yggdrasil_seed' }
+  { id: 'frost_seed',     a: 'hanbing', b: 'yggdrasil_seed' },
+
+  /* --- 第四批：弹道形状（用户 2026-09-29 挑的 A1 / A2 / A3）--- */
+  { id: 'wangfu',    a: 'chuanyun',    b: 'freyr_sword' },   // 一去一回
+  { id: 'jianying',  a: 'xiangyun',    b: 'raven_cloak' },   // 环绕
+  { id: 'huiming',   a: 'xuanyuan',    b: 'mimir_well' }     // 反弹
 ];
 
 /* ---------- 图鉴（跨局永久解锁）----------
@@ -626,6 +707,21 @@ const Fusion = {
     if (F.critBurn && b.crit) {
       e.burn = Math.max(e.burn, 190);
       e.burnDmg = Math.max(e.burnDmg || 0, b.dmg * 0.9);
+    }
+
+    /* 剑影环：每次命中累积「充能」，满 ORBIT_NEED 次就地生一柄环剑。
+       ⚠️ 这是**打出来**的（用户 2026-09-29 的改法：每命中若干次才生成一把），
+          不是拿到就白给 3 柄 —— 它奖励贴脸输出，也让「攒满」有个过程。
+       计数放在 player 上（跨层保留）；已经 3 柄时不再累积（免得浪费充能）。
+       位置在 onHit **末尾**：它是纯粹的「记账」，不该影响上面那些状态注入。 */
+    if (F.orbit) {
+      const pl = g.player;
+      if (pl) {
+        if (g.orbits.length < ORBIT_MAX) {
+          pl.orbitChg = (pl.orbitChg || 0) + 1;
+          if (pl.orbitChg >= ORBIT_NEED) { pl.orbitChg -= ORBIT_NEED; g.addOrbit(); }
+        }
+      }
     }
 
     /* 霜雷：雷击的同时把目标**连同它周围**一起冻住。
