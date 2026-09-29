@@ -799,15 +799,66 @@ class Slash {
     this.crit = !!o.crit;
     this.spin = o.spin || 0;          // >0 时刃光自身旋转（五连斩用）
     this.sweep = !!o.sweep;           // true = 刃光沿瞄准方向扫出（平A 用），否则整条弧一起亮
+    /* 乱披风（乱弧）：刃光走「碎弧」画法 —— 见 drawWild。
+       tier = 这件产物的融合阶位（≥2 再叠一层金边，让「高级融合法器」看得出来）。 */
+    this.wild = !!o.wild;
+    this.tier = o.tier || 0;
     this.dead = false;
   }
   update() { if (--this.life <= 0) this.dead = true; }
+  /* 乱弧：煞气横生的一刀。
+     与普通挥砍（一条平滑的弧）的差异必须是**结构性的** ——
+     只把弧画宽一点的话，玩家只会觉得「这一刀的弧怎么忽大忽小」＝像 bug，
+     完全联想不到是法宝在起作用。所以「乱」要让人一眼看出是**切碎的、抖的**：
+       · 弧切成 5 段、段间留缝，每段径向抖动，且**每帧重新摇**（闪烁感）
+       · 双色描边：本派主色（外）+ 青（内，乱披风的配色）
+       · 弧上每帧溅出碎星
+       · 融合阶位 ≥2 再叠一层金边 —— 「二级神器」的视觉读数
+     无性能顾虑：同屏最多几片刃光，每片十几次 arc。 */
+  drawWild(g2, R, k) {
+    const a0 = this.a - this.arc / 2, a1 = this.a + this.arc / 2;
+    const p = this.sweep ? Math.min(1, k * 1.35) : 1;
+    const head = a0 + (a1 - a0) * p;
+    const tail = a0 + (a1 - a0) * Math.max(0, p - 0.8);
+    const span = head - tail;
+    if (span <= 0.002) return;
+    const jit = Math.min(11, 3 + this.arc * 4);      // 弧越宽抖得越凶
+    const rnd = () => Math.random() * 2 - 1;
+    const SEGS = 5;
+    g2.lineCap = 'round';
+    for (let i = 0; i < SEGS; i++) {
+      const t0 = tail + span * (i / SEGS);
+      const t1 = tail + span * ((i + 1) / SEGS) - span * 0.11;   // 段间留缝 = 「断」
+      if (t1 <= t0) continue;
+      g2.globalAlpha = (1 - k) * (0.55 + Math.random() * 0.45);
+      g2.strokeStyle = this.col; g2.lineWidth = this.wide + 1;   // 比平砍厚一分 = 更重
+      g2.beginPath(); g2.arc(this.x, this.y - 2, R + rnd() * jit, t0, t1); g2.stroke();
+      g2.strokeStyle = PAL.cyan; g2.lineWidth = 1;
+      g2.beginPath(); g2.arc(this.x, this.y - 2, (R + rnd() * jit) * 0.9, t0, t1); g2.stroke();
+    }
+    if (this.tier >= 2) {
+      g2.globalAlpha = (1 - k) * 0.7;
+      g2.strokeStyle = PAL.goldL; g2.lineWidth = 1;
+      g2.beginPath(); g2.arc(this.x, this.y - 2, R * 1.07 + rnd() * 3, tail, head); g2.stroke();
+    }
+    // 碎星：沿弧每帧随机溅几点 —— 乱弧的「火星感」。1~2px 混着来，别糊成一排方块
+    for (let i = 0; i < 11; i++) {
+      const t = tail + span * Math.random();
+      const rr = R + rnd() * (jit + 15);
+      g2.globalAlpha = (1 - k) * (0.3 + Math.random() * 0.6);
+      const q = Math.random();
+      g2.fillStyle = q < 0.3 ? PAL.goldL : (q < 0.65 ? PAL.cyan : this.col);
+      const s = Math.random() < 0.55 ? 1 : 2;
+      g2.fillRect(Math.round(this.x + Math.cos(t) * rr), Math.round(this.y - 2 + Math.sin(t) * rr), s, s);
+    }
+  }
   draw(g2) {
     const k = 1 - this.life / this.max;              // 0 起手 → 1 将散
     const R = this.reach * (0.82 + 0.22 * k);
     g2.save();
     g2.globalAlpha = (1 - k) * 0.9;
     g2.strokeStyle = this.col; g2.lineWidth = this.wide;
+    if (this.wild) { this.drawWild(g2, R, k); g2.restore(); return; }
     if (this.sweep) {
       /* 剑扫出来的轨迹：刃光只画「已经扫过」的那一段，
          前 3/4 的时间由起手角扫到收势角，尾巴跟着剑尖走，最后淡掉。
@@ -3069,6 +3120,9 @@ const STYLES = {
          把「可预判、好躲」换成「贴近了必吃满」。
          固定扇形时玩家能靠站位卡缝隙，随机弧度让这条对策失效。 */
       const arc = Fusion.spreadArcOf(s.fus, STYLES.feijian.consts.spreadArc);
+      /* 有乱披风时这一发的弧度是随机摇出来的：剑**飞出去的方向**本身就看得见，
+         所以不必再造视觉；补的是「这一发不一样」的手感 —— 枪口炸开的碎星 + 更碎的破空声。 */
+      const wildFan = !!(s.fus && s.fus.wildArc);
       for (let i = 0; i < count; i++) {
         const ang = aims ? aims[i] : a + (i - (count - 1) / 2) * arc;
         g.bullets.push(new Bullet(
@@ -3106,6 +3160,13 @@ const STYLES = {
       pl.vx -= Math.cos(a) * STYLES.feijian.consts.recoil;
       pl.vy -= Math.sin(a) * STYLES.feijian.consts.recoil;
       SFX.shoot();
+      if (wildFan) {
+        /* 乱披风的散剑：枪口炸一大团碎星（青+金），并叠一声更碎的破空 ——
+           「这一发是乱着飞出去的」这件事要有声音和火星，不然只有角度看得出。 */
+        g.burst(pl.x + Math.cos(a) * 12, pl.y + Math.sin(a) * 8, 12, PAL.cyan);
+        g.burst(pl.x + Math.cos(a) * 12, pl.y + Math.sin(a) * 8, 5, PAL.goldL);
+        SFX.wildSlash();
+      }
       g.burst(pl.x + Math.cos(a) * 12, pl.y + Math.sin(a) * 8, 3, PAL.jadeL);
     }
   },
@@ -3247,6 +3308,13 @@ const STYLES = {
          近战的「弧度忽宽忽窄」比远程更有手感：一刀扫到几只全看这一刀怎么来。
          ⚠️ 命中数仍受 maxHits（基础 3 + pierce）封顶，所以扫得再宽也不会变成无脑清场。 */
       const arc = Fusion.spreadArcOf(s.fus, C.arc + s.spread * C.spreadArc);
+      /* 有乱披风时，刃光要走「碎弧」画法（Slash.drawWild）——
+         否则数值在乱、画面却是一条平滑的弧，玩家只会觉得这刀在随机抽风。 */
+      const wild = !!(s.fus && s.fus.wildArc);
+      const wildTier = wild ? (() => {
+        const m = pl.fusionMem && pl.fusionMem.luanpifeng;
+        return m ? fusionLevel(m.a, m.b) : 1;
+      })() : 0;
       const reach = C.reach + (s.range - 210) * C.rangePer;
       const maxHits = C.baseHits + s.pierce;
       pl.shootCd = Math.max(C.swingMin, Math.round(60 / s.fireRate));
@@ -3302,12 +3370,14 @@ const STYLES = {
       const crackD = g.crackHitSwing(pl.x, pl.y, reach, a, arc);
       if (crackD >= 0) g.crackWallHurt(crackD);
       g.slashes.push(new Slash(pl.x, pl.y, a, arc, reach,
-        { col: col, life: SWING_ANIM, sweep: true }));
+        { col: col, life: SWING_ANIM, sweep: true, wild: wild, tier: wildTier }));
+      if (wild) g.burst(pl.x + Math.cos(a) * reach * 0.6, pl.y + Math.sin(a) * reach * 0.6, 7, PAL.cyan);
       if (pl.soulBuff > 0) g.slashes.push(new Slash(pl.x, pl.y, a, arc * 0.7, reach * 1.12,
         { col: PAL.purpleL, life: 8 }));
       if (!pl.dashing) { pl.vx += Math.cos(a) * C.step; pl.vy += Math.sin(a) * C.step; }
       pl.swingT = SWING_ANIM;
-      SFX.slash(0);
+      SFX.slash(wild ? 2 : 0);
+      if (wild) SFX.wildSlash();
     },
 
     /* ---------------- 专属技能 · 剑影三叠 ---------------- */

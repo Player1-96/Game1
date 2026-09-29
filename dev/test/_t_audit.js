@@ -750,7 +750,104 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     '带法宝时调用 ' + t16b.withItem + ' 次（未接线时是 0）');
   ok('乱披风确实置上了 wildArc 标记', t16b.wildArc === true, String(t16b.wildArc));
 
-  sec('⑰  全局错误检查');
+  /* ----------------------------------------------------------------
+   *  ⑰  2026-09-29：乱披风的「乱弧」要有视觉 —— 机制看不见等于没做
+   *
+   *      上一节验的是「乱弧接上了」；但接上之后玩家只会看到弧宽忽大忽小，
+   *      如果刃光还是一整条平滑的弧，只会被当成 bug。所以这一节验**画法**：
+   *      乱弧必须是**分段的**（由 arc() 调用数间接代表），且阶位 ≥2 多一层金边。
+   *      用假 ctx 直接量 Slash.draw()，不碰真画布也不依赖截图。
+   * ------------------------------------------------------------- */
+  sec('⑰  乱弧的画法：碎段 / 金边 / 两侧流派的反馈');
+  const t17 = await page.evaluate(() => {
+    const mkCtx = () => {
+      const c = { arc: 0, stroke: 0, fillRect: 0, strokeColors: [], fillColors: [] };
+      return {
+        calls: c, save() {}, restore() {}, beginPath() {}, stroke() { c.stroke++; },
+        arc() { c.arc++; }, fill() {}, fillRect() { c.fillRect++; },
+        set strokeStyle(v) { c.strokeColors.push(v); }, get strokeStyle() { return ''; },
+        set fillStyle(v) { c.fillColors.push(v); }, get fillStyle() { return ''; },
+        set lineWidth(v) {}, set globalAlpha(v) {}, set lineCap(v) {}
+      };
+    };
+    /* 刃光刚生成时 k=0（还没扫出去），要 update 几帧才有可画的弧 */
+    const make = (opt) => {
+      const sl = new Slash(240, 150, 0, 1.6, 46, Object.assign({ col: PAL.jadeL, life: 12, sweep: true }, opt));
+      for (let i = 0; i < 5; i++) sl.update();
+      return sl;
+    };
+    const plain = mkCtx(), wild = mkCtx(), wild3 = mkCtx();
+    make({}).draw(plain);
+    make({ wild: true }).draw(wild);
+    make({ wild: true, tier: 3 }).draw(wild3);
+
+    /* 飞剑流那一侧：乱弧的「散剑」靠**角度**自证（剑飞出去的方向看得见），
+       补的是枪口碎星 + 破空声。
+       ⚠️ 别断言「出手数不变」—— 乱披风本身带 spread +2，散剑数量本来就会涨；
+          要验的是**角度间隔从固定变成随机**：这才是「乱弧」的定义。 */
+    const G = window.Game;
+    G.newRun('feijian'); G.newFloor(1); G.state = 'play';
+    const pl = G.player;
+    G.enemies.length = 0;
+    if (G.room && G.room.obstacles) G.room.obstacles.length = 0;
+    let wildSounds = 0;
+    const origWild = SFX.wildSlash;
+    SFX.wildSlash = function () { wildSounds++; };
+    const shootAngles = () => {
+      G.bullets.length = 0; pl.shootCd = 0;
+      STYLES.feijian.attack(pl, G, { shooting: true, aiming: true, aimAngle: 0 });
+      return G.bullets.map(b => +Math.atan2(b.vy, b.vx).toFixed(4)).sort((x, y) => x - y);
+    };
+    const plainA1 = shootAngles(), plainA2 = shootAngles(), plainSounds = wildSounds;
+    pl.give('luanpifeng', G); G.itemPopup = null;
+    const wildA1 = shootAngles(), wildA2 = shootAngles(), wildSoundsAfter = wildSounds;
+    SFX.wildSlash = origWild;
+
+    /* 舞剑流那一侧：Slash 真的带上了标记 */
+    G.newRun('wujian'); G.newFloor(1); G.state = 'play';
+    const pl2 = G.player; G.enemies.length = 0; G.slashes.length = 0;
+    if (G.room && G.room.obstacles) G.room.obstacles.length = 0;
+    pl2.shootCd = 0;
+    STYLES.wujian.attack(pl2, G, { shooting: true, aiming: true, aimAngle: 0 });
+    const plainSlash = G.slashes[0] ? { wild: G.slashes[0].wild, tier: G.slashes[0].tier } : null;
+    G.slashes.length = 0;
+    pl2.give('luanpifeng', G); G.itemPopup = null;
+    pl2.fusionMem.luanpifeng = { a: 3, b: 3 }; pl2.recomputeStats('wujian');
+    pl2.shootCd = 0;
+    STYLES.wujian.attack(pl2, G, { shooting: true, aiming: true, aimAngle: 0 });
+    const wildSlash = G.slashes[0] ? { wild: G.slashes[0].wild, tier: G.slashes[0].tier } : null;
+
+    return {
+      plainArc: plain.calls.arc, wildArc: wild.calls.arc, wild3Arc: wild3.calls.arc,
+      wild3Gold: wild3.calls.strokeColors.indexOf(PAL.goldL) >= 0,
+      wildGold: wild.calls.strokeColors.indexOf(PAL.goldL) >= 0,
+      wildRect: wild.calls.fillRect, plainRect: plain.calls.fillRect,
+      plainFanSame: JSON.stringify(plainA1) === JSON.stringify(plainA2),
+      wildFanSame: JSON.stringify(wildA1) === JSON.stringify(wildA2),
+      plainFanN: plainA1.length, wildFanN: wildA1.length,
+      plainSounds: plainSounds, wildSounds: wildSoundsAfter,
+      plainSlash: plainSlash, wildSlash: wildSlash
+    };
+  });
+  ok('★ 乱弧的刃光是**分段**画的（同一片刃光，arc 调用数 ≥ 平砍的 3 倍）',
+    t17.wildArc >= t17.plainArc * 3, '平砍 ' + t17.plainArc + ' 段 vs 乱弧 ' + t17.wildArc + ' 段');
+  ok('乱弧沿弧溅碎星（fillRect 明显多于平砍）',
+    t17.wildRect > t17.plainRect + 4, '平砍 ' + t17.plainRect + ' vs 乱弧 ' + t17.wildRect);
+  ok('Lv3 的乱弧多一层金边（阶位 ≥2）',
+    t17.wild3Gold === true && t17.wildGold === false && t17.wild3Arc > t17.wildArc,
+    'Lv1 有金边=' + t17.wildGold + ' / Lv3 有金边=' + t17.wild3Gold);
+  ok('舞剑流：平砍不带乱弧标记，有乱披风后带上（并带上阶位）',
+    !!t17.plainSlash && t17.plainSlash.wild === false
+    && !!t17.wildSlash && t17.wildSlash.wild === true && t17.wildSlash.tier === 3,
+    JSON.stringify(t17.plainSlash) + ' → ' + JSON.stringify(t17.wildSlash));
+  ok('★ 飞剑流：散剑的角度间隔从「固定扇形」变成「每发都不同」',
+    t17.plainFanSame === true && t17.wildFanSame === false,
+    '平砍两发一致=' + t17.plainFanSame + ' / 乱披风两发一致=' + t17.wildFanSame);
+  ok('飞剑流：乱披风的散剑多一声「乱」的破空（平砍时没有）',
+    t17.plainSounds === 0 && t17.wildSounds > 0,
+    '声音 ' + t17.plainSounds + '→' + t17.wildSounds);
+
+  sec('⑱  全局错误检查');
   ok('全程无 pageerror / console.error', errs.length === 0, errs.slice(0, 3).join(' | '));
 
   console.log('\n========================================');
