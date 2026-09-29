@@ -122,9 +122,23 @@ const NORDIC_BOSS_GIMMICK = {
       byStyle: d.byStyle ? JSON.parse(JSON.stringify(d.byStyle)) : null,
       // 个别法宝连「进阶效果」都分流派（如玄元镜在舞剑流下改走照影）
       upByStyle: d.upByStyle ? JSON.parse(JSON.stringify(d.upByStyle)) : null,
-      // 世界归属（第 4 期起道具按世界分池）：cn = 中式，nordic = 北欧
-      world: d.world || 'cn'
+      /* 世界归属（第 4 期起道具按世界分池）：cn = 中式，nordic = 北欧。
+         ⚠️ 融合产物**没有** world 字段（配方在 fusion.js），以前一律落到默认 'cn'
+            —— 于是资源表把「雷神战铠 / 两界雷劫」这 9 件全标成中式仙侠，
+            其中跨世界的 5 件明明一件一个世界。这里按**配方材料**推断：
+            材料同界 → 该界；材料跨界 → 'cross'（两界交融）。 */
+      world: itemWorldOf(d)
     }));
+
+    /* 融合产物看两侧材料；普通道具看自己的 world 字段 */
+    function itemWorldOf(d) {
+      if (!d.fusion || typeof FUSION_DEF === 'undefined') return d.world || 'cn';
+      const rec = FUSION_DEF.filter(r => r.id === d.id)[0];
+      if (!rec) return d.world || 'cn';
+      const wa = (ITEM_MAP[rec.a] || {}).world || 'cn';
+      const wb = (ITEM_MAP[rec.b] || {}).world || 'cn';
+      return wa === wb ? wa : 'cross';
+    }
 
     /* ---------- 3. 妖物（中式 + 北欧，带 world 字段）----------
        ⚠️ 北欧那批存在 `NORDIC_ENEMY_DEF`（**不并进 `ENEMY_DEF`**，理由见 entities.js）

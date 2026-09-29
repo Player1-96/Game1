@@ -62,7 +62,7 @@ D = json.load(open(os.path.join(HERE, "..", "data", "_resources.json"), encoding
 
 # 世界归属的中文名 —— 第 4 期起道具 / 妖物 / 精英 / 尊者都带 world 字段，
 # 几张主表都是「中式 + 北欧混排」，没有这一列根本分不清谁属于哪个世界。
-WORLD_CN = {"cn": "中式仙侠", "nordic": "北欧神话", "cthulhu": "克苏鲁"}
+WORLD_CN = {"cn": "中式仙侠", "nordic": "北欧神话", "cross": "两界交融", "cthulhu": "克苏鲁"}
 
 
 def _tdoc_once(tool, args, service):
