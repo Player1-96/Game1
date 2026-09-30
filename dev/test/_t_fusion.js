@@ -870,6 +870,93 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     t9d.melee.burn > 0 && t9d.melee.burnDmg > 0,
     'burn ' + t9d.melee.burn + ' / burnDmg ' + t9d.melee.burnDmg);
 
+  /* ----------------------------------------------------------------
+   *  T9e ⭐ 融合阵「什么时候才算用掉」（2026-09-30 用户报的 bug）
+   *      症状：走进去只放了两件、没确认，退出后阵就失效了（变暗、无提示、按 E 无反应）。
+   *      根因：used 被写在 openFusion 里 —— 一开面板就消耗。
+   *      正确语义：**只有真正融成一次才消耗**；打开/放件/退出都不算。
+   * ------------------------------------------------------------- */
+  sec('T9e  ★ 融合阵的「用掉」时机：融成才算，看一眼不算');
+  const t9e = await page.evaluate(() => {
+    const G = window.Game;
+    const build = (items) => {
+      G.newRun('feijian'); G.state = 'play';
+      const pl = G.player;
+      G.enemies.length = 0; G.bullets.length = 0;
+      (items || []).forEach(id => { pl.give(id, G); G.itemPopup = null; });
+      G.room.obstacles.length = 0;
+      const spot = G.spotForProp(ROOM_W / 2, ROOM_H / 2, 16);
+      const prop = new Prop('forge', spot.x, spot.y, { kind: 'forge' });
+      G.props.push(prop);
+      const stand = () => { pl.x = prop.x; pl.y = prop.y; };
+      const press = () => { G.input.interact = true; prop.update(G); G.input.interact = false; };
+      return { pl: pl, prop: prop, stand: stand, press: press };
+    };
+    const close = () => { let g = 0; while (G.state === 'fusion' && g++ < 8) G.fusionBack(); };
+    const out = {};
+
+    /* ---- ① 打开面板 → 不该消耗；退出 → 还能再交互 ---- */
+    let t = build(['qingfeng', 'leifu']);
+    t.stand(); t.press();
+    out.openPanel = (G.state === 'fusion');
+    out.usedAfterOpen = !!t.prop.used;
+    G.fusionTake(); G.fusionMove(1); G.fusionTake();     // 放两件（不确认）
+    out.slotsFilled = !!(G.fusion.slots[0] && G.fusion.slots[1]);
+    close();
+    out.stateAfterExit = G.state;
+    out.usedAfterExit = !!t.prop.used;
+    t.stand(); G.forgeHint = null; t.prop.update(G);
+    out.hintBack = !!G.forgeHint;
+    t.press();
+    out.canReopen = (G.state === 'fusion');
+    close();
+
+    /* ---- ② 真心动一次 → 才消耗，之后不再响应 ---- */
+    t.stand(); t.press();
+    G.fusionTake(); G.fusionMove(1); G.fusionTake();
+    G.fusionConfirm();
+    out.fused = (G.player.items.length === 1 && G.player.items[0] === 'leiji');
+    out.usedAfterFuse = !!t.prop.used;
+    t.stand(); G.forgeHint = null; t.prop.update(G);
+    out.hintAfterFuse = !!G.forgeHint;
+
+    /* ---- ③ 配不成对（两件都在池里但彼此无配方）：报错、不消耗 ---- */
+    const t2 = build(['qingfeng', 'hanbing', 'leifu']);
+    t2.stand(); t2.press();
+    /* 池里挑出「青锋剑 + 玄冰符」这一对（它们之间没有配方） */
+    const pool = G.fusion.pool;
+    const qi = pool.indexOf('qingfeng'), hi = pool.indexOf('hanbing');
+    G.fusion.slots = ['qingfeng', 'hanbing'];
+    out.badPairReady = (qi >= 0 && hi >= 0);
+    G.fusionConfirm();
+    out.badPairMsg = G.fusion ? G.fusion.msg : '(面板关了)';
+    out.stillOpen = (G.state === 'fusion');
+    out.usedAfterBad = !!t2.prop.used;
+    out.itemsIntact = (G.player.items.filter(x => x === 'qingfeng').length === 1
+      && G.player.items.filter(x => x === 'hanbing').length === 1);
+
+    /* ---- ④ 手里根本凑不出可融组合：不弹面板、也不消耗 ---- */
+    const t3 = build(['qingfeng']);                 // 单独一件凑不出任何配方
+    t3.stand(); G.forgeHint = null; t3.press();
+    out.noPairPanel = (G.state === 'fusion');
+    out.noPairUsed = !!t3.prop.used;
+
+    return out;
+  });
+  ok('★ 打开融合面板不消耗阵（看一眼不算）', t9e.openPanel === true && t9e.usedAfterOpen === false);
+  ok('★ 只放材料后退出：阵仍然完好（提示回来、还能再开）',
+    t9e.slotsFilled === true && t9e.stateAfterExit === 'play'
+    && t9e.usedAfterExit === false && t9e.hintBack === true && t9e.canReopen === true,
+    '退出后提示=' + t9e.hintBack + ' 可重开=' + t9e.canReopen);
+  ok('★ 真正融成一次之后，阵才算用掉、并不再响应',
+    t9e.fused === true && t9e.usedAfterFuse === true && t9e.hintAfterFuse === false,
+    '产物=' + (t9e.fused ? '雷殛剑' : '×') + ' used=' + t9e.usedAfterFuse);
+  ok('配不成对：面板报「没有机缘」、不消耗阵、材料不被扣',
+    t9e.stillOpen === true && t9e.usedAfterBad === false && t9e.itemsIntact === true,
+    'msg=' + t9e.badPairMsg);
+  ok('手里凑不出可融组合：面板不弹、阵也不消耗',
+    t9e.noPairPanel === false && t9e.noPairUsed === false);
+
   sec('T10  运行期无报错');
   ok('没有页面错误', errs.length === 0, errs.slice(0, 3).join(' | '));
 

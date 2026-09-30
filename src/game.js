@@ -1393,6 +1393,8 @@ class GameCore {
   openFusion(forge) {
     input.interact = false;
     if (this.state !== 'play') return;
+    /* 已经用过的阵不再响应（视觉上也暗下去了，见 Prop.draw 的 forge 分支） */
+    if (forge && forge.used) return;
     /* 手里凑不出任何一条配方时：**不弹面板、也不消耗这座阵** ——
        否则玩家按一下 E 就把这一层的机会丢进一个空面板里。 */
     const ready = FUSION_DEF.filter(r => fusionReady(r, this.player.items));
@@ -1401,7 +1403,11 @@ class GameCore {
       this.floaters.push(new Floater(this.player.x, this.player.y - 26, '机缘未至', PAL.grey));
       return;
     }
-    if (forge) { forge.used = true; if (forge.src) forge.src.used = true; }
+    /* ⚠️ 这里**绝不置 used**（2026-09-30 修的 bug）：
+       面板可以随便开关、材料可以放了又退 —— 这些都只是「看」。
+       只有**真正融成一次**才消耗这座阵，那一步在 fusionConfirm 里。
+       原先写在这里，结果是「进去看了一眼就没了」，用户放了两件没确认，
+       退出之后阵变暗、不再挂提示、按 E 无反应。 */
     this.fusion = { forge: forge || null, pool: this.fusionPool(), idx: 0, slots: [null, null], msg: '' };
     this.state = 'fusion';
     this.forgeHint = null;
@@ -1458,6 +1464,9 @@ class GameCore {
     }
     const res = fusionExecute(this, f.slots[0], f.slots[1]);
     if (!res.ok) { f.msg = res.why || '融合未成'; updateOverlay(); return; }
+    /* 阵在**这一刻**才算用掉：融成结算完了、材料已经扣了。
+       放在成功判定之后而不是之前 —— 融合失败（材料不齐 / 无配方）不该吃掉机会。 */
+    if (f.forge) { f.forge.used = true; if (f.forge.src) f.forge.src.used = true; }
     const fx = f.forge ? f.forge.x : this.player.x;
     const fy = f.forge ? f.forge.y : this.player.y;
     this.burst(fx, fy, 40, PAL.goldL);
