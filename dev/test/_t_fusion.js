@@ -957,6 +957,151 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('手里凑不出可融组合：面板不弹、阵也不消耗',
     t9e.noPairPanel === false && t9e.noPairUsed === false);
 
+  /* ----------------------------------------------------------------
+   *  T9f ⭐ 融合面板的光标只停在「能融的」上面（2026-09-30 用户反馈）
+   *      症状：选完第一个材料后，一圈配不上的法宝照样能被光标选中，
+   *            从池子这头挪到那头要按十几次方向键。
+   *      验收指标是**按键次数**，不是「有没有 fusionCursor 这个方法」——
+   *      属性断言拦不住「算出来了但没接到 fusionMove 上」。
+   * ------------------------------------------------------------- */
+  sec('T9f  ★ 融合光标：跳过配不上的（按键次数从「整池」降到「候选数」）');
+  const t9f = await page.evaluate(() => {
+    const G = window.Game;
+    const nameOf = id => (ITEM_MAP[id] || {}).name || id;
+    const close = () => { let g = 0; while (G.state === 'fusion' && g++ < 12) G.fusionBack(); };
+
+    /* 从配方表取 10 件材料当手牌 —— 池子够大才看得出「按很多次」 */
+    const mats = [];
+    for (const rec of FUSION_DEF) {
+      if (mats.indexOf(rec.a) < 0) mats.push(rec.a);
+      if (mats.indexOf(rec.b) < 0) mats.push(rec.b);
+      if (mats.length >= 10) break;
+    }
+    const setup = (hand) => {
+      G.newRun('feijian'); G.state = 'play';
+      const pl = G.player;
+      pl.items.length = 0; pl.recomputeStats('feijian');
+      for (const id of (hand || mats)) pl.give(id, G);
+      G.itemPopup = null;
+      G.room.obstacles.length = 0;
+      const spot = G.spotForProp(ROOM_W / 2, ROOM_H / 2, 16);
+      const prop = new Prop('forge', spot.x, spot.y, { kind: 'forge' });
+      G.props.push(prop);
+      pl.x = prop.x; pl.y = prop.y;
+      G.openFusion(prop);
+      return prop;
+    };
+    const out = {};
+
+    /* ---- ① 第一槽空：候选 = 全部；放完之后 = 只有配得上的 ---- */
+    close(); setup();
+    out.opened = G.state === 'fusion' && !!G.fusion;
+    if (!out.opened) return out;
+    const pool = G.fusion.pool, N = pool.length;
+    out.poolSize = N;
+    out.cursorBefore = G.fusionCursor().length;
+
+    /* 挑一个「有伙伴、且伙伴数最少」的当第一槽 —— 那正是收益最大的情形 */
+    const partners = id => pool.filter(x => x !== id && !!fusionRecipeOf(id, x)).length;
+    let pickAt = -1, best = Infinity;
+    pool.forEach((id, i) => { const n = partners(id); if (n >= 1 && n < best) { best = n; pickAt = i; } });
+    const idxA = pickAt, pickId = pool[pickAt];
+    G.fusion.idx = idxA;
+    G.fusionTake();
+    const cand = G.fusionCursor();
+    out.pickName = nameOf(pickId);
+    out.cursorAfter = cand.length;
+    out.allCan = cand.every(i => !!fusionRecipeOf(pickId, pool[i]));
+    out.snapIsCand = cand.indexOf(G.fusion.idx) >= 0;
+
+    /* ---- ② 实走一圈：落点全亮 + 圈长 = 候选数（这就是「按几下」） ---- */
+    G.fusion.idx = cand[0];
+    const walk = [];
+    for (let k = 0; k < N + 2; k++) { G.fusionMove(1); walk.push(G.fusion.idx); }
+    out.grayHits = walk.filter(i => !fusionRecipeOf(pickId, pool[i])).length;
+    out.cycle = (() => { const s = {}; for (let k = 0; k < walk.length; k++) { if (s[walk[k]]) return k; s[walk[k]] = 1; } return walk.length; })();
+    /* 反向环绕：从第一个往左应落到最后一个候选 */
+    G.fusion.idx = cand[0]; G.fusionMove(-1);
+    out.backWrap = G.fusion.idx === cand[cand.length - 1];
+
+    /* ---- ③ 最坏目标：修前按索引环形距离，修后只在候选圈里走 ---- */
+    const worst = cand.map(i => ({ i: i, d: (i - idxA + N) % N })).sort((a, b) => b.d - a.d)[0];
+    out.worstBefore = worst.d;
+    out.worstAfter = cand.indexOf(worst.i);
+    out.iterBefore = N;
+    out.iterAfter = cand.length;
+
+    /* ---- ④ 点灰格：不放入，但给一句人话 ---- */
+    const cells = Array.from(document.querySelectorAll('#fusion .fusItem'));
+    const grayIdx = [...Array(N).keys()].filter(i => !fusionRecipeOf(pickId, pool[i]))[0];
+    out.hasGrayCell = grayIdx !== undefined;
+    if (out.hasGrayCell && cells[grayIdx]) {
+      cells[grayIdx].click();
+      out.grayMsg = G.fusion ? G.fusion.msg : '(面板关了)';
+      out.graySlot1 = G.fusion && G.fusion.slots[1] ? nameOf(G.fusion.slots[1]) : null;
+    }
+    out.tipHasNote = /只停在能融的上面/.test((document.querySelector('#fusion .pickTip') || {}).textContent || '');
+
+    /* ---- ⑤ 取回第一件 → 候选恢复全部 ---- */
+    G.fusionDrop();
+    out.afterDrop = G.fusionCursor().length;
+
+    /* ---- ⑥ 第一槽选了「谁都配不上」的：不锁死 + 明说 ---- */
+    close();
+    const rec0 = FUSION_DEF[0];
+    const A = rec0.a, B = rec0.b;
+    const allMats = [];
+    for (const rc of FUSION_DEF) {
+      if (allMats.indexOf(rc.a) < 0) allMats.push(rc.a);
+      if (allMats.indexOf(rc.b) < 0) allMats.push(rc.b);
+    }
+    const C = allMats.filter(c => c !== A && c !== B
+      && !fusionRecipeOf(A, c) && !fusionRecipeOf(B, c))[0];
+    out.hasLone = !!C;
+    if (C) {
+      setup([A, B, C]);
+      const p2 = G.fusion.pool;
+      out.lonePoolN = p2.length;
+      G.fusion.idx = p2.indexOf(C);
+      G.fusionTake();
+      out.loneMsg = G.fusion.msg || '';
+      out.loneCursorN = G.fusionCursor().length;      // 不锁死 → 放开为全部
+      const b0 = G.fusion.idx; G.fusionMove(1);
+      out.loneMovable = G.fusion.idx !== b0;
+      /* 兜底只是「能走」，格子仍然全是灰的 —— 所以必须给提示，不然玩家白按 */
+      out.loneStillGray = p2.every(x => !fusionRecipeOf(C, x));
+    }
+    close();
+    return out;
+  });
+  ok('第一槽空着时，整池都能选（此时都可融）',
+    t9f.opened === true && t9f.cursorBefore === t9f.poolSize, t9f.cursorBefore + ' / ' + t9f.poolSize);
+  ok('★ 放入第一件后，候选项只剩「与它有配方」的',
+    t9f.cursorAfter >= 1 && t9f.cursorAfter < t9f.poolSize && t9f.allCan === true,
+    '池 ' + t9f.poolSize + ' -> 候选 ' + t9f.cursorAfter);
+  ok('★ 放完第一件，光标**自动吸附**到候选上（不留在刚放进去的灰格里）',
+    t9f.snapIsCand === true);
+  ok('★ 方向键走一圈：不会落在任何配不上的格子上',
+    t9f.grayHits === 0, '灰格命中 ' + t9f.grayHits + ' 次');
+  ok('★ 走一圈的步数 = 候选数（修前是整池大小）',
+    t9f.cycle === t9f.cursorAfter && t9f.iterAfter < t9f.iterBefore,
+    '修前 ' + t9f.iterBefore + ' 步 -> 修后 ' + t9f.iterAfter + ' 步（实走 ' + t9f.cycle + '）');
+  ok('★ 到最坏目标只需在候选圈里走（修前按索引硬绕）',
+    t9f.worstAfter < t9f.worstBefore,
+    '修前 ' + t9f.worstBefore + ' 步 -> 修后 ' + t9f.worstAfter + ' 步');
+  ok('反向也能环绕（左键从第一个绕到最后一个候选）', t9f.backWrap === true);
+  ok('点配不上的格子：不放入，只回一句「这两件之间没有机缘」',
+    t9f.hasGrayCell === false || (t9f.graySlot1 === null && /没有机缘/.test(String(t9f.grayMsg))),
+    String(t9f.grayMsg));
+  ok('两槽齐了才在提示里写明「只停在能融的上面」', t9f.tipHasNote === true);
+  ok('取回第一件后，候选恢复为整池', t9f.afterDrop === t9f.poolSize,
+    t9f.afterDrop + ' / ' + t9f.poolSize);
+  ok('第一槽选了「谁都配不上」的：光标不锁死（还能退件/换件）',
+    t9f.hasLone === false || (t9f.loneCursorN === t9f.lonePoolN && t9f.loneMovable === true),
+    '候选 ' + t9f.loneCursorN + ' / 池 ' + t9f.lonePoolN);
+  ok('★ 但这时必须明说「与手中其余之物都配不上」（否则玩家只会白按方向键）',
+    t9f.hasLone === false || /配不上/.test(String(t9f.loneMsg)), String(t9f.loneMsg));
+
   sec('T10  运行期无报错');
   ok('没有页面错误', errs.length === 0, errs.slice(0, 3).join(' | '));
 

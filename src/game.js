@@ -1415,10 +1415,55 @@ class GameCore {
     updateOverlay();
   }
 
+  /* 第一槽放下去之后，手里还有没有能与它配对的东西（a === b 型的「它自己」也算，
+     目前 28 条配方都是两件不同法宝，留着是为了以后加配方时不用回头改这里）。 */
+  fusionHasPartner() {
+    const f = this.fusion;
+    if (!f || !f.slots[0]) return true;
+    return f.pool.some(x => !!fusionRecipeOf(f.slots[0], x));
+  }
+
+  /* 光标**可落点**的索引列表 —— 方向键只在这些格子上走。
+     2026-10-08 用户反馈：选完第一个材料后，一圈配不上的法宝照样能被光标选中，
+     从池子这头挪到那头得按十几次方向键。判据与网格高亮（`can`）共用同一个
+     `fusionRecipeOf`，所以「亮着的」和「走得上去的」永远一致。 */
+  fusionCursor() {
+    const f = this.fusion;
+    if (!f) return [];
+    const all = f.pool.map((_, i) => i);
+    /* 没放第一件（全部可选）／放了一件但确实谁都配不上（别把光标锁死，
+       玩家还得能把第一件取回来）→ 放开全部索引 */
+    if (!f.slots[0] || !this.fusionHasPartner()) return all;
+    return all.filter(i => !!fusionRecipeOf(f.slots[0], f.pool[i]));
+  }
+
+  /* 把光标吸附到候选上。放完第一件后光标常停在「刚放进去的那一格」，
+     而它周围全是灰的 —— 不吸附的话玩家得先空按一次方向键才有反应。 */
+  fusionSnapCursor() {
+    const f = this.fusion;
+    if (!f) return;
+    const list = this.fusionCursor();
+    if (!list.length || list.indexOf(f.idx) >= 0) return;
+    const right = list.filter(i => i >= f.idx);
+    f.idx = right.length ? right[0] : list[0];
+  }
+
   fusionMove(d) {
     const f = this.fusion;
     if (!f || !f.pool.length) return;
-    f.idx = (f.idx + d + f.pool.length) % f.pool.length;
+    const list = this.fusionCursor();
+    if (!list.length) return;
+    const cur = list.indexOf(f.idx);
+    let next;
+    if (cur < 0) {
+      /* 光标暂时不在候选里 → 沿**移动方向**找最近的候选，
+         而不是从头上绕一圈（否则从池子尾端往左按会跳到最左） */
+      if (d > 0) { const r = list.filter(i => i > f.idx); next = r.length ? r[0] : list[0]; }
+      else { const l = list.filter(i => i < f.idx); next = l.length ? l[l.length - 1] : list[list.length - 1]; }
+    } else {
+      next = list[(cur + d + list.length) % list.length];
+    }
+    f.idx = next;
     f.msg = '';
     SFX.ensure();
     updateOverlay();
@@ -1432,6 +1477,14 @@ class GameCore {
     if (!f.slots[0]) f.slots[0] = id;
     else f.slots[1] = id;
     f.msg = '';
+    /* 放完第一件就把光标收到「配得上它的那些」上（见 fusionCursor），
+       否则光标留在刚放进去的那一格、周围全是灰的。 */
+    this.fusionSnapCursor();
+    /* 第一件与手里其余全都配不上：直接说清。这时候选兜底放开了全部索引，
+       光标能自由走但一格都不会亮 —— 不说清的话玩家只会反复按方向键找。 */
+    if (f.slots[0] && !this.fusionHasPartner()) {
+      f.msg = '『' + ((ITEM_MAP[f.slots[0]] || {}).name || f.slots[0]) + '』与手中其余之物都配不上';
+    }
     SFX.pickup();
     updateOverlay();
   }
@@ -4284,7 +4337,8 @@ function renderFusionPanel() {
   });
   h += '</div>';
 
-  h += '<div class="pickTip"><span class="kbd">←</span><span class="kbd">→</span> 择料　'
+  h += '<div class="pickTip"><span class="kbd">←</span><span class="kbd">→</span> 择料'
+    + (f.slots[0] ? '（只停在能融的上面）' : '') + '　'
     + '<span class="kbd">E</span> 放入 / 确认融合　<span class="kbd">Q</span> 取回　'
     + '<span class="kbd">Esc</span> 退出</div>';
 
