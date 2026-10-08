@@ -94,6 +94,7 @@
         </select>
           <button data-a="trio">试这三条</button>
           <button data-a="strip">清空法宝</button>
+          <button data-a="forge" title="直接打开融合阵面板（手里没有可融组合时，会先替你补一对材料）">开融合阵</button>
         </div>
         <div class="items" id="labItems"></div>
       </div>
@@ -220,6 +221,16 @@
       }
       else if (a === 'cleart') { game.enemies.length = 0; }
       else if (a === 'trio') { ['wangfu', 'jianying', 'huiming'].forEach(id => equip(id)); }
+      else if (a === 'forge') {
+        /* 融合面板（验光标跳不跳灰格、试不同材料组合都从这里进）。
+           ⚠️ 手里凑不出可融组合时 openFusion 会直接不弹（设计如此，免得白丢一次机会），
+              在实验室里那只会让人以为按钮坏了 —— 于是先替用户补一对材料。 */
+        if (!FUSION_DEF.some(r => fusionReady(r, pl.items))) {
+          equip('qingfeng'); equip('leifu');
+        }
+        pl.x = ROOM_W / 2; pl.y = ROOM_H / 2;
+        game.openFusion(null);
+      }
       else if (a === 'strip') {
         pl.items.length = 0; pl.fusionMem = {}; if (pl.usedMats) pl.usedMats = {};
         pl.recomputeStats(game.style); game.orbits.length = 0;

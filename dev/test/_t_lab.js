@@ -121,6 +121,30 @@ const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS  ' +
     const slow = f3 - f2;
     ok('1/10 速下推进的帧数明显少于 1×', slow < fast * 0.5, '1× ' + fast + ' 帧 → 1/10 ' + slow + ' 帧');
 
+    /* 开融合阵：这是验「光标只停在能融项上」的入口。
+       ⚠️ 清空法宝后手里凑不出可融组合 —— 按钮要能自己补一对材料，
+          否则 openFusion 直接不弹（设计如此），在实验室里会被当成「按钮坏了」。 */
+    await p.click('[data-a="strip"]');
+    await p.waitForTimeout(150);
+    const beforeForge = await p.evaluate(() => window.Game.player.items.length);
+    await p.click('[data-a="forge"]');
+    await p.waitForTimeout(200);
+    const fr = await p.evaluate(() => ({
+      state: window.Game.state,
+      hasPanel: !!window.Game.fusion,
+      items: window.Game.player.items.slice(),
+      poolN: window.Game.fusion ? window.Game.fusion.pool.length : 0,
+      cursorN: window.Game.fusion ? window.Game.fusionCursor().length : 0
+    }));
+    ok('「开融合阵」能直接打开面板（没材料时自动补一对，不是静默失败）',
+      beforeForge === 0 && fr.state === 'fusion' && fr.hasPanel === true,
+      '开前 ' + beforeForge + ' 件 → ' + fr.items.join(',') + ' / state=' + fr.state);
+    ok('面板打开后池子与光标候选都就绪（第一槽空 → 全可选）',
+      fr.poolN >= 2 && fr.cursorN === fr.poolN, '池 ' + fr.poolN + ' / 候选 ' + fr.cursorN);
+    await p.keyboard.press('Escape');
+    await p.waitForTimeout(200);
+
+
     await p.close();
   }
 
