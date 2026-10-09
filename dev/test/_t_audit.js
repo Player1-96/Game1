@@ -959,7 +959,82 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     t18.cells.map(c => c.style + ' ' + c.ic + ' 图标y' + (c.icon ? c.icon.y + '~' + (c.icon.y + c.icon.h).toFixed(1) : '?')
       + ' 文字y' + c.texTop + ' 重叠' + c.overlap).join('；'));
 
-  sec('⑲  全局错误检查');
+  /* ----------------------------------------------------------------
+   *  ⑲  黑屏兜底（2026-10-09 用户「打到第十层直接黑屏」）
+   *
+   *      机制：draw() 第一步就是 drawImage(room.bg)。它一旦是 undefined，
+   *      drawImage 抛异常 → 这一帧只剩底色（纯黑）；而**每帧都抛** → 持续黑屏。
+   *      用户那张图正是「canvas 全黑 + 连 HUD 都没有，但顶栏 DOM 还在」。
+   *
+   *      两道兜底（都在这节钉住）：
+   *        ① draw 里发现 bg 缺失就**当场重建**（1ms 的事，玩家察觉不到）
+   *        ② 万一重建也失败：连续 20 帧出错就弹提示条 + 把错误画在画布上
+   *           —— 黑屏是零信息故障，必须变成一条**能被转发的报错**
+   * ------------------------------------------------------------- */
+  sec('⑲  黑屏兜底：背景自愈 + 渲染错误可见');
+  const t19 = await page.evaluate(() => {
+    const G = window.Game;
+    const out = {};
+    const nonBgPx = () => {
+      const d = document.getElementById('game').getContext('2d').getImageData(0, 0, 480, 320).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) if (d[i] > 26 || d[i + 1] > 24 || d[i + 2] > 36) n++;
+      return n;
+    };
+
+    /* ---- ① 背景失效 → draw 自愈 ---- */
+    G.newRun('wujian');
+    G.stylePath = ['cn', 'nordic', 'nordic'];
+    G.seg = 1; G.applySegmentPalette();
+    G.newFloor(10); G.state = 'play';
+    G.room.bg = null;
+    let err1 = null;
+    try { G.draw(); } catch (e) { err1 = e.message; }
+    out.heal = { bgBack: !!G.room.bg, err: err1, nonBg: nonBgPx() };
+
+    /* ---- ② 重建也失败时：连续失败要看得见（走真实 frame） ----
+       ⚠️ 这一段是**故意制造渲染异常**的，而 frame 会 console.error 上报 ——
+          不屏蔽的话会污染最后那条「全程无 console.error」的检查（第一版就是这么假失败的）。
+          所以这里临时把 console.error 静音，测完立刻还原。 */
+    const keepRender = G.floor.renderBG;
+    const keepConsoleErr = console.error;
+    console.error = function () {};
+    try {
+      G.floor.renderBG = function () { return undefined; };
+      G.room.bg = null;
+      G.drawErrN = 0;
+      const t0 = window.performance.now();
+      for (let i = 0; i < 26; i++) G.frame(t0 + i * 17);
+      const banner = document.getElementById('crashBanner');
+      out.banner = { shown: !!banner, text: banner ? banner.textContent : '' };
+
+      /* ---- ③ 恢复之后提示条要自己消失 ---- */
+      G.floor.renderBG = keepRender;
+      G.room.bg = null;
+      for (let i = 0; i < 4; i++) G.frame(t0 + 2000 + i * 17);
+      out.recovered = { bannerGone: !document.getElementById('crashBanner'), bgBack: !!G.room.bg };
+    } finally {
+      console.error = keepConsoleErr;
+      G.floor.renderBG = keepRender;
+    }
+
+    /* 收尾：别把坏状态留给后面的用例 */
+    if (typeof hideCrashBanner === 'function') hideCrashBanner();
+    G.drawErrN = 0;
+    return out;
+  });
+  ok('背景图失效时 draw **当场重建**（不再每帧抛异常）',
+    t19.heal.err === null && t19.heal.bgBack === true,
+    '异常=' + (t19.heal.err || '无') + '　bg 已重建=' + t19.heal.bgBack);
+  ok('★ 重建之后画面上确实有内容（不是一片黑）',
+    t19.heal.nonBg > 60000, '非背景像素 ' + t19.heal.nonBg);
+  ok('★ 渲染连续失败会弹提示条（把零信息的黑屏变成可转发的报错）',
+    t19.banner.shown === true, String(t19.banner.text).slice(0, 60).replace(/\n/g, ' / '));
+  ok('恢复之后提示条自动消失（不赖在屏幕上）',
+    t19.recovered.bannerGone === true && t19.recovered.bgBack === true,
+    '提示条已收=' + t19.recovered.bannerGone + '　bg=' + t19.recovered.bgBack);
+
+  sec('⑳  全局错误检查');
   ok('全程无 pageerror / console.error', errs.length === 0, errs.slice(0, 3).join(' | '));
 
   console.log('\n========================================');

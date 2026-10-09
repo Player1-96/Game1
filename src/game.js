@@ -2762,6 +2762,22 @@ class GameCore {
     const g = this.g;
     g.clearRect(0, 0, 480, 320);
     g.fillStyle = PAL.edgeWarm; g.fillRect(0, 0, 480, 320);
+    /* ⚠️ 背景预渲染图（room.bg）失效时**当场重建**（2026-10-09）。
+       它是 draw 的第一步，一旦是 undefined，drawImage 会抛异常 →
+       这一帧只剩底色（纯黑），而且**每帧都抛** → 持续黑屏。
+       用户就是这么遇到「第 10 层黑屏、连 HUD 都没有」的。
+       自愈而不是抛错：重画一张 480x288 的底只要 1ms 左右，玩家根本察觉不到。 */
+    /* room 为空是极端情形（正常流程不会），但不该让玩家对着一片黑猜 ——
+       直接在画布上写明，配合 frame 的报错条一起用。 */
+    if (!this.room) {
+      drawPixelText(g, 'NO ROOM DATA', 12, 140, 1, '#ff9d8a');
+      drawPixelText(g, 'PRESS R TO RESTART', 12, 156, 1, '#c9c4e0');
+      return;
+    }
+    if (!this.room.bg && this.floor && this.floor.renderBG) {
+      try { this.room.bg = this.floor.renderBG(this.room); }
+      catch (e) { console.error('[bg 重建失败]', e); }
+    }
     if (this.state === 'title' || this.state === 'choose' || this.state === 'chall'
       || this.state === 'stylePick' || this.state === 'fusion'
       || this.state === 'endlessEnd') { this.drawTitle(g); return; }
@@ -3703,7 +3719,33 @@ class GameCore {
         this.acc -= step; n++;
       }
     }
-    try { this.draw(); } catch (e) { console.error('[draw]', e); }
+    try {
+      this.draw();
+      /* 画成功了就清零 —— 偶发一帧的异常不该惊动玩家 */
+      if (this.drawErrN) { this.drawErrN = 0; hideCrashBanner(); }
+    } catch (e) {
+      console.error('[draw]', e);
+      /* ⚠️ 不能让玩家只看到一片黑却无从下手（2026-10-09 用户就是这么被卡住的）。
+         连续失败 20 帧才弹提示（偶发一帧不打扰），并且**把错误画在画布上** ——
+         万一 DOM 层也被遮住，画布上的字还在。 */
+      this.drawErrN = (this.drawErrN || 0) + 1;
+      if (this.drawErrN === 20) showCrashBanner(e);
+      if (this.drawErrN >= 20) {
+        const g2 = this.g;
+        /* ⚠️ 必须把 canvas 状态**整个**重置再画（2026-10-09）。
+           异常多半抛在 draw 中段 —— 那时代码已经 g.save() + translate + clip 但还没 restore。
+           ⚠️ 只用 setTransform 是不够的：它清得掉变换，**清不掉 clip**（裁剪区域会一直在），
+              于是错误条画了却看不见（实测 0 像素 —— 第一版就栽在这）。
+              ctx.reset() 会连裁剪一起清掉；老浏览器退回 setTransform + 手动还原。 */
+        if (typeof g2.reset === 'function') g2.reset();
+        else { g2.setTransform(1, 0, 0, 1, 0, 0); g2.globalAlpha = 1; }
+        g2.fillStyle = 'rgba(58,13,20,0.92)'; g2.fillRect(0, 130, 480, 60);
+        g2.strokeStyle = '#e0525f'; g2.lineWidth = 1; g2.strokeRect(0.5, 130.5, 479, 59);
+        drawPixelText(g2, 'DRAW ERROR', 12, 140, 1, '#ff9d8a');
+        drawPixelText(g2, String(e && e.message ? e.message : e).slice(0, 60).toUpperCase(), 12, 156, 1, '#ffd7d7');
+        drawPixelText(g2, 'PLEASE REPORT THIS LINE', 12, 172, 1, '#c9c4e0');
+      }
+    }
     try { this.updateBgm(); } catch (e) { console.error('[bgm]', e); }
     try { this.updateItemTip(); } catch (e) { console.error('[tip]', e); }
     try { this.updateShopTip(); } catch (e) { console.error('[tip]', e); }
@@ -4248,6 +4290,48 @@ function itemIconURL(id) {
  *      ——「可融性」必须永远可见，否则 300 种组合里玩家只能盲选
  *   ③ 底部键位提示
  */
+/* 渲染故障提示条：只在 draw 连续失败时出现，把错误原文摊给玩家看。
+   目的不是好看，是**让「黑屏」这种零信息故障变成一条可转发的报错**。 */
+function showCrashBanner(e) {
+  if (document.getElementById('crashBanner')) return;
+  const msg = e && e.message ? e.message : String(e);
+  const el = document.createElement('div');
+  el.id = 'crashBanner';
+  el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;'
+    + 'background:rgba(58,13,20,.96);color:#ffd7d7;border-top:2px solid #e0525f;'
+    + 'font:12px/1.6 ui-monospace,Consolas,monospace;padding:8px 12px;';
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:10px;align-items:flex-start;';
+  const txt = document.createElement('div');
+  txt.style.cssText = 'flex:1;white-space:pre-wrap;word-break:break-all;';
+  /* 用 textContent 而不是 innerHTML —— 错误信息里带尖括号/引号时不会破坏结构 */
+  txt.textContent = '[画面渲染出错] 游戏仍在运行，但这一帧画不出来。'
+    + '把下面这行发给开发者即可定位：\n' + msg;
+  const btn = document.createElement('button');
+  btn.textContent = '一键复制错误';
+  btn.style.cssText = 'flex:none;cursor:pointer;background:#e0525f;color:#fff;border:0;'
+    + 'border-radius:3px;padding:4px 10px;font:inherit;';
+  btn.onclick = function () {
+    const full = '[九劫录渲染错误] ' + msg;
+    const done = function () { btn.textContent = '已复制 ✓'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(full).then(done, function () { btn.textContent = '复制失败，请手动选中'; });
+    } else {
+      /* 老浏览器兜底：选中文本让玩家 Ctrl+C */
+      const rng = document.createRange(); rng.selectNodeContents(txt);
+      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rng);
+      btn.textContent = '已选中，请 Ctrl+C';
+    }
+  };
+  row.appendChild(txt); row.appendChild(btn);
+  el.appendChild(row);
+  document.body.appendChild(el);
+}
+function hideCrashBanner() {
+  const el = document.getElementById('crashBanner');
+  if (el) el.remove();
+}
+
 function renderFusionPanel() {
   const el = document.getElementById('fusion');
   if (!el) return;
