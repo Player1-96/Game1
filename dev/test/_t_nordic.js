@@ -942,6 +942,92 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   ok('★ 雷神之怒：全室被钉住（不再是天雷引的复制品）',
     t12e.thunder.length === 2 && t12e.thunder.every(v => v >= 24), JSON.stringify(t12e.thunder));
 
+  /* ---------------------------------------------------------------
+   *  T13 「第十层黑屏」防复发：召唤物必须取自本世界
+   *
+   *  根因（2026-10-09 用户实测复现）：北欧段里 Boss 一阶段召出的却是**中式阴煞**，
+   *  而北欧图集（STYLE_ART）里根本没有 yinsha → Enemy.draw 的 `set.length` 每帧抛
+   *  → 整屏黑、且没有任何线索。这两条链都要钉住：
+   *    ① 表级：尊者 minion / 精英 base·swarmMinion 必须在该世界的图集里；
+   *    ② 实机：北欧三尊各放一次召唤，刷出来的怪必须画得出来、draw 不许抛。
+   * ------------------------------------------------------------- */
+  sec('T13  召唤物必须取自本世界（防「第十层黑屏」复发）');
+  const t13 = await page.evaluate(() => {
+    const G = window.Game;
+    const out = {};
+
+    /* ---- ① 表级审计：两张表里所有「会生出来的怪」都要在本世界图集里 ---- */
+    const audit = [];
+    const WORLDS = [['cn', BOSS_DEF, ELITE_DEF], ['nordic', NORDIC_BOSS_DEF, NORDIC_ELITE_DEF]];
+    for (const w of WORLDS) {
+      buildSprites(w[0], 0);
+      const atlas = Object.keys(SPR.enemies);
+      const refs = [];
+      for (const k in w[1]) if (w[1][k].minion) refs.push(['尊者 ' + k + '.minion', w[1][k].minion]);
+      for (const k in w[2]) {
+        if (w[2][k].base) refs.push(['精英 ' + k + '.base', w[2][k].base]);
+        if (w[2][k].swarmMinion) refs.push(['精英 ' + k + '.swarmMinion', w[2][k].swarmMinion]);
+      }
+      for (const r of refs) {
+        if (atlas.indexOf(r[1]) < 0) audit.push(w[0] + ' · ' + r[0] + ' = ' + r[1]);
+      }
+    }
+    out.audit = audit;
+
+    /* ---- ② 实机：北欧段开 Boss 房，让每尊放一次一阶段召唤 ---- */
+    const spawned = [];
+    for (const key of Object.keys(NORDIC_BOSS_DEF)) {
+      G.newRun('feijian');
+      G.stylePath = ['cn', 'nordic', 'nordic'];
+      G.seg = 1;
+      G.applySegmentPalette();
+      G.newFloor(10, null, { boss: key });
+      const br = [...G.floor.rooms.values()].find(r => r.type === RT.BOSS);
+      G.enterRoom(br, null);
+      G.state = 'play';
+      G.enemies.length = 0; G.bullets.length = 0; G.hazards.length = 0;
+      const b = new Boss(key, 240, 150, 1);
+      b.spawnT = 0; b.phase = 1;                  // 凝形期会直接 return，必须清掉
+      G.enemies.push(b);
+      b.special(G);
+      const added = G.enemies.filter(e => e !== b);
+      let drawErr = null;
+      try { G.draw(); } catch (e) { drawErr = e.message; }
+      spawned.push({
+        boss: key, minions: added.map(e => e.type),
+        missing: added.filter(e => !SPR.enemies[e.def.spr]).map(e => e.type),
+        drawErr: drawErr, room: !!G.room
+      });
+    }
+    out.spawned = spawned;
+
+    /* ---- ③ 兜底：素材彻底不存在时，draw 也不许把整帧搞崩 ---- */
+    {
+      const bad = new Enemy('xiesui', 100, 100, 1);
+      /* ⚠️ 非精英的 `def` 是**共享表引用**，改它等于污染 ENEMY_DEF —— 必须复制一份 */
+      bad.def = Object.assign({}, bad.def, { spr: '__no_such_sprite__' });
+      bad.frame = 0; bad.x = 120; bad.y = 120; bad.spawnT = 0;
+      let err = null;
+      try { bad.draw(G.g); } catch (e) { err = e.message; }
+      out.fallback = { err: err, atlasKeys: Object.keys(SPR.enemies).length };
+    }
+    /* 收尾：把图集还给当前色板，别把这个状态漏给后面的用例 */
+    G.applySegmentPalette();
+    return out;
+  });
+  console.log('     表级审计：' + (t13.audit.length ? t13.audit.join('　') : '全部命中本世界图集'));
+  console.log('     实机召唤：' + t13.spawned.map(s => s.boss + '→[' + s.minions.join(',') + ']').join('　'));
+  ok('★ 每个尊者的 minion / 精英的 base·swarmMinion 都在本世界图集里',
+    t13.audit.length === 0, t13.audit.join('；') || '无缺口');
+  ok('★ 北欧三尊的一阶段召唤物全是北欧怪（画面里不再蹦出中式妖）',
+    t13.spawned.every(s => s.minions.length === 2 && s.missing.length === 0),
+    t13.spawned.map(s => s.boss + '=' + JSON.stringify(s.minions)).join(' '));
+  ok('★ 召唤之后 draw 不抛异常（黑屏的直接成因）',
+    t13.spawned.every(s => s.drawErr === null && s.room === true),
+    t13.spawned.filter(s => s.drawErr).map(s => s.boss + ': ' + s.drawErr).join(' | ') || '无异常');
+  ok('图集缺素材时 draw 走兜底而不崩（宁可不画，也不整屏黑）',
+    t13.fallback.err === null && t13.fallback.atlasKeys > 0, JSON.stringify(t13.fallback));
+
   sec('T12  全局错误检查');
   ok('全程无 pageerror / console.error', errs.length === 0, errs.slice(0, 4).join(' | '));
 

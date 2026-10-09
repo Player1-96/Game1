@@ -200,6 +200,8 @@ const NORDIC_BOSS_GIMMICK = {
         bolt: d.bolt, boltCn: BOLT_CN[d.bolt] || d.bolt,
         alt: d.alt || null, altCn: d.alt ? (BOLT_CN[d.alt] || d.alt) : '',
         dash: d.dash || 0,
+        /* 一阶段召唤的爪牙 —— 必须是**本世界**的杂兵（2026-10-09 修跨世界召唤导致的黑屏） */
+        minion: d.minion || null,
         appear: '第 ' + (i + 1) + ' 层',
         gimmick: BOSS_GIMMICK[k] || '', world: 'cn'
       };
@@ -210,6 +212,7 @@ const NORDIC_BOSS_GIMMICK = {
         bolt: d.bolt, boltCn: BOLT_CN[d.bolt] || d.bolt,
         alt: d.alt || null, altCn: d.alt ? (BOLT_CN[d.alt] || d.alt) : '',
         dash: d.dash || 0,
+        minion: d.minion || null,
         appear: '第 ' + ((i + 1) * SEG_FLOORS) + ' 层（段末）',
         gimmick: NORDIC_BOSS_GIMMICK[k] || d.desc || '', world: 'nordic'
       };

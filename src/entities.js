@@ -1322,7 +1322,11 @@ class Enemy {
           /* ⚠️ 召唤物必须取自**该精英自己的世界**（`swarmMinion`）——
               原先写死 'jianling'，于是「霜巨魔战将」死后掉出两只中式剑灵。 */
           const e = new Enemy(this.elite.swarmMinion || 'jianling', sp.x, sp.y, 0.5);
-          e.small = true;
+          /* ⚠️ 小体型素材（`<spr>_s`）只有中式那几只做过 —— 北欧杂兵没有。
+              无条件 small 会让绘制退回通用小体型（阴煞那套），而它在北欧图集里
+              根本不存在 → 每帧抛异常（与「第十层黑屏」是同一条链路）。
+              所以：**本世界的图集里真有这套小素材才设 small**，否则照原尺寸画。 */
+          e.small = !!(SPR.enemies[e.def.spr + '_s'] || SPR.enemies.yinsha_s);
           g.enemies.push(e);
         }
         break;
@@ -1657,9 +1661,26 @@ class Enemy {
     /* 小体型怪优先用自己那套小素材（<spr>_s），没做素材的才退回通用小体型。
        旧写法把所有 small 一律画成阴煞，于是精英「剑灵·断念」殒命时召出的
        两只小剑灵看起来就是阴煞 —— 用户 2026-09-17 反馈「莫名分裂两只阴煞」。 */
-    const set = this.small
-      ? (SPR.enemies[this.def.spr + '_s'] || SPR.enemies.yinsha_s)
-      : SPR.enemies[this.def.spr];
+    /* ⚠️ 图集里没有这套素材时**绝不能让整帧崩掉**（2026-10-09「第十层黑屏」的根因）：
+       北欧段里 Boss 召出的是中式阴煞，而北欧图集（STYLE_ART）里压根没有 yinsha，
+       `set.length` 抛异常 → draw 每帧抛 → 玩家看到的是一整块黑屏，且没有任何线索。
+       退让链：本派小体型 → 通用小体型 → 本派正常体型 → 图集里任意一套 → 干脆不画。
+       ⚠️ 这是**兜底**，不是正解 —— 正解是让召唤物取自本世界（见 Boss.special 的 `bd.minion`）。 */
+    const E = SPR.enemies || {};
+    const bigSet = E[this.def.spr];
+    const smallSet = E[this.def.spr + '_s'];
+    let set = this.small ? (smallSet || E.yinsha_s || bigSet) : bigSet;
+    if (!set || !set.length) {
+      for (const k in E) { const v = E[k]; if (v && v.length) { set = v; break; } }
+      /* 缺素材这件事要留下证据（黑匣子里能查到「哪个世界的哪只怪缺图」） */
+      try {
+        if (typeof recordDiag === 'function') {
+          recordDiag('sprite', new Error('图集缺素材: ' + this.def.spr
+            + '（world=' + (this.def.world || 'cn') + ', small=' + !!this.small + '）'));
+        }
+      } catch (e) { }
+    }
+    if (!set || !set.length) return;      // 连一套都没有：这一只不画，但**不崩**
     const s = set[this.frame % set.length];
     // 腾空：走一段抛物线，影子留在地面（这是「它现在打不到我」最直观的读法）
     const airK = this.air > 0 ? Math.sin((1 - this.stateT / LEAP.air) * Math.PI) : 0;
@@ -1866,11 +1887,15 @@ class Enemy {
  *  hp   基础血；spd 基础移速；bolt / alt 主副弹幕色系；aura 登场爆发色
  *  dash 冲刺冷却基准帧（null = 只知一味前进，不冲刺）
  * ---------------------------------------------------------- */
+/* ⚠️ `minion` 必须是**本世界的杂兵** —— 一阶段召唤的就是它。
+   2026-10-09 的「第十层黑屏」就是这条缺失造成的：尊者召唤写死成中式阴煞，
+   而北欧那一层的图集里根本没有 yinsha，`set.length` 抛异常 → 每帧抛 → 整屏黑。
+   新世界照抄 NORDIC_BOSS_DEF 的写法（见 nordic.js）。 */
 const BOSS_DEF = {
-  xuemo: { name: '血魔尊者', en: 'BLOOD', hp: 260, spd: 1.00, bolt: 'blood', alt: 'flame', aura: PAL.red, dash: 240 },
-  baigu: { name: '白骨夫人', en: 'BONE', hp: 300, spd: 0.85, bolt: 'ice', alt: 'talisman', aura: PAL.bone, dash: 240 },
-  liesha: { name: '裂煞魔尊', en: 'FRACTURE', hp: 300, spd: 0.90, bolt: 'flame', alt: 'blood', aura: PAL.fire, dash: 250 },
-  lunhui: { name: '轮回法王', en: 'WHEEL', hp: 310, spd: 0.70, bolt: 'talisman', alt: 'ice', aura: PAL.gold, dash: null },
+  xuemo: { name: '血魔尊者', en: 'BLOOD', hp: 260, spd: 1.00, bolt: 'blood', alt: 'flame', aura: PAL.red, dash: 240, minion: 'xiesui' },
+  baigu: { name: '白骨夫人', en: 'BONE', hp: 300, spd: 0.85, bolt: 'ice', alt: 'talisman', aura: PAL.bone, dash: 240, minion: 'yinsha' },
+  liesha: { name: '裂煞魔尊', en: 'FRACTURE', hp: 300, spd: 0.90, bolt: 'flame', alt: 'blood', aura: PAL.fire, dash: 250, minion: 'yinsha' },
+  lunhui: { name: '轮回法王', en: 'WHEEL', hp: 310, spd: 0.70, bolt: 'talisman', alt: 'ice', aura: PAL.gold, dash: null, minion: 'guixiu' },
   zhulong: { name: '烛龙', en: 'TORCH', hp: 330, spd: 0.80, bolt: 'flame', alt: 'blood', aura: PAL.fire, dash: 260 }
 };
 const BOSS_KEYS = Object.keys(BOSS_DEF);
@@ -2196,13 +2221,17 @@ class Boss {
   special(g) {
     const p = g.player;
     const B = this.bd;
+    /* ⚠️ 召唤物一律走 `bd.minion`（该尊者**自己世界**的杂兵），别写死中文名。
+       写死过一次的代价：北欧段的图集里没有中式阴煞那套素材 → Enemy.draw 每帧抛
+       → 整屏黑（2026-10-09 用户报的「第十层黑屏」）。兜底值只为老存档/新表漏填。 */
+    const MIN = this.bd.minion || (this.kind === 'xuemo' ? 'xiesui' : 'yinsha');
     // 各自独立的特殊技：与常规弹幕错开节奏，逼玩家记两套动作
     switch (this.kind) {
       case 'liesha':
         if (this.phase === 1) {
           for (let i = 0; i < 2; i++) {           // 召两只阴煞（死后还会分裂，呼应「裂」）
             const sp = g.safeSpawn(this.x + (i ? 44 : -44), this.y + 30, 12);
-            g.enemies.push(new Enemy('yinsha', sp.x, sp.y, 1));
+            g.enemies.push(new Enemy(this.bd.minion || 'yinsha', sp.x, sp.y, 1));
           }
           SFX.summon();
         } else if (this.phase === 2) {
@@ -2225,7 +2254,7 @@ class Boss {
         if (this.phase === 1) {
           for (let i = 0; i < 2; i++) {
             const sp = g.safeSpawn(this.x + (i ? 44 : -44), this.y + 30, 12);
-            g.enemies.push(new Enemy('guixiu', sp.x, sp.y, 1));
+            g.enemies.push(new Enemy(this.bd.minion || 'guixiu', sp.x, sp.y, 1));
           }
           SFX.summon();
         } else if (this.phase === 2) {
@@ -2257,7 +2286,7 @@ class Boss {
         if (this.phase === 1) {
           for (let i = 0; i < 2; i++) {
             const sp = g.safeSpawn(this.x + (i ? 40 : -40), this.y + 30, 12);
-            g.enemies.push(new Enemy(this.kind === 'xuemo' ? 'xiesui' : 'yinsha', sp.x, sp.y, 1));
+            g.enemies.push(new Enemy(MIN, sp.x, sp.y, 1));
           }
           SFX.summon();
         } else if (this.phase === 2) {
@@ -2281,7 +2310,12 @@ class Boss {
     }
   }
   draw(g2) {
-    const s = SPR.boss[this.kind][this.frame];
+    /* 与 Enemy.draw 同一条兜底：图集里没有这位尊者的素材时不许把整帧搞崩
+       （换世界的遗漏会正好落在这里 —— 一崩就是整屏黑） */
+    const bs = SPR.boss || {};
+    const s = (bs[this.kind] && bs[this.kind][this.frame])
+      || (bs[BOSS_KEYS[0]] && bs[BOSS_KEYS[0]][0]);
+    if (!s) return;
     const shaping = this.spawnT > 0;
     const k = shaping ? 1 - this.spawnT / SPAWN_GRACE_BOSS : 1;
     /* 冲刺前摇：把冲程画在地上。

@@ -3715,7 +3715,9 @@ class GameCore {
       const step = 1000 / 60;
       let n = 0;
       while (this.acc >= step && n < 5) {
-        try { this.update(); } catch (e) { console.error('[update]', e); }
+        /* update 抛错一直是「每帧 console.error 一次、玩家毫无察觉」—— 也进黑匣子，
+           但只记第一次（recordDiag 内部按「同一条错 2 秒内只记一次」限流）。 */
+        try { this.update(); } catch (e) { console.error('[update]', e); recordDiag('update', e); }
         this.acc -= step; n++;
       }
     }
@@ -3729,6 +3731,8 @@ class GameCore {
          连续失败 20 帧才弹提示（偶发一帧不打扰），并且**把错误画在画布上** ——
          万一 DOM 层也被遮住，画布上的字还在。 */
       this.drawErrN = (this.drawErrN || 0) + 1;
+      /* ⚠️ 取证必须取**第一帧**那条：第 20 帧的堆栈早被连带错误污染了（见 recordDiag 注释） */
+      if (this.drawErrN === 1) recordDiag('draw', e);
       if (this.drawErrN === 20) showCrashBanner(e);
       if (this.drawErrN >= 20) {
         const g2 = this.g;
@@ -4290,6 +4294,99 @@ function itemIconURL(id) {
  *      ——「可融性」必须永远可见，否则 300 种组合里玩家只能盲选
  *   ③ 底部键位提示
  */
+/* ---------------- 黑匣子：把「零信息的黑屏」变成一条可回传的报错 ----------------
+   2026-10-09 用户报「第十层黑屏」——截图里除了黑什么都没有，没有错误、没有线索、
+   连「是哪个对象没了」都猜不出来，于是只能交付两道兜底、根因悬着。
+   这里补上取证的那一半，做三件事：
+     ① 记一条**带堆栈 + 现场快照**的诊断（不是只有一句 message）——
+        快照里有层数 / 房间类型 / room.bg 在不在 / 敌人清单 / 手里的法宝，
+        这些正是「哪一块数据没了」的答案；
+     ② 落 localStorage（`xiuxian-isaac.diag.v1`）—— 刷新之后还在，能和存档一起回传；
+     ③ 页面是 http 打开时顺手 POST 到 `/__diag`，由 dev/tools/_devserver.py 追加进
+        `dev/data/_crashlog.jsonl` —— **下次黑屏不用玩家截图，直接读文件**。
+   ⚠️ 只记「第一次出错」那一条：连续失败到第 20 帧时抛的往往是连带错误（比如
+      clip 残留导致 drawImage 参数变 NaN），堆栈已经指向不到真凶了。 */
+const DIAG_KEY = 'xiuxian-isaac.diag.v1';
+function diagSnapshot() {
+  const G = Game;
+  if (!G) return { game: 'missing' };
+  const room = G.room;
+  return {
+    at: new Date().toISOString(),
+    href: location.href,
+    state: G.state, tick: G.tick,
+    depth: G.depth, style: G.style, seg: G.seg,
+    stylePath: (G.stylePath || []).slice(),
+    seed: (G.floor && G.floor.seed) || null,
+    room: room ? {
+      key: room.key, type: room.type, bg: !!room.bg,
+      obstacles: (room.obstacles || []).length,
+      props: (room.props || []).length,
+      drops: (room.drops || []).length,
+      elite: room.elite || null
+    } : null,
+    boss: G.bossRef ? (G.bossRef.type || '?') : null,
+    enemies: (G.enemies || []).map(e => e.type || '?').slice(0, 24),
+    bullets: (G.bullets || []).length,
+    player: G.player ? {
+      items: G.player.items.slice(),
+      fusionMem: { ...(G.player.fusionMem || {}) },
+      ult: G.player.ult ? G.player.ult.style : null
+    } : null
+  };
+}
+function recordDiag(kind, e) {
+  const msg = e && e.message ? e.message : String(e);
+  const now = Date.now();
+  window.__diag = window.__diag || { n: 0, last: '', lastAt: 0 };
+  /* 上限 5 条就够定位，免得一次黑屏把 fetch / localStorage 打爆 */
+  if (window.__diag.n >= 5) return null;
+  /* 同一条错连着刷（每帧一次）→ 第一次已经记过，后面全部跳过 */
+  if (msg === window.__diag.last && now - window.__diag.lastAt < 2000) return null;
+  window.__diag.n++; window.__diag.last = msg; window.__diag.lastAt = now;
+  const rec = {
+    kind: kind, msg: msg,
+    stack: (e && e.stack ? String(e.stack) : '').slice(0, 2000),
+    snap: diagSnapshot()
+  };
+  /* 落盘：localStorage 可能被禁用 / 写满，全程 try，绝不让取证反过来把游戏搞崩 */
+  try {
+    const arr = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]');
+    arr.push(rec);
+    while (arr.length > 5) arr.shift();
+    localStorage.setItem(DIAG_KEY, JSON.stringify(arr));
+  } catch (err) { }
+  /* 回传动作单独抽出来：测试里 stub 掉 fetch 就能验「回传的内容对不对」，
+     不必为了测这一行把页面换成 http 打开。 */
+  diagPost(rec);
+  window.__lastDiag = rec;
+  return rec;
+}
+/* 回传地址：http 打开时用同源 `/__diag`；直接双击 index.html（file://）时
+   本机开发服务器通常还开着，就退到它的绝对地址。
+   ⚠️ 实测本项目的用法是 **file:// 双击打开**（Chrome 的 Local Storage 里
+     xiuxian-isaac.* 全挂在 file:// 这个 origin 下），所以 file:// 这条路必须通。 */
+const DIAG_URL = 'http://127.0.0.1:8848/__diag';
+function diagPost(rec) {
+  const body = JSON.stringify(rec);
+  try {
+    if (/^https?:/.test(location.protocol)) {
+      const r = fetch('/__diag', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body });
+      if (r && r.catch) r.catch(function () { });   // 服务端不在时别炸
+      return true;
+    }
+    /* file:// 没有同源服务端 —— 用 no-cors + text/plain 发一个**简单请求**：
+       不触发预检，服务端照样读得到 body（响应是 opaque，我们不需要它）。
+       送不到也无妨：记录已经落在 localStorage 里，刷新后仍在、随时能复制。 */
+    const r2 = fetch(DIAG_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' }, body: body
+    });
+    if (r2 && r2.catch) r2.catch(function () { });
+    return true;
+  } catch (err) { return false; }
+}
+
 /* 渲染故障提示条：只在 draw 连续失败时出现，把错误原文摊给玩家看。
    目的不是好看，是**让「黑屏」这种零信息故障变成一条可转发的报错**。 */
 function showCrashBanner(e) {
@@ -4306,24 +4403,34 @@ function showCrashBanner(e) {
   txt.style.cssText = 'flex:1;white-space:pre-wrap;word-break:break-all;';
   /* 用 textContent 而不是 innerHTML —— 错误信息里带尖括号/引号时不会破坏结构 */
   txt.textContent = '[画面渲染出错] 游戏仍在运行，但这一帧画不出来。'
-    + '把下面这行发给开发者即可定位：\n' + msg;
-  const btn = document.createElement('button');
-  btn.textContent = '一键复制错误';
-  btn.style.cssText = 'flex:none;cursor:pointer;background:#e0525f;color:#fff;border:0;'
-    + 'border-radius:3px;padding:4px 10px;font:inherit;';
-  btn.onclick = function () {
-    const full = '[九劫录渲染错误] ' + msg;
-    const done = function () { btn.textContent = '已复制 ✓'; };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(full).then(done, function () { btn.textContent = '复制失败，请手动选中'; });
-    } else {
-      /* 老浏览器兜底：选中文本让玩家 Ctrl+C */
-      const rng = document.createRange(); rng.selectNodeContents(txt);
-      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rng);
-      btn.textContent = '已选中，请 Ctrl+C';
-    }
+    + '点「复制完整诊断」发给开发者即可定位（里面含堆栈 + 现场快照）：\n' + msg;
+  /* 完整诊断 = 第一次出错的那条记录（带堆栈 + 现场快照）。
+     ⚠️ 别用当前这条 e —— 它是第 20 帧的**连带错误**，堆栈早就不指向真凶了。 */
+  const rec = window.__lastDiag || recordDiag('draw', e) || { msg: msg };
+  const fullDiag = '[九劫录诊断] ' + JSON.stringify(rec);
+  const mkBtn = function (label, bg, payload) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = 'flex:none;cursor:pointer;background:' + bg + ';color:#fff;border:0;'
+      + 'border-radius:3px;padding:4px 10px;font:inherit;white-space:nowrap;';
+    b.onclick = function () {
+      const done = function () { b.textContent = '已复制 ✓'; };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(payload).then(done, function () { b.textContent = '复制失败，请手动选中'; });
+      } else {
+        /* 老浏览器兜底：选中文本让玩家 Ctrl+C */
+        const rng = document.createRange(); rng.selectNodeContents(txt);
+        const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rng);
+        b.textContent = '已选中，请 Ctrl+C';
+      }
+    };
+    return b;
   };
-  row.appendChild(txt); row.appendChild(btn);
+  const col = document.createElement('div');
+  col.style.cssText = 'flex:none;display:flex;flex-direction:column;gap:6px;';
+  col.appendChild(mkBtn('复制完整诊断', '#e0525f', fullDiag));
+  col.appendChild(mkBtn('只复制这一行', '#7a3a44', '[九劫录渲染错误] ' + msg));
+  row.appendChild(txt); row.appendChild(col);
   el.appendChild(row);
   document.body.appendChild(el);
 }

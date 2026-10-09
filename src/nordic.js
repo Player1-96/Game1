@@ -224,21 +224,29 @@ const NORDIC_ENEMY_DEF = {
  *
  *  与中式同样建立在「游走 + 冲刺 + 三阶段」的骨架上，只有看家技不同。
  *  bolt / alt 是弹幕色系，取自 sprites.js 的 SPR.bolt 键，不新增美术。
+ *
+ *  ⚠️ `minion` = 一阶段召唤的杂兵，**必须是北欧自己的怪**。
+ *     entities.js 原来把它写死成中式阴煞 —— 北欧段的图集里没有那套素材，
+ *     于是 draw 每帧抛异常、整屏黑（用户 2026-10-09 报的「第十层黑屏」）。
+ *     与精英的 `swarmMinion` 是同一类坑，两张表都要带这个字段。
  * ---------------------------------------------------------- */
 const NORDIC_BOSS_DEF = {
   fenrir: {
     name: '芬里尔', en: 'FENRIR', hp: 280, spd: 1.05,
     bolt: 'ice', alt: 'blood', aura: PAL.cyan, dash: 220,
+    minion: 'isvarg',                       // 巨狼召霜狼
     desc: '巨狼贴地扑咬，越到后面越急'
   },
   jormungandr: {
     name: '耶梦加得', en: 'JORMUNGANDR', hp: 320, spd: 0.72,
     bolt: 'orb', alt: 'iron', aura: PAL.green, dash: null,
+    minion: 'nokk',                         // 巨蟒召溺灵（都是毒）
     desc: '尘世巨蟒盘住整座厅堂，以毒环封路'
   },
   surtr: {
     name: '苏尔特', en: 'SURTR', hp: 350, spd: 0.80,
     bolt: 'flame', alt: 'talisman', aura: PAL.fire, dash: 250,
+    minion: 'draugr',                       // 火巨人召尸鬼
     desc: '火巨人挥着烈焰之剑，把厅堂烧成熔炉'
   }
 };

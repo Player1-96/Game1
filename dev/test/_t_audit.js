@@ -1034,7 +1034,88 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     t19.recovered.bannerGone === true && t19.recovered.bgBack === true,
     '提示条已收=' + t19.recovered.bannerGone + '　bg=' + t19.recovered.bgBack);
 
-  sec('⑳  全局错误检查');
+  sec('⑳  渲染故障取证（黑匣子）：带堆栈 + 现场快照，且能回传');
+  const t20 = await page.evaluate(() => {
+    const G = window.Game;
+    const KEY = 'xiuxian-isaac.diag.v1';
+    const ls = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return null; } };
+    const out = {};
+    try { localStorage.removeItem(KEY); } catch (e) { }
+    window.__diag = { n: 0, last: '', lastAt: 0 };
+    window.__lastDiag = null;
+
+    /* ---- ① 真造一次渲染异常，取证里必须有堆栈**和**现场 ----
+       ⚠️ 与 ⑲ 一样要静音 console.error，否则污染最后那条「全程无 console.error」 */
+    const keepRender = G.floor.renderBG, keepConsoleErr = console.error;
+    console.error = function () { };
+    try {
+      G.room.bg = null;
+      /* renderBG 返回 undefined → room.bg 补不上 → 下一行 drawImage 抛 ——
+         这正是「第十层黑屏」那条链路 */
+      G.floor.renderBG = function () { return undefined; };
+      G.drawErrN = 0;
+      const t0 = window.performance.now();
+      for (let i = 0; i < 3; i++) G.frame(t0 + i * 17);
+    } finally {
+      console.error = keepConsoleErr;
+      G.floor.renderBG = keepRender;
+      if (typeof hideCrashBanner === 'function') hideCrashBanner();
+      G.drawErrN = 0;
+    }
+    const rec = window.__lastDiag;
+    out.rec = rec ? {
+      kind: rec.kind, hasMsg: !!rec.msg, stackLen: (rec.stack || '').length,
+      depth: rec.snap && rec.snap.depth,
+      style: rec.snap && rec.snap.style,
+      roomType: rec.snap && rec.snap.room && rec.snap.room.type,
+      bgFlag: rec.snap && rec.snap.room ? rec.snap.room.bg : null,
+      enemyArr: !!(rec.snap && Array.isArray(rec.snap.enemies))
+    } : null;
+    out.saved = (ls() || []).length;
+
+    /* ---- ② 同一条错连着刷（黑屏每帧抛一次）只该记一条 ---- */
+    const n1 = window.__diag.n, len1 = (ls() || []).length;
+    recordDiag('draw', new Error(window.__diag.last));
+    out.throttle = { nSame: window.__diag.n === n1, lenSame: (ls() || []).length === len1 };
+
+    /* ---- ③ 上限 5 条：连记 8 条不同的错，落盘不该超过 5 ---- */
+    for (let i = 0; i < 8; i++) recordDiag('draw', new Error('boom-' + i));
+    out.cap = { n: window.__diag.n, len: (ls() || []).length };
+
+    /* ---- ④ 回传：payload 必须是**完整记录**（堆栈 + 快照），而且打到 /__diag ---- */
+    const calls = [];
+    const keepFetch = window.fetch;
+    window.fetch = function (url, opt) { calls.push({ url: url, body: opt && opt.body }); return { catch: function () { } }; };
+    let postOk = false;
+    try { postOk = diagPost({ kind: 'x', msg: 'm', stack: 's', snap: { depth: 3 } }) === true; }
+    finally { window.fetch = keepFetch; }
+    let parsed = null;
+    try { parsed = JSON.parse(calls[0] && calls[0].body); } catch (e) { }
+    out.post = {
+      ok: postOk, url: calls[0] && calls[0].url,
+      /* 测试页是 file:// 打开的 —— 这时应当退到本机开发服务器的绝对地址，
+         而不是同源的 /__diag（file:// 下没有同源服务端） */
+      proto: location.protocol,
+      snapOk: !!(parsed && parsed.snap && parsed.snap.depth === 3), stackOk: !!(parsed && parsed.stack === 's')
+    };
+
+    try { localStorage.removeItem(KEY); } catch (e) { }
+    return out;
+  });
+  ok('★ 渲染出错留下的诊断带堆栈 + 现场快照（不再只有一句 message）',
+    !!t20.rec && t20.rec.hasMsg && t20.rec.stackLen > 10 && t20.rec.roomType != null
+    && t20.rec.bgFlag === false && t20.rec.enemyArr === true,
+    JSON.stringify(t20.rec));
+  ok('诊断同步落 localStorage（刷新后还能回传）', t20.saved === 1, '落盘 ' + t20.saved + ' 条');
+  ok('同一条错连刷只记一次（黑屏 1 秒 60 帧不会写 60 条）',
+    t20.throttle.nSame === true && t20.throttle.lenSame === true, JSON.stringify(t20.throttle));
+  ok('诊断上限 5 条', t20.cap.n === 5 && t20.cap.len === 5, JSON.stringify(t20.cap));
+  ok('★ 回传的是完整诊断（含快照），且打到 /__diag —— file:// 下退到本机开发服务器',
+    t20.post.ok === true && String(t20.post.url).indexOf('/__diag') >= 0
+    && t20.post.snapOk === true && t20.post.stackOk === true,
+    JSON.stringify(t20.post));
+
+  sec('㉑  全局错误检查');
   ok('全程无 pageerror / console.error', errs.length === 0, errs.slice(0, 3).join(' | '));
 
   console.log('\n========================================');

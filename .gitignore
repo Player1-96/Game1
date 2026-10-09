@@ -8,6 +8,12 @@ __pycache__/
 # 机器人批量试玩截图（过程产物，约 5.6M）
 dev/data/shots_smart/
 
+# 崩溃上报日志（本机运行期产物，由 dev/tools/_devserver.py 追加）
+dev/data/_crashlog.jsonl
+
+# 从本机浏览器捞出来的存档（_probe_browser_save.js 的运行期产物，每次覆盖）
+dev/data/_browser_save.json
+
 # 编辑器 / 系统
 .vscode/
 .DS_Store
