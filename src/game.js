@@ -3137,7 +3137,13 @@ class GameCore {
     if (p.ult) {
       const UD = ULT_DEF[p.ult.style] || ULT_DEF.feijian;
       const ic = styleIcon(p.ult.style);
-      g.save(); g.translate(ux + 12, uy + 12); g.scale(0.8, 0.8);
+      /* ⚠️ 图标中心必须压在 uy+8 而不是格子正中（uy+12）—— 2026-10-09 用户反馈：
+         「护甲的展示还是遮挡到流派的图标了」。实测三个流派都压住了下半格的
+         「L5 + 段位数字」：巨剑流 2.6px、舞剑流 0.6px、飞剑流 0.2px
+         （见 dev/probe/_probe_ult_cell.js）。
+         格子只有 24px 高，要塞「图标 + 一行文字」，图标就别居中了 ——
+         上移 4px 之后三种流派都不再重叠（巨剑流仍留 1.4px 余量）。 */
+      g.save(); g.translate(ux + 12, uy + 8); g.scale(0.8, 0.8);
       g.drawImage(ic, -ic.width / 2, -ic.height / 2); g.restore();
       this.ultHit = { x: ux, y: uy, w: 24, h: 24 };
       if (p.ultCd > 0 && !chainOpen) {

@@ -34,8 +34,14 @@
   }
   canvas{ width:100%; height:100%; display:block; image-rendering:pixelated; image-rendering:crisp-edges; }
   #overlay{ position:absolute; inset:0; pointer-events:none; font-size:1em; line-height:1.5; }
+  /* ⚠️ 位置不能写 left:50%（画面居中）—— 左侧是心/护甲/灵力条、右侧是消耗品计数，
+     三者同处顶栏第一行，画面居中会让楼层名往左挤进资源区（2026-10-09 用户反馈「遮挡」）。
+     安全区是 canvas x 176~344（左=资源区最大宽度，右=消耗品起点），中心 ≈ 54%。
+     另加 max-width 兜底：楼层名最长「第十一层 · 英灵殿　北·三」实测 ~135px（canvas），
+     安全区宽 168px，放得下；真超了也不许溢出到两侧。 */
   #floorName{
-    position:absolute; left:50%; transform:translateX(-50%); top:.35em; color:var(--jade); font-size:1.15em; letter-spacing:.14em;
+    position:absolute; left:54%; transform:translateX(-50%); top:.35em; color:var(--jade); font-size:1.15em; letter-spacing:.14em;
+    max-width:34%; white-space:nowrap; overflow:hidden;
     text-shadow:0 2px 0 #06110e, 0 0 10px rgba(87,214,176,.35);
   }
   /* 状态行上抬一行：右下角留给小技能槽（1/2/3 槽 + 专属格） */

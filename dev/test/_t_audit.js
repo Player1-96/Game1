@@ -847,7 +847,119 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
     t17.plainSounds === 0 && t17.wildSounds > 0,
     '声音 ' + t17.plainSounds + '→' + t17.wildSounds);
 
-  sec('⑱  全局错误检查');
+  /* ----------------------------------------------------------------
+   *  ⑱  顶栏分区不重叠（2026-10-09 用户第二次报「遮挡」）
+   *
+   *      顶栏第一行同时住着三户人家：左侧资源（心/护甲/灵力条）、
+   *      中间楼层名（DOM）、右侧消耗品计数（灵石/钥匙/雷符）。
+   *      楼层名原先按**画面**居中（left:50%），画面中线并不等于「三户之间的中线」，
+   *      楼名一长就往左挤进资源区。改成按「安全区」居中（left:54%）。
+   *
+   *      ⭐ 断言口径必须是**实测像素/几何**，不能是「CSS 里写了 54%」——
+   *         写死百分比的断言遇到布局变化会一起错。
+   * ------------------------------------------------------------- */
+  sec('⑱  顶栏分区：楼层名不挤资源区 / 专属技格子里图标不压文字');
+  const t18 = await page.evaluate(() => {
+    const G = window.Game;
+    const out = {};
+
+    /* ---- ① 用**最长**的楼层名 + 最多血量（两边都顶到极限才叫边界测试）---- */
+    G.newRun('wujian');
+    G.stylePath = ['cn', 'cn', 'nordic'];
+    G.seg = 2;
+    G.applySegmentPalette();
+    G.newFloor(11);                       // 第十一层（两位数）
+    G.state = 'play';
+    const pl = G.player;
+    pl.maxHP = 40; pl.hp = 40;            // 20 颗心 → 压缩成 7 颗 + 两位余数
+    pl.shield = 12; pl.tShield = 0;       // 12 格盾 → 压缩成 4 个 + 两位余数
+    pl.mp = 100; pl.maxMP = 100;
+    G.itemPopup = null;
+    updateOverlay();
+
+    const cv = document.getElementById('game');
+    const ctx = cv.getContext('2d');
+    const cwRect = cv.getBoundingClientRect();
+    const scale = cwRect.width / 480;
+
+    /* 左侧资源区 + 右侧消耗品区：扫 canvas 顶栏的像素（左右各扫一半） */
+    const img = ctx.getImageData(0, 0, 480, 30).data;
+    const isBg = (r2, g2, b2) => r2 < 46 && g2 < 40 && b2 < 62;
+    const colHas = (x) => {
+      for (let y = 0; y < 30; y++) {
+        const i2 = (y * 480 + x) * 4;
+        if (!isBg(img[i2], img[i2 + 1], img[i2 + 2])) return true;
+      }
+      return false;
+    };
+    let resRight = -1;                    // 左侧资源区最右
+    for (let x = 0; x < 340; x++) if (colHas(x)) resRight = x;
+    let consLeft = 9999;                  // 右侧消耗品最左（只认 x>340 之后的起点）
+    for (let x = 344; x < 480; x++) if (colHas(x)) { consLeft = x; break; }
+
+    /* 楼层名（DOM）换算到 canvas 坐标 */
+    const fn = document.getElementById('floorName');
+    const fr = fn.getBoundingClientRect();
+    const fl = { x0: +((fr.left - cwRect.left) / scale).toFixed(1),
+                 x1: +((fr.right - cwRect.left) / scale).toFixed(1), text: fn.textContent };
+
+    out.floor = { text: fl.text, x0: fl.x0, x1: fl.x1, resRight: resRight, consLeft: consLeft,
+                  gapL: +(fl.x0 - resRight).toFixed(1), gapR: +(consLeft - fl.x1).toFixed(1) };
+
+    /* ---- ② 专属技格子：三个流派的「图标 vs 等级/段位文字」---- */
+    const cells = [];
+    for (const st of ['feijian', 'jujian', 'wujian']) {
+      G.newRun(st);
+      G.newFloor(1);
+      G.state = 'play';
+      const pl2 = G.player;
+      pl2.ult = { style: st, lv: 5 };
+      pl2.ultCd = 0; pl2.wjStage = 0; pl2.wjChainT = 0;
+      const ic = styleIcon(st);
+      let icon = null; const texts = [];
+      const orig = ctx.drawImage.bind(ctx);
+      ctx.drawImage = function (im) {
+        if (im === ic) {
+          const a = Array.prototype.slice.call(arguments, 1);
+          const m = ctx.getTransform();
+          icon = { y: +(m.b * a[0] + m.d * a[1] + m.f).toFixed(1), h: +(m.d * ic.height).toFixed(1) };
+        }
+        return orig.apply(ctx, arguments);
+      };
+      const origText = window.drawPixelText;
+      window.drawPixelText = function (g, t, x, y, sc, c) {
+        /* ⚠️ 必须限定在格子内（x>=452）：顶栏的消耗品数字是单个数字，
+           不加条件会被误当成段位数字（探针第一版就是这么假报的）。 */
+        if (x >= 452 && /^\d$|^L\d$/.test(String(t))) texts.push({ t: String(t), y: y });
+        return origText(g, t, x, y, sc, c);
+      };
+      G.draw();
+      ctx.drawImage = orig;
+      window.drawPixelText = origText;
+      const texTop = texts.length ? Math.min.apply(null, texts.map(t => t.y)) : null;
+      const ov = (icon && texTop !== null)
+        ? +(Math.min(icon.y + icon.h, texTop + 7) - Math.max(icon.y, texTop)).toFixed(2) : null;
+      cells.push({ style: st, ic: ic.width + 'x' + ic.height, icon: icon,
+                   texTop: texTop, overlap: ov });
+    }
+    out.cells = cells;
+    return out;
+  });
+  ok('① 用最长楼层名 + 极限血量：「' + t18.floor.text + '」',
+    t18.floor.text.length >= 10, t18.floor.text);
+  ok('★ 楼层名**不与左侧资源区重叠**（心/护甲/灵力条）',
+    t18.floor.gapL >= 6,
+    '资源区右边界 x=' + t18.floor.resRight + '　楼层名左边界 x=' + t18.floor.x0 + '　间距 ' + t18.floor.gapL + 'px');
+  ok('★ 楼层名**不与右侧消耗品计数重叠**',
+    t18.floor.gapR >= 6,
+    '楼层名右边界 x=' + t18.floor.x1 + '　消耗品起点 x=' + t18.floor.consLeft + '　间距 ' + t18.floor.gapR + 'px');
+  const badCell = t18.cells.filter(c => !(c.overlap !== null && c.overlap <= 0));
+  ok('★ 专属技格子：三个流派的「流派图标」都不压「L5 / 段位数字」',
+    badCell.length === 0,
+    t18.cells.map(c => c.style + ' ' + c.ic + ' 图标y' + (c.icon ? c.icon.y + '~' + (c.icon.y + c.icon.h).toFixed(1) : '?')
+      + ' 文字y' + c.texTop + ' 重叠' + c.overlap).join('；'));
+
+  sec('⑲  全局错误检查');
   ok('全程无 pageerror / console.error', errs.length === 0, errs.slice(0, 3).join(' | '));
 
   console.log('\n========================================');
