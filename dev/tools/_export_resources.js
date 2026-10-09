@@ -20,13 +20,9 @@ const fs = require('fs');
 const FILE = 'file:///' + path.resolve(__dirname, '..', '..', 'index.html').replace(/\\/g, '/');
 const OUT = path.resolve(__dirname, '..', 'data', '_resources.json');
 
-/* 妖物中文名 —— 源码里只有 id，中文名取自 sprites.js 的作画注释 */
-const ENEMY_CN = {
-  xiesui: '邪祟', chanchu: '蟾蜍妖', xuefu: '血蝠', guixiu: '鬼修',
-  yinsha: '阴煞', shikui: '尸傀', jianling: '剑灵',
-  xuanguang: '玄光瞳', bengyao: '蹦山魈', yingmo: '影魅',
-  tiehun: '铁魄妖', xuanjia: '玄甲卫'
-};
+/* 妖物中文名 —— ⚠️ 唯一来源是 `ENEMY_DEF[*].name` / `NORDIC_ENEMY_DEF[*].name`（2026-10-09 改正）。
+   原先这里另抄了一份 ENEMY_CN / NORDIC_ENEMY_CN，于是「调试台想按名字列怪」
+   还得再抄第三份。现在源码是唯一真相，本脚本只负责搬运。 */
 const AI_CN = {
   chase: '近战追击', spit: '定点吐弹', dash: '蓄力冲刺',
   caster: '远程施法', hop: '跳跃（死亡分裂）', caster2: '远程追踪弹',
@@ -66,11 +62,6 @@ const PERK_CN = {
      那件事已经写在「死后余祸」（desc）列里了，这里只留剑气的部分。 */
   swarm: '环形剑气'
 };
-/* 北欧内容的中文名 —— 与 ENEMY_CN 同理，源码里只有 id */
-const NORDIC_ENEMY_CN = {
-  draugr: '尸鬼', hrafn: '渡鸦', nokk: '水妖', isvarg: '霜狼',
-  volva: '女巫', skuggi: '影魅', rimtroll: '霜巨魔', runestone: '符文石'
-};
 const NORDIC_BOSS_GIMMICK = {
   fenrir: '巨狼贴地扑咬，越到后面越急：不贪刀、跟着它转圈，冲刺前横移一步就够',
   jormungandr: '尘世巨蟒盘住整座厅堂，以毒环封路：毒环缺口每轮换位，提前站位而不是临时躲',
@@ -87,8 +78,8 @@ const NORDIC_BOSS_GIMMICK = {
   // 停掉主循环，避免后台 update 干扰采样
   await page.evaluate(() => { window.requestAnimationFrame = () => 0; });
 
-  const data = await page.evaluate(({ ENEMY_CN, AI_CN, PERK_CN, ENEMY_NOTE, BOLT_CN, BOSS_GIMMICK,
-                                     NORDIC_ENEMY_CN, NORDIC_BOSS_GIMMICK }) => {
+  const data = await page.evaluate(({ AI_CN, PERK_CN, ENEMY_NOTE, BOLT_CN, BOSS_GIMMICK,
+                                     NORDIC_BOSS_GIMMICK }) => {
     const G = window.Game;
 
     /* ---------- 1. 玩家基础 ---------- */
@@ -147,7 +138,7 @@ const NORDIC_BOSS_GIMMICK = {
     const enemies = Object.keys(ENEMY_DEF).map(k => {
       const d = ENEMY_DEF[k];
       return {
-        id: k, cn: ENEMY_CN[k] || k, hp: d.hp, speed: d.speed, r: d.r,
+        id: k, cn: d.name || k, hp: d.hp, speed: d.speed, r: d.r,
         touch: d.touch, coins: d.coins, ai: d.ai, aiCn: AI_CN[d.ai] || d.ai,
         size: d.size, score: d.score, split: !!d.split, shield: !!d.shield,
         note: ENEMY_NOTE[k] || '', world: 'cn'
@@ -155,7 +146,7 @@ const NORDIC_BOSS_GIMMICK = {
     }).concat(Object.keys(NORDIC_ENEMY_DEF).map(k => {
       const d = NORDIC_ENEMY_DEF[k];
       return {
-        id: k, cn: NORDIC_ENEMY_CN[k] || k, hp: d.hp, speed: d.speed, r: d.r,
+        id: k, cn: d.name || k, hp: d.hp, speed: d.speed, r: d.r,
         touch: d.touch, coins: d.coins, ai: d.ai, aiCn: AI_CN[d.ai] || d.ai,
         size: d.size, score: d.score, split: !!d.split, shield: !!d.shield,
         // 北欧杂兵**零新战斗逻辑**：行为直接复用中式已有的 AI，这里把「复用了谁」写出来
@@ -169,7 +160,7 @@ const NORDIC_BOSS_GIMMICK = {
       const E = ELITE_DEF[k];
       const base = ENEMY_DEF[E.base];
       return {
-        id: k, cn: E.name, en: E.en, base: E.base, baseCn: ENEMY_CN[E.base] || E.base,
+        id: k, cn: E.name, en: E.en, base: E.base, baseCn: (base && base.name) || E.base,
         hpMul: E.hpMul, spdMul: E.spdMul, scale: E.scale, rMul: E.rMul,
         coins: E.coins, score: E.score, perk: E.perk, perkCn: PERK_CN[E.perk] || E.perk,
         perkCd: E.perkCd, desc: E.desc,
@@ -181,7 +172,7 @@ const NORDIC_BOSS_GIMMICK = {
       const base = NORDIC_ENEMY_DEF[E.base];
       return {
         id: k, cn: E.name, en: E.en, base: E.base,
-        baseCn: (NORDIC_ENEMY_CN[E.base] || E.base),
+        baseCn: (base && base.name) || E.base,
         hpMul: E.hpMul, spdMul: E.spdMul, scale: E.scale, rMul: E.rMul,
         coins: E.coins, score: E.score, perk: E.perk, perkCn: PERK_CN[E.perk] || E.perk,
         perkCd: E.perkCd, desc: E.desc,
@@ -370,7 +361,7 @@ const NORDIC_BOSS_GIMMICK = {
     for (let d = 1; d <= SEG_TOTAL_FLOORS; d++) {
       const f = Object.create(Floor.prototype);
       const pool = f.enemyPool(d);
-      pools.push({ depth: d, pool: pool.map(id => ({ id, cn: ENEMY_CN[id] || id, p: +(1 / pool.length * 100).toFixed(1) })) });
+      pools.push({ depth: d, pool: pool.map(id => ({ id, cn: (enemyDefOf(id) || {}).name || id, p: +(1 / pool.length * 100).toFixed(1) })) });
     }
 
     /* ---------- 9. 各层实测（房间数 / 精英 / 密室 / 经济 / 难度） ---------- */
@@ -522,7 +513,7 @@ const NORDIC_BOSS_GIMMICK = {
        「中式那几行」是与老表逐字对齐过的（_t_nordic T2 钉着），改怪表先看测试。 */
     const worldContent = Object.keys(STYLE_CONTENT).map(k => {
       const c = contentOf(k);
-      const cnOf = id => (k === 'cn' ? (ENEMY_CN[id] || id) : (NORDIC_ENEMY_CN[id] || id));
+      const cnOf = id => (enemyDefOf(id) || {}).name || id;
       return {
         id: k, tag: c.tag, name: c.name,
         typeName: c.typeName,
@@ -557,7 +548,7 @@ const NORDIC_BOSS_GIMMICK = {
 
     return { player, items, enemies, elites, bosses, challenge, endless, styles, styleMap, charge, shopPrices, pools, floors,
              diffParams, curve, lootCurve, skills, ults, ultPaths, skillConst, fusion, worldContent };
-  }, { ENEMY_CN, AI_CN, PERK_CN, ENEMY_NOTE, BOLT_CN, BOSS_GIMMICK, NORDIC_ENEMY_CN, NORDIC_BOSS_GIMMICK });
+  }, { AI_CN, PERK_CN, ENEMY_NOTE, BOLT_CN, BOSS_GIMMICK, NORDIC_BOSS_GIMMICK });
 
   data.exportedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
   data.errs = errs;

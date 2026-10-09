@@ -987,21 +987,26 @@ class Slash {
 
 /* ------------------------------------------------------------
  *  妖物
+ *
+ *  ⚠️ `name` 是**唯一的中文名来源**（2026-10-09 从调试台的清单功能倒逼回来的）：
+ *     原先只有 id，中文名散在 dev/tools/_export_resources.js 的 ENEMY_CN 里，
+ *     于是「调试台想按名字列怪」就得再抄一份。现在以这里为准，
+ *     资源表导出直接读 d.name。
  * ---------------------------------------------------------- */
 const ENEMY_DEF = {
-  xiesui: { hp: 12, speed: 1.35, r: 7, touch: 1, coins: 1, spr: 'xiesui', ai: 'chase', size: 14, score: 10 },
-  chanchu: { hp: 18, speed: 0.45, r: 8, touch: 1, coins: 2, spr: 'chanchu', ai: 'spit', size: 18, score: 14 },
-  xuefu: { hp: 10, speed: 1.1, r: 7, touch: 1, coins: 1, spr: 'xuefu', ai: 'dash', size: 18, score: 12 },
-  guixiu: { hp: 16, speed: 0.8, r: 7, touch: 1, coins: 2, spr: 'guixiu', ai: 'caster', size: 16, score: 18 },
-  yinsha: { hp: 10, speed: 1.0, r: 7, touch: 1, coins: 1, spr: 'yinsha', ai: 'hop', size: 16, score: 10, split: true },
-  shikui: { hp: 34, speed: 0.62, r: 8, touch: 2, coins: 3, spr: 'shikui', ai: 'chase', size: 16, score: 24 },
-  jianling: { hp: 14, speed: 1.0, r: 7, touch: 1, coins: 2, spr: 'jianling', ai: 'caster2', size: 16, score: 20 },
+  xiesui: { name: '邪祟', hp: 12, speed: 1.35, r: 7, touch: 1, coins: 1, spr: 'xiesui', ai: 'chase', size: 14, score: 10 },
+  chanchu: { name: '蟾蜍妖', hp: 18, speed: 0.45, r: 8, touch: 1, coins: 2, spr: 'chanchu', ai: 'spit', size: 18, score: 14 },
+  xuefu: { name: '血蝠', hp: 10, speed: 1.1, r: 7, touch: 1, coins: 1, spr: 'xuefu', ai: 'dash', size: 18, score: 12 },
+  guixiu: { name: '鬼修', hp: 16, speed: 0.8, r: 7, touch: 1, coins: 2, spr: 'guixiu', ai: 'caster', size: 16, score: 18 },
+  yinsha: { name: '阴煞', hp: 10, speed: 1.0, r: 7, touch: 1, coins: 1, spr: 'yinsha', ai: 'hop', size: 16, score: 10, split: true },
+  shikui: { name: '尸傀', hp: 34, speed: 0.62, r: 8, touch: 2, coins: 3, spr: 'shikui', ai: 'chase', size: 16, score: 24 },
+  jianling: { name: '剑灵', hp: 14, speed: 1.0, r: 7, touch: 1, coins: 2, spr: 'jianling', ai: 'caster2', size: 16, score: 20 },
   // —— 后四层新增的五种，各带一门必须「换打法」的机制 ——
-  xuanguang: { hp: 20, speed: 0.30, r: 8, touch: 1, coins: 2, spr: 'xuanguang', ai: 'laser', size: 18, score: 22 },
-  bengyao: { hp: 20, speed: 0.9, r: 8, touch: 1, coins: 2, spr: 'bengyao', ai: 'leap', size: 18, score: 20 },
-  yingmo: { hp: 14, speed: 1.05, r: 7, touch: 1, coins: 2, spr: 'yingmo', ai: 'stealth', size: 16, score: 20 },
-  tiehun: { hp: 30, speed: 0.5, r: 8, touch: 1, coins: 3, spr: 'tiehun', ai: 'hardcast', size: 18, score: 26 },
-  xuanjia: { hp: 26, speed: 0.55, r: 9, touch: 1, coins: 3, spr: 'xuanjia', ai: 'shieldbash', size: 20, score: 28, shield: true }
+  xuanguang: { name: '玄光瞳', hp: 20, speed: 0.30, r: 8, touch: 1, coins: 2, spr: 'xuanguang', ai: 'laser', size: 18, score: 22 },
+  bengyao: { name: '蹦山魈', hp: 20, speed: 0.9, r: 8, touch: 1, coins: 2, spr: 'bengyao', ai: 'leap', size: 18, score: 20 },
+  yingmo: { name: '影魅', hp: 14, speed: 1.05, r: 7, touch: 1, coins: 2, spr: 'yingmo', ai: 'stealth', size: 16, score: 20 },
+  tiehun: { name: '铁魄妖', hp: 30, speed: 0.5, r: 8, touch: 1, coins: 3, spr: 'tiehun', ai: 'hardcast', size: 18, score: 26 },
+  xuanjia: { name: '玄甲卫', hp: 26, speed: 0.55, r: 9, touch: 1, coins: 3, spr: 'xuanjia', ai: 'shieldbash', size: 20, score: 28, shield: true }
 };
 
 /* ------------------------------------------------------------

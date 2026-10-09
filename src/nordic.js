@@ -208,15 +208,16 @@ function typeNameOf(type, style) { return contentOf(style).typeName[type] || '';
  *     rimtroll    shieldbash   圆盾冲撞（盾收正面 → 绕后才是解）
  *     runestone   hardcast     慢速大弹，斩不落也回敬不了
  * ---------------------------------------------------------- */
+/* ⚠️ `name` 是中文名的唯一来源（与中式 ENEMY_DEF 一致），资源表导出直接读它。 */
 const NORDIC_ENEMY_DEF = {
-  draugr: { hp: 14, speed: 1.28, r: 7, touch: 1, coins: 1, spr: 'draugr', ai: 'chase', size: 14, score: 10 },
-  hrafn: { hp: 11, speed: 1.15, r: 7, touch: 1, coins: 1, spr: 'hrafn', ai: 'dash', size: 18, score: 12 },
-  nokk: { hp: 18, speed: 0.45, r: 8, touch: 1, coins: 2, spr: 'nokk', ai: 'spit', size: 18, score: 14 },
-  isvarg: { hp: 12, speed: 1.05, r: 7, touch: 1, coins: 1, spr: 'isvarg', ai: 'hop', size: 16, score: 12 },
-  volva: { hp: 16, speed: 0.82, r: 7, touch: 1, coins: 2, spr: 'volva', ai: 'caster', size: 16, score: 18 },
-  skuggi: { hp: 14, speed: 1.05, r: 7, touch: 1, coins: 2, spr: 'skuggi', ai: 'stealth', size: 16, score: 20 },
-  rimtroll: { hp: 34, speed: 0.55, r: 9, touch: 1, coins: 3, spr: 'rimtroll', ai: 'shieldbash', size: 20, score: 28, shield: true },
-  runestone: { hp: 32, speed: 0.48, r: 8, touch: 1, coins: 3, spr: 'runestone', ai: 'hardcast', size: 18, score: 26 }
+  draugr: { name: '尸鬼', hp: 14, speed: 1.28, r: 7, touch: 1, coins: 1, spr: 'draugr', ai: 'chase', size: 14, score: 10 },
+  hrafn: { name: '渡鸦', hp: 11, speed: 1.15, r: 7, touch: 1, coins: 1, spr: 'hrafn', ai: 'dash', size: 18, score: 12 },
+  nokk: { name: '水妖', hp: 18, speed: 0.45, r: 8, touch: 1, coins: 2, spr: 'nokk', ai: 'spit', size: 18, score: 14 },
+  isvarg: { name: '霜狼', hp: 12, speed: 1.05, r: 7, touch: 1, coins: 1, spr: 'isvarg', ai: 'hop', size: 16, score: 12 },
+  volva: { name: '女巫', hp: 16, speed: 0.82, r: 7, touch: 1, coins: 2, spr: 'volva', ai: 'caster', size: 16, score: 18 },
+  skuggi: { name: '影魅', hp: 14, speed: 1.05, r: 7, touch: 1, coins: 2, spr: 'skuggi', ai: 'stealth', size: 16, score: 20 },
+  rimtroll: { name: '霜巨魔', hp: 34, speed: 0.55, r: 9, touch: 1, coins: 3, spr: 'rimtroll', ai: 'shieldbash', size: 20, score: 28, shield: true },
+  runestone: { name: '符文石', hp: 32, speed: 0.48, r: 8, touch: 1, coins: 3, spr: 'runestone', ai: 'hardcast', size: 18, score: 26 }
 };
 
 /* ------------------------------------------------------------
