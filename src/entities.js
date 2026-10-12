@@ -2502,6 +2502,23 @@ function baseStats() {
   };
 }
 
+/* 属性的**显示名**（角色属性面板、以后任何要列属性的地方都读这一份）。
+   与 baseStats() 摆在一起：加一条属性时，「默认值」和「它叫什么」就在同一屏，
+   不至于加了值忘了名（面板会自动多出一行，名字缺了会显示成 id —— 一眼能发现）。
+   ⚠️ 资源表里那份「说明」是给表格看的散文（「气血上限，单位半心…」），是另一种东西，
+      不并进来。 */
+const STAT_CN = {
+  damage: '伤害', fireRate: '射速/秒', speed: '移动', shotSpeed: '弹速', range: '射程',
+  pierce: '穿透', spread: '散射', homing: '制导', homingRange: '制导半径',
+  knockback: '击退', luck: '幸运', crit: '暴击率', iframe: '无敌帧',
+  burn: '灼烧', frost: '霜冻', chain: '连锁', poison: '中毒', regen: '再生',
+  deflect: '斩落', reflect: '反伤', soul: '魂魄', greed: '贪婪',
+  shieldRegen: '盾再生', mpRegen: '回灵/秒', reAim: '折返', reAimArc: '折返角',
+  pin: '钉住', layerHeal: '层回血', fly: '踏空'
+};
+/* 只有特殊效果才需要「非零才显示」；这些是无论多少都要摆出来的核心数值 */
+const STAT_CORE = ['damage', 'fireRate', 'shotSpeed', 'range', 'pierce', 'spread', 'knockback', 'crit'];
+
 class Player {
   constructor(x, y) {
     this.x = x; this.y = y; this.r = 7;

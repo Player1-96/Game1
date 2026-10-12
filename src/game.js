@@ -681,6 +681,10 @@ class GameCore {
     this.settingsOpen = false;
     this.setIdx = 0;
     this.setClearArm = false;
+    /* 角色属性面板（C / Tab）：与 settingsOpen 同一套做法 ——
+       标记位而不是新 state，打开时不推进世界，关掉回到原处。
+       ⚠️ 两者可以叠加（设置盖在属性面板之上），所以是两个独立的位。 */
+    this.sheetOpen = false;
     /* Boss 挑战模式（配置见 CHALLENGE_DIFF）：
        chall       非 null = 正在挑战中（含 bossId / diff / 升级队列 / 结算倒计时）
        challMenu   菜单状态 { step:'boss'|'diff', idx, bossId }
@@ -2477,6 +2481,8 @@ class GameCore {
     if (this.paused) { input.interact = false; this.restartHold = 0; return; }
     // 设置面板：同样全停（它可能盖在三选一之上，所以排在 pick 前面）
     if (this.settingsOpen) { input.interact = false; this.restartHold = 0; return; }
+    /* 属性面板同理：看一眼数值的这几秒不该继续挨打 */
+    if (this.sheetOpen) { input.interact = false; this.restartHold = 0; return; }
     // 选择界面：先于 tick 拦截，整个世界（含动画计时）完全静止
     if (this.pick) { input.interact = false; this.restartHold = 0; return; }
     // 斩精英后稍缓一拍再弹三选一，先让死亡特效演完
@@ -3771,7 +3777,7 @@ class GameCore {
       }
       BGM.play(want);
     }
-    const wantDuck = (this.paused || this.settingsOpen) ? 0.22 : 1;
+    const wantDuck = (this.paused || this.settingsOpen || this.sheetOpen) ? 0.22 : 1;
     if (wantDuck !== BGM.duck) { BGM.duck = wantDuck; BGM.setGain(); }
   }
 
@@ -3858,6 +3864,22 @@ class GameCore {
     const h = document.getElementById('help');
     if (h && h.open) { h.open = false; SFX.tone(320, 0.05, 'square', 0.08); updateOverlay(); }
   }
+  /* ---------------- 角色属性面板 ----------------
+     C / Tab 开合。打开时世界停住（见 update 入口），这样「看一眼数值」不会挨打。
+     内容全部现取（renderCharSheet），不在这里缓存。 */
+  openSheet() {
+    if (this.sheetOpen || this.settingsOpen) return;   // 设置面板优先，别叠两层
+    this.sheetOpen = true;
+    renderCharSheet();
+    SFX.tone(620, 0.05, 'square', 0.08);
+  }
+  closeSheet() {
+    if (!this.sheetOpen) return;
+    this.sheetOpen = false;
+    renderCharSheet();
+    SFX.tone(400, 0.05, 'square', 0.08);
+  }
+  toggleSheet() { if (this.sheetOpen) this.closeSheet(); else this.openSheet(); }
   openSettings() {
     if (this.settingsOpen) return;
     this.settingsOpen = true;
@@ -3953,8 +3975,8 @@ function boot() {
 function bindInput(canvas, game) {
     const setKey = (e, down) => {
     const k = e.key.toLowerCase();
-    // 设置面板开着：按键只归面板用（方向键与空格在那里另有含义），一律不喂给游戏
-    if (game.settingsOpen) { if (down) SFX.ensure(); return; }
+    // 设置 / 属性面板开着：按键只归面板用（方向键与空格在那里另有含义），一律不喂给游戏
+    if (game.settingsOpen || game.sheetOpen) { if (down) SFX.ensure(); return; }
     switch (k) {
       case 'w': input.up = down; break;
       case 's': input.down = down; break;
@@ -3993,7 +4015,8 @@ function bindInput(canvas, game) {
   };
   window.addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
-    if ([' ', 'enter', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
+    /* ⚠️ tab 也要吃掉默认行为，否则焦点会跑到 DOM 元素上（面板与按钮一堆） */
+    if ([' ', 'enter', 'tab', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
     if (!e.repeat) setKey(e, true);
     if (e.repeat) return;
     /* 设置面板：优先级最高（可能盖在三选一之上）。
@@ -4008,6 +4031,14 @@ function bindInput(canvas, game) {
       return;
     }
     if (k === 'o') { SFX.ensure(); game.openSettings(); return; }
+    /* 角色属性面板（C / Tab）：
+       开着的时候 C / Tab / Esc / P 一律当「关闭」—— 这时世界已经停住了，
+       P 再走「暂停」会变成「暂停 + 面板」两个状态叠着，关掉后凭空多出一个暂停。 */
+    if (game.sheetOpen) {
+      if (k === 'c' || k === 'tab' || k === 'escape' || k === 'p') game.closeSheet();
+      return;
+    }
+    if ((k === 'c' || k === 'tab') && game.state === 'play') { SFX.ensure(); game.toggleSheet(); return; }
     // 技能替换 / 专属升级面板：优先吃掉方向键与回车
     if (game.pick) {
       if (k === 'arrowleft') game.pickMove(-1);
@@ -4703,6 +4734,148 @@ function renderTitleMenu() {
   }
 }
 
+/* ---------------- 角色属性面板（C / Tab） ----------------
+   用户 2026-10-12：「能不能加一个看人物属性的信息面板，按快捷键打开看各种属性数值」。
+   三条原则：
+   ① **数值现取、键名不另抄清单**：核心数值走 `STAT_CORE`，名字走 `STAT_CN` ——
+      两者都摆在 entities.js 的 `baseStats()` 旁边。以后加一条属性，这里自动多一行，
+      名字忘了填也只是显示成 id，一眼能发现。
+   ② **裸装基准也取自 `baseStats()`**：改过的数值后面灰色标「裸 X」——
+      不然看到「伤害 4.3」根本分不清是法宝给的还是本来就有的（设计时最需要这条）。
+   ③ **0 值不占版面**：特殊效果只在非零时列出，末尾一句交代还剩几项是 0。
+      六十行的表里四十行是 0，读的人会直接放弃。 */
+function renderCharSheet() {
+  const el = document.getElementById('charSheet');
+  if (!el) return;
+  const pl = Game && Game.player;
+  if (!Game || !Game.sheetOpen || !pl) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  /* 点面板任意处也能关（面板是全屏的，鼠标无处可点反而别扭） */
+  if (!el._clickBound) {
+    el._clickBound = true;
+    el.addEventListener('click', () => { if (Game.sheetOpen) Game.closeSheet(); });
+  }
+
+  const base = baseStats();
+  const st = pl.stats || {};
+  const num = v => (Math.abs(v - Math.round(v)) < 1e-6 ? Math.round(v) : Math.round(v * 100) / 100);
+  /* 变了的数值加粗 + 灰字标裸装值；没变的就一个干净数字 */
+  const fmt = (k, v) => {
+    if (v === undefined || v === null) return '—';
+    const shown = typeof v === 'boolean' ? (v ? '有' : '无') : String(num(v));
+    const b = base[k];
+    if (b === undefined) return shown;
+    const same = typeof b === 'boolean' ? b === v : Math.abs(b - v) < 1e-6;
+    if (same) return shown;
+    const bs = typeof b === 'boolean' ? (b ? '有' : '无') : String(num(b));
+    return '<b>' + shown + '</b><i>裸 ' + bs + '</i>';
+  };
+  const kv = (label, val) => '<div class="csK">' + label + '</div><div class="csV">' + val + '</div>';
+  const cell = k => kv(STAT_CN[k] || k, fmt(k, st[k]));
+  const sec = (title, inner) => '<div class="csSec"><h3>' + title + '</h3>'
+    + '<div class="csGrid">' + inner + '</div></div>';
+
+  /* ① 身体 */
+  const heartN = (pl.maxHP / 2);
+  const body = sec('身 体',
+    kv('气血', '<b>' + pl.hp + '</b> / ' + pl.maxHP + '<i>' + num(heartN) + ' 颗心</i>')
+    + kv('护盾', pl.shield + ' 格'
+      + (pl.shieldCap > 0 ? '<i>上限 ' + pl.shieldCap + '</i>' : '')
+      + (pl.tShield > 0 ? '<i>限时 +' + pl.tShield + ' / ' + Math.ceil(pl.shieldT / 60) + ' 秒</i>' : ''))
+    + kv('灵力', Math.round(pl.mp) + ' / ' + pl.maxMP + '<i>' + num(st.mpRegen || 0) + ' 每秒</i>')
+    + kv('无敌', (pl.invuln > 0 ? '<b>' + Math.ceil(pl.invuln / 60 * 10) / 10 + ' 秒</b><i>受创后 ' + num(st.iframe) + ' 帧</i>'
+      : num(st.iframe) + ' 帧<i>受创硬直</i>')));
+
+  /* ② 攻伐：核心数值恒显，其余有值才显示 */
+  const atk = sec('攻 伐',
+    STAT_CORE.map(cell).join('')
+    + ['luck', 'homing', 'reAim', 'pin']
+      .filter(k => (st[k] || 0) !== (base[k] || 0))
+      .map(cell).join(''));
+
+  /* ③ 特殊：非零才列 */
+  const SPECIAL = ['burn', 'frost', 'chain', 'poison', 'regen', 'deflect', 'reflect',
+    'soul', 'greed', 'shieldRegen', 'reAimArc', 'homingRange'];
+  const ALL_SPECIAL = SPECIAL.concat(['fly', 'layerHeal']);
+  const live = SPECIAL.filter(k => (st[k] || 0) !== (base[k] || 0));
+  const flags = ['fly', 'layerHeal'].filter(k => !!st[k] !== !!base[k]);
+  const zeroList = ALL_SPECIAL.filter(k => live.indexOf(k) < 0 && flags.indexOf(k) < 0);
+  const spec = sec('特 殊 效 果',
+    (live.length + flags.length
+      ? live.map(cell).join('') + flags.map(cell).join('')
+      : '<div class="csNote csWide">尚无可用的特殊效果 —— 全靠法宝与丹药赋予</div>')
+    /* ⚠️ 这里列的是**真的还没拿到的那几项**（从 ALL_SPECIAL 反算），
+       不能写死一句「灼烧 / 霜冻 / 连锁…」—— 上面明明已经显示了霜冻，下面再说它是 0 就自相矛盾。 */
+    + (zeroList.length
+      ? '<div class="csNote csWide">其余 ' + zeroList.length + ' 项为 0：'
+        + zeroList.map(k => STAT_CN[k] || k).join(' / ') + '</div>'
+      : ''));
+
+  /* ④ 流派状态：三种流派看的不是同一批东西 */
+  const C = (STYLES[Game.style] && STYLES[Game.style].consts) || {};
+  let styleRows = '';
+  if (Game.style === 'jujian') {
+    const t = pl.chargeT || 0;
+    const tier = t >= (C.T2 || 0) ? 3 : (t >= (C.T1 || 0) ? 2 : 1);
+    const ti = (C.tiers || [])[tier - 1] || {};
+    styleRows = kv('蓄力', (pl.charging ? '<b>蓄力中</b><i>' + t + ' 帧</i>' : '<i>未蓄力</i>')
+      + '<i>一 / 二段阈值 ' + (C.T1 || 0) + ' / ' + (C.T2 || 0) + ' 帧</i>')
+      + kv('当前段位', '<b>' + cnNum(tier) + ' 段</b>'
+        + (ti.pierce != null ? '<i>穿透 ' + ti.pierce + '　伤害 ×' + ti.dmgMul + '</i>' : ''))
+      + kv('后摇', pl.chargeCdMax > 0 ? num(pl.chargeCdMax) + ' 帧' : '—');
+  } else if (Game.style === 'wujian') {
+    styleRows = kv('连段', '<b>第 ' + cnNum((pl.wjStage || 0) + 1) + ' 段</b>'
+      + (pl.wjChainT > 0 ? '<i>窗口 ' + Math.ceil(pl.wjChainT / 60 * 10) / 10 + ' 秒</i>' : '<i>窗口已关</i>'))
+      + kv('蓄势', pl.wjCharging ? '<b>' + (pl.wjChargeT || 0) + ' 帧</b>' : '<i>未蓄势</i>');
+  } else {
+    styleRows = kv('每轮剑数', '<b>' + (1 + (st.spread || 0)) + '</b><i>1 + 散射</i>')
+      + kv('散剑弧度', st.fus && st.fus.wildArc
+        ? '<b>乱弧</b><i>每发不同</i>'
+        : fmt('spread', st.spread) + '<i>固定扇形</i>');
+  }
+  const styleSec = sec('流 派 · ' + ((STYLES[Game.style] && STYLES[Game.style].name) || Game.style)
+    + '　第 ' + cnNum(Game.depth) + ' 层', styleRows);
+
+  /* ⑤ 专属技 */
+  const ud = ULT_DEF[pl.ult ? pl.ult.style : Game.style] || ULT_DEF.feijian;
+  let ultTxt;
+  if (pl.ult) {
+    const paths = Object.keys(pl.ult.paths || {}).map(k => k + '×' + pl.ult.paths[k]);
+    ultTxt = '<b>' + ud.name + '</b>'
+      + (paths.length ? '<i>' + paths.join('　') + '</i>' : '')
+      + '<i>冷却 ' + (pl.ultCd > 0 ? Math.ceil(pl.ultCd / 60 * 10) / 10 + ' 秒' : '就绪') + '</i>';
+  } else {
+    ultTxt = '<i>尚未获得 —— 斩杀精英妖物即可习得本流派专属技</i>';
+  }
+  const ultSec = sec('专 属 技', '<div class="csWide csV">' + ultTxt + '</div>');
+
+  /* ⑥ 融合产物 + 背包（这两块是「这一把到底养出了什么」的答案） */
+  const fm = pl.fusionMem || {};
+  const fids = Object.keys(fm);
+  const fusRows = fids.length
+    ? fids.map(id => {
+      const d = ITEM_MAP[id] || {};
+      return '<div class="csK">' + (d.name || id) + '</div><div class="csV"><b>Lv'
+        + fusionLevel(fm[id].a, fm[id].b) + '</b><i>' + fm[id].a + '+' + fm[id].b + ' 件</i></div>';
+    }).join('')
+    : '';
+  const cnt = {};
+  (pl.items || []).forEach(i => { cnt[i] = (cnt[i] || 0) + 1; });
+  const kinds = Object.keys(cnt).length;
+  const mech = Object.keys(st.fus || {});
+  const bag = sec('融 合 与 收 藏',
+    (fusRows || '<div class="csNote csWide">这一把还没融过东西（段末魔窟层的融合阵必在一座）</div>')
+    + kv('背包', '<b>' + (pl.items || []).length + '</b> 件<i>' + kinds + ' 种</i>')
+    + kv('机制', mech.length
+      ? '<i>' + mech.map(k => k + '=' + num(st.fus[k])).join('　') + '</i>'
+      : '<i>（无）</i>'));
+
+  const h = '<div class="csHead">角 色 属 性</div>'
+    + body + atk + spec + styleSec + ultSec + bag
+    + '<div class="csTip">按 ' + 'C' + ' 或 Esc 关闭　世界已暂停（点任意处也可关闭）</div>';
+  if (el._html !== h) { el._html = h; document.getElementById('csBody').innerHTML = h; }
+}
+
 function renderSettings() {
   const el = document.getElementById('settings');
   if (!el) return;
@@ -4777,6 +4950,7 @@ function renderEndlessResult() {
 function updateOverlay() {
   if (!Game) return;
   renderSettings();     // 独立于 state（可能盖在三选一或暂停之上），先渲染
+  renderCharSheet();    // 属性面板同理：任何界面按 C 都能开
   const floorName = document.getElementById('floorName');
   const hint = document.getElementById('hint');
   const card = document.getElementById('card');

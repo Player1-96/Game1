@@ -79,6 +79,7 @@
           <button data-a="clear">清场</button>
           <button data-a="god">无敌：关</button>
           <button data-a="mp">满灵</button>
+          <button data-a="sheet">属性面板</button>
         </div>
         <div class="row">
           跳到第 <select id="labDepth"><option>1</option><option>5</option><option>10</option><option>15</option></select> 层
@@ -271,6 +272,7 @@
       else if (a === 'clear') { game.enemies.length = 0; game.bullets.length = 0; }
       else if (a === 'god') { godOn = !godOn; ev.target.textContent = '无敌：' + (godOn ? '开' : '关'); ev.target.classList.toggle('on', godOn); }
       else if (a === 'mp') { pl.mp = pl.maxMP; }
+      else if (a === 'sheet') { game.openSheet(); }
       else if (a === 'jump') {
         const d = +$('#labDepth').value;
         game.newFloor(d); game.state = 'play';
