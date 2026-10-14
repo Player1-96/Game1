@@ -77,6 +77,7 @@
         <div class="row">
           <button data-a="reset">重开本层</button>
           <button data-a="clear">清场</button>
+          <button data-a="strip" title="把身上的法宝、融合产物、机制与它们顶上去的属性上限一并撤掉，回到裸装基线">清空法宝</button>
           <button data-a="god">无敌：关</button>
           <button data-a="mp">满灵</button>
           <button data-a="sheet">属性面板</button>
@@ -102,11 +103,11 @@
           </select>
           <button data-a="itemall">每样装一件</button>
           <button data-a="itemrand">随机 5 件</button>
-          <button data-a="strip">清空法宝</button>
         </div>
         <div class="list" id="labAllItems"></div>
         <div class="note">法宝：左键 +1 件 / 右键 −1 件（重复 id 就是阶位）；
-          丹药与功法不进背包，点一下当场生效。<span id="labItemCount">—</span></div>
+          丹药与功法不进背包，点一下当场生效。要全清就用上面那排的「清空法宝」。
+          <span id="labItemCount">—</span></div>
       </div>
 
       <div class="sec">
@@ -329,10 +330,7 @@
         pl.x = ROOM_W / 2; pl.y = ROOM_H / 2;
         game.openFusion(null);
       }
-      else if (a === 'strip') {
-        pl.items.length = 0; pl.fusionMem = {}; if (pl.usedMats) pl.usedMats = {};
-        pl.recomputeStats(game.style); game.orbits.length = 0;
-      }
+      else if (a === 'strip') { resetLoadout(); }
       blur();
     });
 
@@ -392,6 +390,33 @@
       pl.recomputeStats(game.style);
       blur();
     });
+
+    /* ---------------- 清空身上法宝（回到裸装基线） ----------------
+       ⚠️ **只把 items 清空是清不干净的** —— 法宝不只写 stats，还会**直接写 Player 的字段**：
+          伊登之苹果 / 世界树种子 → `maxHP`，太虚护盾 → `shieldCap`（这个 recomputeStats 会清）、
+          护盾格数 → `shield`。而 `recomputeStats()` 只重建 `stats` 与 shieldCap 那几个，
+          **`maxHP` / `maxMP` / `hp` / `shield` 它一概不管**。
+          探针 `_probe_strip.js` 量过：装 16 件再按旧做法清空，`maxHP` 停在 18（裸装 6）、
+          `hp` 停在 12、`shield` 停在 2 —— 看着「清空了」，实际还留着一半加成。
+       基线不写死（6 / 100），拿一个 `new Player()` 去问 —— 改初始值这里自动跟上。 */
+    function resetLoadout() {
+      const pl = ensureRun();
+      const fresh = new Player(0, 0);
+      pl.items.length = 0;
+      pl.fusionMem = {};
+      if (pl.usedMats) pl.usedMats = {};
+      pl.maxHP = fresh.maxHP;
+      pl.maxMP = fresh.maxMP;
+      pl.hp = Math.min(pl.hp, pl.maxHP);        // 上限降下来后气血要跟着夹住
+      pl.mp = Math.min(pl.mp, pl.maxMP);
+      pl.shield = 0;
+      pl.tShield = 0; pl.shieldT = 0;
+      pl.recomputeStats(game.style);            // stats / fus / shieldCap / shieldGap 在这里重建
+      if (game.orbits) game.orbits.length = 0;  // 环剑是法宝产生的，跟着走
+      game.itemPopup = null;
+      refreshItems();
+      refreshCounts();
+    }
 
     /* ---------------- 法宝总表（2026-10-09 加） ----------------
        设计期最常做的两件事：① 把某一件装上、看数值与表现；② 顺手叠几件看 combo。
@@ -664,7 +689,7 @@
     }, 16);
 
     window.Lab = {
-      game: game, equip: equip, unequip: unequip,
+      game: game, equip: equip, unequip: unequip, resetLoadout: resetLoadout,
       spawnDummy: spawnDummy, spawnFoe: spawnFoe, foeList: FOE_LIST,
       refreshFoeArt: refreshFoeArt, refreshCounts: refreshCounts,
       foeIdle: () => foeIdle, showHit: () => showHit

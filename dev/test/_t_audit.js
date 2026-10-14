@@ -27,7 +27,21 @@ function sec(t) { console.log('\n=== ' + t + ' ==='); }
   const page = await browser.newPage({ viewport: { width: 1200, height: 820 } });
   const errs = [];
   page.on('pageerror', e => errs.push('[pageerror] ' + e.message));
-  page.on('console', m => { if (m.type() === 'error') errs.push('[console.error] ' + m.text()); });
+  /* ⚠️ 黑匣子的上报是 **best-effort**：file:// 页面会把诊断 POST 到
+     http://127.0.0.1:8848/__diag，而那个开发服务器（dev/tools/_devserver.py）
+     **不一定在跑**（测试环境里通常没开）。这时浏览器会自己往 console 打一条
+     「Failed to load resource: net::ERR_CONNECTION_REFUSED」—— 那是**网络层**的日志，
+     JS 里 `catch` 拦不掉，也不代表游戏出错。
+     2026-10-14 就是这条把「全程无 console.error」判挂的（服务器停了一天，一跑就红）。
+     → 只按这个特定文本过滤；别放宽成「忽略一切 Failed to load resource」，
+        那会连带吞掉真正的资源加载失败。 */
+  const CONN_REFUSED = /ERR_CONNECTION_REFUSED/;
+  page.on('console', m => {
+    if (m.type() !== 'error') return;
+    const t = m.text();
+    if (CONN_REFUSED.test(t)) return;
+    errs.push('[console.error] ' + t);
+  });
 
   await page.goto(FILE);
   await page.waitForFunction(() => window.Game && window.Game.state === 'title', null, { timeout: 15000 });

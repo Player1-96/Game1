@@ -280,6 +280,51 @@ const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS  ' +
       r15.n === 1 && r15.isBoss && r15.bossRef && r15.phase === 1 && r15.kind === 'jormungandr',
       JSON.stringify(r15));
 
+    /* ---- 清空身上法宝：必须**真·复位**，不能只清 items ----
+       探针 _probe_strip.js 量出来的残留：法宝除了 stats 还会直接写 Player 的
+       maxHP / maxMP / shield，而 recomputeStats() 不管这几个。 */
+    await p.click('[data-a="itemall"]');
+    await p.waitForTimeout(250);
+    const slBefore = await p.evaluate(() => {
+      const G = window.Game;
+      return {
+        n: G.player.items.length, maxHP: G.player.maxHP, hp: G.player.hp,
+        shield: G.player.shield, dmg: G.player.stats.damage,
+        fus: Object.keys(G.player.stats.fus).length,
+        nakedHP: new Player(0, 0).maxHP, nakedDmg: baseStats().damage
+      };
+    });
+    await p.click('[data-a="strip"]');
+    await p.waitForTimeout(250);
+    const slAfter = await p.evaluate(() => {
+      const G = window.Game;
+      const on = Array.from(document.querySelectorAll('#labAllItems button.on')).length;
+      const cnt = Array.from(document.querySelectorAll('#labAllItems .cnt')).length;
+      return {
+        n: G.player.items.length, maxHP: G.player.maxHP, hp: G.player.hp,
+        mp: G.player.mp, maxMP: G.player.maxMP, shield: G.player.shield,
+        shieldCap: G.player.shieldCap, dmg: G.player.stats.damage,
+        fus: Object.keys(G.player.stats.fus).length,
+        fusionMem: Object.keys(G.player.fusionMem).length,
+        orbits: G.orbits.length, on: on, cnt: cnt,
+        nakedMP: new Player(0, 0).maxMP
+      };
+    });
+    ok('★★「清空法宝」把法宝与融合产物全清掉',
+      slBefore.n > 60 && slAfter.n === 0 && slAfter.fusionMem === 0,
+      slBefore.n + ' 件 → ' + slAfter.n + ' 件（融合记录 ' + slAfter.fusionMem + ' 条）');
+    ok('★★ 属性上限也一并复位（maxHP —— 旧做法只清 items，会留在 18）',
+      slAfter.maxHP === slBefore.nakedHP,
+      '裸装 ' + slBefore.nakedHP + '　装满 ' + slBefore.maxHP + '　清空后 ' + slAfter.maxHP);
+    ok('★ 灵力上限、护盾与盾上限一并复位', slAfter.maxMP === slAfter.nakedMP && slAfter.shield === 0 && slAfter.shieldCap === 0,
+      'maxMP ' + slAfter.maxMP + '　shield ' + slAfter.shield + '　shieldCap ' + slAfter.shieldCap);
+    ok('★ 气血被夹回新上限内（不会出现 12/6）', slAfter.hp <= slAfter.maxHP, slAfter.hp + ' / ' + slAfter.maxHP);
+    ok('★ 数值回到裸装、机制与环剑清空',
+      slAfter.dmg === slBefore.nakedDmg && slAfter.fus === 0 && slAfter.orbits === 0,
+      '伤害 ' + slAfter.dmg + '（裸 ' + slBefore.nakedDmg + '）　机制 ' + slAfter.fus + '　环剑 ' + slAfter.orbits);
+    ok('★ 清单按钮的 ×N 与高亮跟着清掉（面板不能显示残留状态）',
+      slAfter.on === 0 && slAfter.cnt === 0, '高亮 ' + slAfter.on + ' 个 / 计数 ' + slAfter.cnt + ' 个');
+
     /* AI 开关 */
     await p.click('[data-a="ai"]');
     await p.waitForTimeout(120);
