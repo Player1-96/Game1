@@ -275,18 +275,81 @@ function drawXieSui(frame) {
   return p.outline(PAL.ink).done();
 }
 
-/* 蟾蜍妖：定点吐弹 */
+/* 蟾蜍妖：定点吐弹。**2026-10-15 样板怪** —— 从 2 帧扩到 7 帧。
+ *
+ *  ⚠️ 第一版造型做成了「梯形轮廓」，出图一看**剪影反而更糊**：
+ *     `ell` + `outline()` 会把棱角全磨圆，所谓梯形根本没读出来，变成一团圆钝团块。
+ *     改用的办法是给它一个**剪影级特征** —— 「**鸣囊**」（挂在嘴下方的囊）：
+ *     · 全队 12 只里只有它下巴挂着东西 → 剪影立刻可辨（这是唯一客观的判据）
+ *     · 鸣囊的胀缩天然就是**预备动作的读数**（要喷了 = 囊鼓到最大）
+ *     → 一个改动同时解决"造型撞车"与"出手读不出"两件事。
+ *  另：身体改用 `rect` 叠出**方肩**，不再是一条圆滚滚的椭圆。
+ *
+ *  帧分工：0/1/2 待机（囊小→大→中，**剪影级的呼吸**）· 3 预备（囊撑满 + 眼睑垂 + 口腔透光）
+ *         4 出手（囊瘪 + 张口喷）· 5 收势（囊回中 + 甩头）· 6 黏舌（囊瘪 + 口腔拉长）
+ *         7 含毒（囊鼓且**透绿** + 嘴角垂毒）· 8 喷毒（张口 + 毒液下淌）
+ *  ⚠️ 7/8 是**毒沼这一招专用**的姿势 —— 样板要能证明「每一招都能有自己的动作」，
+ *     否则三招长得一模一样，"换了招式"就只剩数值在变（那正是"动作太单一"的老毛病）。
+ *  ⚠️ 全部走 PAL 索引色 —— 不许出现固定 RGB（"换色板即换画风"是核心资产）。 */
 function drawChanChu(frame) {
-  const p = new Px(18, 14);
-  const yb = frame ? 0 : 0, C = PAL.green, CD = PAL.greenD;
-  p.ell(9, 9, 7.5, 4.5, C);
-  p.ell(9, 8, 6, 3, PAL.green);
-  p.set(5, 6, CD); p.set(9, 5, CD); p.set(13, 6, CD);     // 疙瘩
-  p.disc(5, 5, 2.4, PAL.white); p.disc(13, 5, 2.4, PAL.white);
-  p.set(5, 5, PAL.ink); p.set(13, 5, PAL.ink);
-  p.rect(5, 10, 8, 1, CD);                                 // 嘴
-  if (frame) { p.rect(7, 10, 4, 2, PAL.redD); }            // 鼓腮
-  p.rect(1, 12, 4, 2, CD); p.rect(13, 12, 4, 2, CD);       // 蹼
+  const p = new Px(18, 16);
+  const C = PAL.green, CD = PAL.greenD;
+  /* 鸣囊半高：待机三帧就在变（这是"活着的剪影"），预备撑到最大，出手瞬间瘪掉 */
+  const SAC = [1.7, 3.4, 2.5, 4.0, 0.7, 2.5, 1.0, 4.4, 0.8][frame] || 1.7;
+  const bob = frame === 1 ? 1 : 0;
+  const lean = frame === 5 ? 1 : 0;
+  const cx = 9 + lean;
+  const venom = (frame === 7 || frame === 8);
+  const mouthOpen = (frame === 4 || frame === 6 || frame === 8);
+  const eyeShut = frame === 3 || frame === 5 || frame === 7;
+
+  // —— 躯干：方肩楔形（用 rect 叠，别指望 ell 能做出棱角）——
+  p.rect(cx - 8, 11 - bob, 16, 3, C);
+  p.rect(cx - 7, 8 - bob, 14, 3, C);
+  p.rect(cx - 6, 7 - bob, 12, 2, C);
+  // 背部疣点（不对称 —— 对称会读成"装饰"，不对称才读成"活物"）
+  p.set(cx - 6, 11 - bob, CD); p.set(cx - 3, 12 - bob, CD); p.set(cx + 2, 11 - bob, CD);
+  p.set(cx + 5, 10 - bob, CD); p.set(cx - 1, 9 - bob, CD);
+  // 四趾蹼
+  p.rect(cx - 8, 13, 4, 2, CD); p.rect(cx - 3, 14, 3, 1, CD);
+  p.rect(cx + 1, 14, 3, 1, CD); p.rect(cx + 5, 13, 4, 2, CD);
+  // —— 鸣囊（画在躯干之后、嘴之前：它是挂在下巴下的）——
+  p.ell(cx, 11.5 - bob, 3.0 + SAC * 0.30, SAC, CD);
+  if (frame === 3) p.ell(cx, 11.5 - bob, 1.6 + SAC * 0.18, SAC * 0.72, C);   // 撑满时透亮
+  /* 含毒（帧 7）：囊里透出的是**毒绿**而不是普通亮面 —— 与"要喷弹"区分开 */
+  if (venom && frame === 7) p.ell(cx, 11.8 - bob, 1.8 + SAC * 0.16, SAC * 0.68, PAL.green);
+  if (venom && frame === 7) p.set(cx + 2, 14 - bob, PAL.green);              // 嘴角垂的一滴
+  // —— 双眼：两只鼓出的圆顶，间距留出一道**凹口**（剪影靠它认出来）——
+  const eyeY = 5 - bob - (frame === 3 ? 1 : 0);
+  const eR = 2.7 + (frame === 3 ? 0.4 : 0);
+  p.disc(cx - 4.6, eyeY, eR, C); p.disc(cx + 4.6, eyeY, eR, C);
+  p.disc(cx - 4.6, eyeY, eR * 0.52, PAL.white);
+  p.disc(cx + 4.6, eyeY, eR * 0.52, PAL.white);
+  // 瞳孔：预备时收成竖缝
+  const pw = frame === 3 ? 1.2 : 1.8, ph = frame === 3 ? 2.2 : 1.8;
+  p.rect(cx - 4.6 - pw / 2, eyeY - ph / 2, pw, ph, PAL.ink);
+  p.rect(cx + 4.6 - pw / 2, eyeY - ph / 2, pw, ph, PAL.ink);
+  // 眼睑：只盖**上缘**一点（盖一半会把眼睛整块埋掉，剪影就丢了凹口）
+  if (eyeShut) {
+    const h = frame === 3 ? 2 : 1;
+    p.rect(cx - 7.4, eyeY - eR - 1, 5.6, h, CD);
+    p.rect(cx + 1.8, eyeY - eR - 1, 5.6, h, CD);
+  }
+  // —— 嘴 ——
+  if (mouthOpen) {
+    p.rect(cx - 6, 8 - bob, 12, 2, PAL.ink);
+    p.set(cx - 3, 8 - bob, PAL.white); p.set(cx + 2, 8 - bob, PAL.white);
+    if (frame === 6) p.rect(cx - 1, 9 - bob, 2, 3, CD);      // 黏舌：口腔向下拉长
+  } else {
+    p.rect(cx - 6, 8 - bob, 12, 1, CD);
+  }
+  /* 喷毒（帧 8）：毒液从嘴里淌下来 —— 与"喷弹"（帧 4）的唯一区别就是这道绿 */
+  if (frame === 8) {
+    p.rect(cx - 3, 10 - bob, 2, 4, PAL.green);
+    p.rect(cx + 1, 10 - bob, 2, 3, PAL.green);
+  }
+  // 预备：口腔透出的光（"要喷了"的第三渠道：形变 + 眼睑 + 光）
+  if (frame === 3) p.rect(cx - 3, 8 - bob, 6, 1, PAL.cyan);
   return p.outline(PAL.ink).done();
 }
 
@@ -1567,7 +1630,8 @@ function buildSprites(style, seg) {
   const ART = STYLE_ART[st] || null;
   SPR.enemies = ART ? {} : {
     xiesui: [drawXieSui(0), drawXieSui(1)],
-    chanchu: [drawChanChu(0), drawChanChu(1)],
+    chanchu: [drawChanChu(0), drawChanChu(1), drawChanChu(2), drawChanChu(3),
+      drawChanChu(4), drawChanChu(5), drawChanChu(6), drawChanChu(7), drawChanChu(8)],
     xuefu: [drawXueFu(0), drawXueFu(1)],
     guixiu: [drawGuiXiu(0), drawGuiXiu(1)],
     yinsha: [drawYinSha(0, false), drawYinSha(1, false)],

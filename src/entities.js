@@ -1046,6 +1046,128 @@ const ELITE_DEF = {
 const ELITE_KEYS = Object.keys(ELITE_DEF);
 
 /* ------------------------------------------------------------
+ *  妖物的「招式 / 动作」表（2026-10-15 样板：蟾蜍妖）
+ *
+ *  一张表同时描述两件事：**它做什么**（`exec`，玩法）与**看起来在做什么**（帧 + 形变，表现）。
+ *  两件事放同一处，就不会出现「画面上还没抬手，毒沼已经出来了」这种漂移。
+ *
+ *  每个动作分三段（`wind` 预备 / `fire` 出手 / `back` 收势）：
+ *    t     = 这一段多少帧
+ *    f     = 这一段播哪几帧素材（在 t 内均分）
+ *    sy    = 纵向形变序列（挤压/拉伸）；横向自动取 1/sy，体积不丢
+ *    exec  = **只在 fire 段的第一帧**执行一次 —— 招式真正生效的地方
+ *    seg   = 第几段起解锁（段一 0 / 段二 1 / 段三 2）—— 「知识淘汰」的来源
+ *    range = [最小, 最大] 适用距离，超出不选（近距招在高距离不会抽到）
+ *    w     = 抽取权重
+ *
+ *  ⚠️ **用户 2026-10-15 拍板：补前摇不扣 cd** —— 发弹时刻一并往后推，
+ *     所以 `wind.t` 不需要从 `cd` 里补回来（这是有意让玩家更从容）。
+ *  ⚠️ 没在这张表里的妖物行为完全不变（待机仍走原来的两帧翻转）。
+ * ---------------------------------------------------------- */
+const MOB_ACT = {
+  chanchu: {
+    idle: { f: [0, 1, 2], step: 24 },                    // 三帧鼓气，比原来的两帧呼吸有生气
+    spit3: {
+      seg: 0, w: 1,
+      wind: { t: 12, f: [3], sy: [0.92, 1.06] },
+      fire: { t: 2, f: [4], sy: [1.12], exec: actSpitThree },
+      back: { t: 10, f: [5, 2, 0], sy: [0.96, 1.02] }
+    },
+    venom: {
+      seg: 1, w: 1,
+      wind: { t: 16, f: [7], sy: [0.90, 1.08] },          // 帧 7 =「含毒」：只有这招用
+      fire: { t: 2, f: [8], sy: [1.10], exec: actVenom }, // 帧 8 =「喷毒」
+      back: { t: 12, f: [5, 2, 0], sy: [0.95, 1.0] }
+    },
+    tongue: {
+      seg: 2, w: 1.2, range: [0, 110],                   // 近距招：远了抽不到
+      wind: { t: 10, f: [3], sy: [0.88, 1.10] },
+      fire: { t: 3, f: [6], sy: [1.16], exec: actTongue },   // 帧 6 =「伸舌」，只有这招用
+      back: { t: 12, f: [5, 1, 0], sy: [0.97] }
+    }
+  }
+};
+function mobActOf(e) { return MOB_ACT[e.type] || null; }
+
+/* 按「段位 + 距离」筛出可用招式，再加权抽一个。
+   ⚠️ 权重里带「刚用过的不抽」——同一招连发两次是「感觉单调」最直接的来源。 */
+function pickMobAct(e, g) {
+  const tbl = mobActOf(e);
+  if (!tbl) return null;
+  const seg = segOf(g.depth || 1);
+  const d = Math.hypot(g.player.x - e.x, g.player.y - e.y);
+  const pool = [];
+  for (const name in tbl) {
+    if (name === 'idle') continue;
+    const a = tbl[name];
+    if ((a.seg || 0) > seg) continue;
+    if (a.range && (d < a.range[0] || d > a.range[1])) continue;
+    pool.push({ name, w: (a.w || 1) * (e.lastAct === name ? 0.15 : 1) });
+  }
+  if (!pool.length) return null;
+  let sum = 0;
+  for (const x of pool) sum += x.w;
+  let r = Math.random() * sum;
+  for (const x of pool) { r -= x.w; if (r <= 0) return x.name; }
+  return pool[pool.length - 1].name;
+}
+
+/* ---------------- 三个招式的实际效果（只在 fire 段跑一次） ----------------
+   全部用现成的件：`spawnEnemyBullet` / `Hazard` / 玩家已有的字段，
+   **不新增任何系统** —— 样板阶段先证明"够用"。 */
+
+/* ① 三连扇形弹（原有行为，原样搬过来） */
+function actSpitThree(g) {
+  const base = Math.atan2(g.player.y - this.y, g.player.x - this.x);
+  for (let i = -1; i <= 1; i++) {
+    const a = base + i * 0.34;
+    g.spawnEnemyBullet(this.x, this.y - 2, Math.cos(a) * 2.6, Math.sin(a) * 2.6, 'orb');
+  }
+  SFX.spit();
+}
+
+/* ② 毒沼：三连弹 + 把毒沼放在**玩家的退路上**（不是随机位置）。
+   ⚠️ 这是「反 4 封退路」——它惩罚的不是"站着不动"，是"一直往回跑"。
+      参数对齐精英「万毒蟾尊」的毒沼（r30 / warn26 / life200 / dmg1.2），同一套手感。 */
+function actVenom(g) {
+  const p = g.player;
+  const base = Math.atan2(p.y - this.y, p.x - this.x);
+  for (let i = -1; i <= 1; i++) {
+    const a = base + i * 0.30;
+    g.spawnEnemyBullet(this.x, this.y - 2, Math.cos(a) * 2.7, Math.sin(a) * 2.7, 'orb');
+  }
+  const v = Math.hypot(p.vx || 0, p.vy || 0);
+  const ux = v > 0.2 ? p.vx / v : Math.cos(base);
+  const uy = v > 0.2 ? p.vy / v : Math.sin(base);
+  const tx = clamp(p.x + ux * 48, WALL_L + 24, WALL_R - 24);
+  const ty = clamp(p.y + uy * 48, WALL_T + 24, WALL_B - 24);
+  g.hazards.push(new Hazard(tx, ty, 30, 26, 200, 1.2, PAL.green, false));
+  SFX.spit();
+}
+
+/* ③ 黏舌：近距直线舌击，命中就把玩家**拽回来 26px**，并封掉他当前槽位的技能 2 秒。
+   ⚠️ 游戏里**没有**"给玩家减速"这套系统（`frostSlow` 只是个绘制标记，不减速），
+      所以这里不新造系统，改用两个已有字段：拉近（`clamp` 到墙内，与擒龙手同一套安全做法）
+      + 封技（`skillCd[slotIdx]`）。「被拽回去 + 技能按不出来」已经足够有压迫感。 */
+function actTongue(g) {
+  const p = g.player;
+  const dx = p.x - this.x, dy = p.y - this.y;
+  const d = Math.hypot(dx, dy) || 1;
+  this.tongue = 12;                       // 给绘制用：舌头伸出 12 帧
+  this.tongueA = Math.atan2(dy, dx);
+  if (d > 110) { SFX.spit(); return; }    // 够不着：只出动作不生效（读得出来的"空挥"）
+  const k = Math.min(26, d - 14) / d;
+  p.x = clamp(p.x - dx * k, WALL_L + 16, WALL_R - 16);
+  p.y = clamp(p.y - dy * k, WALL_T + 16, WALL_B - 16);
+  if (p.skillCd && p.skillCd.length) {
+    const i = p.slotIdx || 0;
+    p.skillCd[i] = Math.max(p.skillCd[i] || 0, 120);
+  }
+  g.burst(p.x, p.y, 6, PAL.greenD);
+  SFX.spit();
+}
+
+/* ------------------------------------------------------------
  *  按世界风格解析「这只妖物 / 这位尊者 / 这位精英」的数据
  *
  *  ⚠️ 北欧那批**不并进** `ENEMY_DEF` / `ELITE_DEF` / `BOSS_DEF`，而是留在
@@ -1097,6 +1219,11 @@ class Enemy {
     this.dead = false; this.frost = 0; this.burn = 0; this.burnDmg = 0;
     this.pin = 0;        // 冈格尼尔的「钉住」：>0 期间动弹不得
     this.flash = 0; this.frame = 0;
+    /* 招式状态（见上面 MOB_ACT 表）：null = 没在出手，走原来的待机逻辑。
+       actSY/actSX 是纵向/横向形变，由 actTick 推进；lastAct 用来避免同一招连发。 */
+    this.act = null; this.lastAct = null;
+    this.actSY = 1; this.actSX = 1;
+    this.tongue = 0;              // 黏舌伸出的剩余帧数（纯绘制用）
     this.shadow = true;
     this.facing = 1;
     /* —— 后四层新妖物的状态位 —— */
@@ -1360,6 +1487,41 @@ class Enemy {
     }
   }
 
+  /* ---------------- 招式状态机（MOB_ACT 表驱动） ----------------
+     返回 true 表示"正在出手"，此时 AI 分支应当站定、不自己发招。
+     ⚠️ 招式生效点固定在 fire 段的第一帧 —— 表里写多少帧前摇，玩家就有多少帧的余裕，
+        这就是"前摇看得见"与"数值不变"能同时成立的原因（用户 2026-10-15 选了不扣 cd）。 */
+  startAct(name) {
+    const tbl = mobActOf(this);
+    const a = tbl && tbl[name];
+    if (!a) return false;
+    this.act = { name: name, a: a, seg: 'wind', t: a.wind.t };
+    this.lastAct = name;
+    return true;
+  }
+  actTick(g) {
+    if (!this.act) return false;
+    const A = this.act;
+    const seg = A.a[A.seg];
+    /* 刚进入这一段的第一帧：fire 段的 exec 在这里跑一次 */
+    if (A.t === seg.t && A.seg === 'fire' && seg.exec) seg.exec.call(this, g);
+    const prog = seg.t > 1 ? 1 - (A.t - 1) / seg.t : 0;
+    if (seg.f && seg.f.length) {
+      this.frame = seg.f[Math.min(seg.f.length - 1, Math.floor(prog * seg.f.length))];
+    }
+    this.actSY = seg.sy && seg.sy.length
+      ? seg.sy[Math.min(seg.sy.length - 1, Math.floor(prog * seg.sy.length))] : 1;
+    this.actSX = 1 / this.actSY;                 // 体积守恒：压扁就变宽，拉长就变瘦
+    if (--A.t <= 0) {
+      const order = ['wind', 'fire', 'back'];
+      const i = order.indexOf(A.seg);
+      if (i >= order.length - 1) { this.act = null; this.actSY = 1; this.actSX = 1; return false; }
+      A.seg = order[i + 1];
+      A.t = A.a[A.seg].t;
+    }
+    return true;
+  }
+
   update(g) {
     this.t++;
     if (this.flash > 0) this.flash--;
@@ -1378,7 +1540,10 @@ class Enemy {
     /* 钉住（冈格尼尔）：贯穿不是单纯多打几个，是把穿过的都定在原地 ——
        排成一列时「一串糖葫芦」全被钉住，这才是「永恒之枪」该有的样子。 */
     const pn = this.pin > 0 ? 0 : 1;
-    const spd = this.speed * fz * gk * pn;
+    /* 招式状态机：正在出手时**站定**（spd 归零）——「它要出手了」本身也是读得出来的信息。
+       返回的 acting 交给下面的 AI 分支决定"要不要自己发招"。 */
+    const acting = this.actTick(g);
+    const spd = this.speed * fz * gk * pn * (acting ? 0 : 1);
     const dx = p.x - this.x, dy = p.y - this.y;
     const d = Math.hypot(dx, dy) || 1;
     let ax = 0, ay = 0;
@@ -1386,6 +1551,7 @@ class Enemy {
     if (this.shieldR > 0) this.shieldA += SHIELD.rot;
     if (this.blockFlash > 0) this.blockFlash--;
     if (this.air > 0) this.air--;
+    if (this.tongue > 0) this.tongue--;
 
     switch (this.def.ai) {
       case 'chase': {
@@ -1399,18 +1565,23 @@ class Enemy {
         break;
       }
       case 'spit': {
-        // 缓慢游走，周期吐弹
+        /* 蟾蜍妖（样板怪，2026-10-15）：招式不再是"到点发弹"，而是**从表里抽一招**。
+           段一只有三连弹；段二起会放毒沼（封退路）；段三起近身会挨黏舌（拽回来 + 封技）。
+           ⚠️ 用户拍板：补前摇**不扣 cd** —— 发弹时刻整体后推，玩家更从容。 */
         ax = Math.cos(this.t * 0.02) * spd; ay = Math.sin(this.t * 0.017) * spd * 0.6;
+        if (acting) break;                     // 出手期间站定不动
         if (--this.cd <= 0) {
           this.cd = 95 + Math.floor(Math.random() * 40);
-          this.frame = 1;
-          const base = Math.atan2(dy, dx);
-          for (let i = -1; i <= 1; i++) {
-            const a = base + i * 0.34;
-            g.spawnEnemyBullet(this.x, this.y - 2, Math.cos(a) * 2.6, Math.sin(a) * 2.6, 'orb');
+          const name = pickMobAct(this, g) || 'spit3';
+          if (!this.startAct(name)) {          // 表里万一没有，退回老行为（不静默失败）
+            const base = Math.atan2(dy, dx);
+            for (let i = -1; i <= 1; i++) {
+              const a = base + i * 0.34;
+              g.spawnEnemyBullet(this.x, this.y - 2, Math.cos(a) * 2.6, Math.sin(a) * 2.6, 'orb');
+            }
+            SFX.spit();
           }
-          SFX.spit();
-        } else if (this.cd % 20 === 0) this.frame = 0;
+        }
         break;
       }
       case 'dash': {
@@ -1649,7 +1820,18 @@ class Enemy {
     if (this.modRegen && this.t % 90 === 0 && this.hp > 0 && this.hp < this.maxHp) {
       this.hp = Math.min(this.maxHp, this.hp + Math.max(1, Math.round(this.maxHp * 0.02)));
     }
-    if (this.t % 16 === 0) this.frame = this.frame ? 0 : 1;
+    /* 待机帧：有 MOB_ACT 表的怪按自己的待机序列走（蟾蜍是 3 帧鼓气），
+       其余仍是原来的两帧翻转 —— 没进表的妖物行为一个字节都没变。
+       ⚠️ 正在出手时**不许覆盖** actTick 设好的帧，否则动作会抖。 */
+    if (!this.act) {
+      const tbl = mobActOf(this);
+      if (tbl && tbl.idle) {
+        const n = tbl.idle.f.length;
+        this.frame = tbl.idle.f[Math.floor(this.t / (tbl.idle.step || 16)) % n];
+      } else if (this.t % 16 === 0) {
+        this.frame = this.frame ? 0 : 1;
+      }
+    }
   }
   /* 影魅现形：进入近距离（或被打了）就显身，并朝 nx,ny 方向扑一记 */
   reveal(g, nx, ny) {
@@ -1784,8 +1966,10 @@ class Enemy {
       // 凝形：自地面「长」出来并淡入（精英再叠加体型放大）
       if (shaping) g2.globalAlpha = clamp(0.2 + k * 0.8, 0, 1);
       const sc = esc * (shaping ? 0.5 + 0.5 * k : 1);
+      /* 招式形变（MOB_ACT 的 sy）：支点就是**脚底**（this.y + this.r），
+         所以压扁看起来是"蹲下去"而不是"整体缩小" —— 支点选错就没有重量感。 */
       g2.translate(this.x, this.y + this.r);
-      g2.scale(sc, sc);
+      g2.scale(sc * (this.actSX || 1), sc * (this.actSY || 1));
       g2.translate(-this.x, -(this.y + this.r));
     }
     if (this.shadow) {
@@ -1819,6 +2003,25 @@ class Enemy {
       g2.drawImage(s, x, y);
     }
     g2.restore();
+    /* 黏舌：从嘴里甩出去、末端带一颗舌珠。画在 restore **之后** ——
+       舌头不该跟着身体的挤压形变一起扭（它是"伸出去的东西"，不是"身上的东西"）。 */
+    if (this.tongue > 0) {
+      const kk = this.tongue / 12;
+      const reach = 110 * Math.min(1, (1 - kk) * 2.4 + 0.2);
+      const a = this.tongueA || 0;
+      const mx = this.x + Math.cos(a) * 5, my = this.y - 3 + Math.sin(a) * 5;
+      const ex = this.x + Math.cos(a) * reach, ey = this.y - 3 + Math.sin(a) * reach;
+      g2.save();
+      g2.lineCap = 'round';
+      g2.globalAlpha = 0.95;
+      g2.strokeStyle = PAL.greenD; g2.lineWidth = 3;
+      g2.beginPath(); g2.moveTo(mx, my); g2.lineTo(ex, ey); g2.stroke();
+      g2.strokeStyle = PAL.green; g2.lineWidth = 1.4;
+      g2.beginPath(); g2.moveTo(mx, my - 1); g2.lineTo(ex, ey - 1); g2.stroke();
+      g2.fillStyle = PAL.green;
+      g2.beginPath(); g2.arc(ex, ey, 2.6, 0, Math.PI * 2); g2.fill();
+      g2.restore();
+    }
     // 影魅的提示：影子里的一点幽火，留着给眼尖的玩家一条线索
     if (this.hidden && !shaping) {
       g2.save();
